@@ -1,6 +1,8 @@
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
+const BASE_STYLE_ELEMENT_ID = "degrande-colors-base-style";
+const MANAGED_STYLE_ELEMENT_ID = "degrande-colors-managed-style";
 
 const COLOR_PRESETS = [
   { token: "red", label: "Red", lightBg: "#fee2e2", lightBorder: "#fca5a5", darkBg: "#7f1d1d", darkBorder: "#dc2626", lightText: "#7f1d1d", darkText: "#fee2e2" },
@@ -204,7 +206,62 @@ const panelState = {
   gradientPersistTimer: null,
   tagPersistTimer: null,
   tagClickTimer: null,
+  hostTagContextMenuBound: false,
 };
+
+function getHostDocument() {
+  try {
+    if (window.top?.document) {
+      return window.top.document;
+    }
+  } catch (error) {
+    // Ignore cross-frame access issues and fall back to the current document.
+  }
+
+  try {
+    if (window.parent?.document) {
+      return window.parent.document;
+    }
+  } catch (error) {
+    // Ignore cross-frame access issues and fall back to the current document.
+  }
+
+  return document;
+}
+
+function ensureHostStyleElement(styleId) {
+  const hostDocument = getHostDocument();
+  let styleElement = hostDocument.getElementById(styleId);
+
+  if (!styleElement) {
+    styleElement = hostDocument.createElement("style");
+    styleElement.id = styleId;
+    (hostDocument.head || hostDocument.documentElement).appendChild(styleElement);
+  }
+
+  return styleElement;
+}
+
+function setHostStyleText(styleId, cssText) {
+  const styleElement = ensureHostStyleElement(styleId);
+
+  if (styleElement.textContent !== cssText) {
+    styleElement.textContent = cssText;
+  }
+}
+
+function cleanupLegacyManagedStyles() {
+  const hostDocument = getHostDocument();
+
+  hostDocument.querySelectorAll("style").forEach((styleElement) => {
+    if (
+      styleElement.id !== MANAGED_STYLE_ELEMENT_ID
+      && styleElement.textContent?.includes("CUSTOM THEME LOADER MANAGED OVERRIDES")
+    ) {
+      styleElement.remove();
+    }
+  });
+}
 
 function getToolbarStyle(pluginId) {
   return `
@@ -2585,6 +2642,40 @@ function renderPanel(statusMessage) {
   refreshPanel(statusMessage, { rerenderPreview: true, rerenderTags: true });
 }
 
+function bindHostTagContextMenu() {
+  if (panelState.hostTagContextMenuBound) {
+    return;
+  }
+
+  const hostDocument = getHostDocument();
+
+  hostDocument.addEventListener("contextmenu", (event) => {
+    const target = event.target;
+
+    if (!(target instanceof hostDocument.defaultView.Element)) {
+      return;
+    }
+
+    const tagChip = target.closest('a.tag[data-ref]');
+
+    if (!tagChip || document.getElementById("app")?.contains(tagChip)) {
+      return;
+    }
+
+    const tagName = tagChip.getAttribute("data-ref") || "";
+
+    if (!tagName) {
+      return;
+    }
+
+    event.preventDefault();
+    clearPendingTagSelection();
+    clearTagColorAssignment(tagName, `Reset ${tagName} to the default color`);
+  });
+
+  panelState.hostTagContextMenuBound = true;
+}
+
 function mountPanel() {
   if (panelState.mounted) {
     return;
@@ -3045,7 +3136,8 @@ async function applyManagedOverrides(showToast = false, statusMessage = "Updated
 
   panelState.cssText = buildEffectiveCssText(managedOverrides);
   panelState.lastAppliedAt = new Date();
-  logseq.provideStyle(managedOverrides);
+  cleanupLegacyManagedStyles();
+  setHostStyleText(MANAGED_STYLE_ELEMENT_ID, managedOverrides);
 
   if (renderMode === "soft") {
     refreshPanel(statusMessage);
@@ -3084,7 +3176,7 @@ function toggleThemeLoader() {
 async function reloadThemeCss(showToast = false) {
   panelState.baseCssText = await loadWorkspaceCss();
   panelState.baseTagColorMap = parseBaseTagColorMap(panelState.baseCssText);
-  logseq.provideStyle(panelState.baseCssText);
+  setHostStyleText(BASE_STYLE_ELEMENT_ID, panelState.baseCssText);
   await applyManagedOverrides(showToast, "Reloaded workspace custom.css and re-applied controls");
   openThemeLoader();
 }
@@ -3167,6 +3259,7 @@ async function main() {
   await loadStoredTagColors();
   await loadStoredGradients();
   mountPanel();
+  bindHostTagContextMenu();
 
   const userConfigs = await logseq.App.getUserConfigs();
   setThemeMode(userConfigs?.preferredThemeMode);
