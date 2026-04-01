@@ -203,6 +203,7 @@ const panelState = {
   persistTimer: null,
   gradientPersistTimer: null,
   tagPersistTimer: null,
+  tagClickTimer: null,
 };
 
 function getToolbarStyle(pluginId) {
@@ -633,6 +634,95 @@ function getTagColorToken(tagName) {
   }
 
   return assignment.type === "preset" ? assignment.token : "custom";
+}
+
+function getRandomPresetToken(excludedToken = null) {
+  const presets = COLOR_PRESETS.filter((preset) => preset.token !== excludedToken);
+  const pool = presets.length ? presets : COLOR_PRESETS;
+
+  if (!pool.length) {
+    return null;
+  }
+
+  return pool[Math.floor(Math.random() * pool.length)]?.token || null;
+}
+
+function clearPendingTagSelection() {
+  if (panelState.tagClickTimer) {
+    clearTimeout(panelState.tagClickTimer);
+    panelState.tagClickTimer = null;
+  }
+}
+
+function scheduleTagSelection(tagName) {
+  clearPendingTagSelection();
+  panelState.tagClickTimer = setTimeout(() => {
+    panelState.tagClickTimer = null;
+    panelState.selectedTag = tagName;
+    renderPanel(`Selected ${tagName}`);
+  }, 220);
+}
+
+function setTagPresetColor(tagName, token, statusMessage = null) {
+  if (!tagName || !COLOR_PRESET_MAP[token]) {
+    return false;
+  }
+
+  panelState.selectedTag = tagName;
+  panelState.tagColorAssignments[tagName.toLowerCase()] = {
+    type: "preset",
+    token,
+  };
+  void applyManagedOverrides(false, `Updated ${tagName} color`);
+  renderPanel(statusMessage || `Set ${tagName} to ${token}`);
+  schedulePersistTagColors();
+  return true;
+}
+
+function clearTagColorAssignment(tagName, statusMessage = null) {
+  if (!tagName) {
+    return false;
+  }
+
+  panelState.selectedTag = tagName;
+
+  if (!panelState.tagColorAssignments[tagName.toLowerCase()]) {
+    renderPanel(statusMessage || `${tagName} already uses the default color`);
+    return false;
+  }
+
+  delete panelState.tagColorAssignments[tagName.toLowerCase()];
+  renderPanel(statusMessage || `Reset ${tagName} to the default color`);
+  void applyManagedOverrides(false, `Cleared custom color for ${tagName}`);
+  schedulePersistTagColors();
+  return true;
+}
+
+function addRandomColorsToUncoloredTags() {
+  const uncoloredTags = panelState.tags.filter((tagName) => !getTagColorToken(tagName));
+
+  if (!uncoloredTags.length) {
+    renderPanel("All tags already have colors");
+    return 0;
+  }
+
+  uncoloredTags.forEach((tagName) => {
+    const token = getRandomPresetToken();
+
+    if (!token) {
+      return;
+    }
+
+    panelState.tagColorAssignments[tagName.toLowerCase()] = {
+      type: "preset",
+      token,
+    };
+  });
+
+  void applyManagedOverrides(false, `Added random colors to ${uncoloredTags.length} tags`);
+  renderPanel(`Added random colors to ${uncoloredTags.length} tags`);
+  schedulePersistTagColors();
+  return uncoloredTags.length;
 }
 
 function getTagChipThemeStyle(assignmentOrToken) {
@@ -1229,6 +1319,7 @@ function buildTagListMarkup() {
     const isSelected = panelState.selectedTag === tagName;
     const token = getTagColorToken(tagName);
     const label = token ? `${tagName} · ${token}` : tagName;
+    const hint = `${label}. Click to select. Double-click to assign a random preset color. Right-click to reset.`;
 
     return `
       <button
@@ -1236,7 +1327,7 @@ function buildTagListMarkup() {
         type="button"
         data-select-tag="${escapeHtml(tagName)}"
         data-tag-chip-name="${escapeHtml(tagName)}"
-        title="${escapeHtml(label)}"
+        title="${escapeHtml(hint)}"
         style="${buildTagChipStyleAttribute(tagName)}"
       >#${escapeHtml(tagName)}</button>
     `;
@@ -1337,6 +1428,8 @@ function buildTagsPaneMarkup() {
   const selectedColor = selectedTag ? getTagColorToken(selectedTag) : null;
   const selectedAssignment = selectedTag ? getTagColorAssignment(selectedTag) : null;
   const hasCustomAssignment = selectedAssignment?.type === "custom";
+  const hasTagAssignments = Object.keys(panelState.tagColorAssignments).length > 0;
+  const hasUncoloredTags = panelState.tags.some((tagName) => !getTagColorToken(tagName));
 
   return `
     <div class="ctl-tags-layout">
@@ -1369,9 +1462,11 @@ function buildTagsPaneMarkup() {
         <div class="ctl-color-grid">${buildColorPaletteMarkup()}</div>
         ${buildCustomTagColorMarkup()}
         <div class="ctl-tags-actions">
+          <button class="ctl-button ctl-button-secondary" type="button" data-action="add-random-tag-colors"${hasUncoloredTags ? "" : " disabled"}>Add Colors To Tags</button>
           <button class="ctl-button ctl-button-secondary" type="button" data-action="refresh-tags">Refresh Tags</button>
           <button class="ctl-button ctl-button-secondary" type="button" data-action="copy-tag-colors-from-other-mode"${selectedTag && hasCustomAssignment ? "" : " disabled"}>${getCopyTagColorsButtonLabel()}</button>
           <button class="ctl-button ctl-button-secondary" type="button" data-action="clear-tag-color"${selectedTag && hasCustomAssignment ? "" : " disabled"}>Clear Custom Color</button>
+          <button class="ctl-button ctl-button-secondary" type="button" data-action="reset-tag-colors"${hasTagAssignments ? "" : " disabled"}>Reset All Tag Colors</button>
         </div>
       </section>
     </div>
@@ -2306,16 +2401,26 @@ ${selector} {
       }
 
       return `
-a.tag[data-ref="${escapedTagName}" i] {
+a.tag[data-ref="${escapedTagName}" i],
+a.tag[data-ref="${escapedTagName}" i]:hover {
+  background: ${lightTheme.background} !important;
   background-color: ${lightTheme.background} !important;
+  background-image: none !important;
   border-color: ${lightTheme.borderColor} !important;
   color: ${lightTheme.color} !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
 }
 
-.dark-theme a.tag[data-ref="${escapedTagName}" i] {
+.dark-theme a.tag[data-ref="${escapedTagName}" i],
+.dark-theme a.tag[data-ref="${escapedTagName}" i]:hover {
+  background: ${darkTheme.background} !important;
   background-color: ${darkTheme.background} !important;
+  background-image: none !important;
   border-color: ${darkTheme.borderColor} !important;
   color: ${darkTheme.color} !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
 }
 
 :is(.ls-block > div:first-child, h1.title, .journal-title):has(a.tag[data-ref="${escapedTagName}" i]) {
@@ -2392,22 +2497,40 @@ a.tag:hover {
   transform: translateY(-${controls.tagHoverLift}px) !important;
 }
 
-.ls-block > div:first-child:not(.selected):not(.selected-block):has(a.tag[data-ref]) {
+.ls-block > div:first-child:not(.selected):not(.selected-block):not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(a.tag[data-ref]) {
   background-image: ${nodeGradient} !important;
   background-color: transparent !important;
 }
 
-.dark-theme .ls-block > div:first-child:not(.selected):not(.selected-block):has(a.tag[data-ref]) {
+.dark-theme .ls-block > div:first-child:not(.selected):not(.selected-block):not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(a.tag[data-ref]) {
   background-image: ${nodeGradient} !important;
   background-color: transparent !important;
 }
 
-:is(h1.title, .journal-title):has(a.tag[data-ref]) {
+.ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
+  --node-color: inherit;
+}
+
+:is(
+  h1.title,
+  .journal-title,
+  .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref])
+):has(a.tag[data-ref]),
+.ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
   background-image: ${titleGradient} !important;
   background-color: transparent !important;
 }
 
-.dark-theme :is(h1.title, .journal-title):has(a.tag[data-ref]) {
+.dark-theme .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
+  --node-color: inherit;
+}
+
+.dark-theme :is(
+  h1.title,
+  .journal-title,
+  .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref])
+):has(a.tag[data-ref]),
+.dark-theme .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
   background-image: ${titleGradient} !important;
   background-color: transparent !important;
 }
@@ -2536,21 +2659,31 @@ function mountPanel() {
     const tagSelectButton = event.target.closest("[data-select-tag]");
 
     if (tagSelectButton) {
-      panelState.selectedTag = tagSelectButton.dataset.selectTag || "";
-      renderPanel(`Selected ${panelState.selectedTag}`);
+      const tagName = tagSelectButton.dataset.selectTag || "";
+
+      if (!tagName) {
+        return;
+      }
+
+      if (event.detail > 1) {
+        clearPendingTagSelection();
+        const randomToken = getRandomPresetToken(getTagColorToken(tagName));
+
+        if (randomToken) {
+          setTagPresetColor(tagName, randomToken, `Set ${tagName} to random preset ${randomToken}`);
+        }
+
+        return;
+      }
+
+      scheduleTagSelection(tagName);
       return;
     }
 
     const colorButton = event.target.closest("[data-set-tag-color]");
 
     if (colorButton && panelState.selectedTag) {
-      panelState.tagColorAssignments[panelState.selectedTag.toLowerCase()] = {
-        type: "preset",
-        token: colorButton.dataset.setTagColor,
-      };
-      void applyManagedOverrides(false, `Updated ${panelState.selectedTag} color`);
-      renderPanel(`Set ${panelState.selectedTag} to ${colorButton.dataset.setTagColor}`);
-      schedulePersistTagColors();
+      setTagPresetColor(panelState.selectedTag, colorButton.dataset.setTagColor);
       return;
     }
 
@@ -2605,6 +2738,11 @@ function mountPanel() {
       return;
     }
 
+    if (action === "add-random-tag-colors") {
+      addRandomColorsToUncoloredTags();
+      return;
+    }
+
     if (action === "reset-controls") {
       await resetControls();
       return;
@@ -2615,10 +2753,12 @@ function mountPanel() {
         return;
       }
 
-      delete panelState.tagColorAssignments[panelState.selectedTag.toLowerCase()];
-      renderPanel(`Cleared custom color for ${panelState.selectedTag}`);
-      void applyManagedOverrides(false, `Cleared custom color for ${panelState.selectedTag}`);
-      schedulePersistTagColors();
+      clearTagColorAssignment(panelState.selectedTag, `Cleared custom color for ${panelState.selectedTag}`);
+      return;
+    }
+
+    if (action === "reset-tag-colors") {
+      await resetTagColors();
       return;
     }
 
@@ -2693,6 +2833,15 @@ function mountPanel() {
   });
 
   app.addEventListener("contextmenu", (event) => {
+    const tagChip = event.target.closest("[data-tag-chip-name]");
+
+    if (tagChip) {
+      event.preventDefault();
+      clearPendingTagSelection();
+      clearTagColorAssignment(tagChip.dataset.tagChipName || "");
+      return;
+    }
+
     const gradientHandle = event.target.closest("[data-gradient-handle]");
 
     if (!gradientHandle) {
@@ -2941,6 +3090,15 @@ async function reloadThemeCss(showToast = false) {
 }
 
 async function resetControls() {
+  const confirmed = typeof window?.confirm === "function"
+    ? window.confirm("Reset all live controls and gradients back to the custom.css defaults?")
+    : true;
+
+  if (!confirmed) {
+    renderPanel("Reset controls cancelled");
+    return;
+  }
+
   panelState.controlState = { ...DEFAULT_CONTROL_STATE };
   panelState.gradientState = createDefaultGradientState();
   panelState.gradientSelections = Object.fromEntries(Object.keys(GRADIENT_AREAS).map((areaKey) => [areaKey, 0]));
@@ -2958,6 +3116,36 @@ async function resetControls() {
   await logseq.FileStorage.removeItem(CONTROL_STORAGE_KEY);
   await logseq.FileStorage.removeItem(GRADIENT_STORAGE_KEY);
   await applyManagedOverrides(true, "Reset live controls to the custom.css defaults");
+}
+
+async function resetTagColors() {
+  const hasTagAssignments = Object.keys(panelState.tagColorAssignments).length > 0;
+
+  if (!hasTagAssignments) {
+    renderPanel("No tag colors to reset");
+    return;
+  }
+
+  const confirmed = typeof window?.confirm === "function"
+    ? window.confirm("Reset all custom and assigned tag colors back to their defaults?")
+    : true;
+
+  if (!confirmed) {
+    renderPanel("Reset tag colors cancelled");
+    return;
+  }
+
+  panelState.tagColorAssignments = {};
+  clearPendingTagSelection();
+
+  if (panelState.tagPersistTimer) {
+    clearTimeout(panelState.tagPersistTimer);
+    panelState.tagPersistTimer = null;
+  }
+
+  await logseq.FileStorage.removeItem(TAG_COLOR_STORAGE_KEY);
+  renderPanel("Reset all tag colors to defaults");
+  void applyManagedOverrides(false, "Reset all tag colors to defaults");
 }
 
 async function copyCssToClipboard() {
@@ -2992,7 +3180,7 @@ async function main() {
     zIndex: 999,
     top: "6vh",
     left: "50%",
-    width: "min(1180px, 90vw)",
+    width: "min(1000px, 90vw)",
     height: "84vh",
     transform: "translateX(-50%)",
   });

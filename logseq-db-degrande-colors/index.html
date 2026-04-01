@@ -69,7 +69,10 @@
 
       .ctl-window {
         position: relative;
+        width: 100%;
+        max-width: 1000px;
         height: 100%;
+        margin: 0 auto;
         display: grid;
         grid-template-rows: auto auto auto 1fr auto;
         background: var(--ctl-bg);
@@ -777,7 +780,7 @@
 
       .ctl-tags-layout {
         display: grid;
-        grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+        grid-template-columns: minmax(0, 1.2fr) minmax(330px, 0.8fr);
         gap: 16px;
         min-height: 100%;
       }
@@ -920,7 +923,7 @@
       .ctl-inline-color-range {
         accent-color: var(--ctl-accent);
         appearance: none;
-        height: 6px;
+        height: 10px;
         border-radius: 999px;
         background: linear-gradient(90deg, #ef4444, #f59e0b, #84cc16, #14b8a6, #3b82f6, #8b5cf6, #ef4444);
         outline: none;

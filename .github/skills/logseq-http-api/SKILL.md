@@ -28,7 +28,9 @@ Use this skill when working against a running local Logseq desktop instance that
 - Verified workspace customization path:
   - a local unpacked plugin under `logseq-db-degrande-colors/` can load `custom.css` through `logseq.provideStyle` at plugin runtime
   - the plugin panel now includes preview, tags, and CSS tabs plus live gradient and tag-color controls
-  - custom tag colors now propagate to tag-driven elements through plugin-generated CSS, but page title gradients remain partially unresolved in live Logseq because the title-row selector still needs exact DOM targeting
+  - custom tag colors now propagate to tag-driven elements through plugin-generated CSS
+  - for the current Logseq UI, page title gradients should target `.block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container)` so the gradient spans the full title bar and page icon; the corresponding tags are rendered in the sibling `.ls-block-right .block-tags` area
+  - linked-block gradient selectors must exclude page-title containers with `:not(:has(.block-content-or-editor-wrap.ls-page-title-container))` so node updates do not override page-title gradients
 
 ## Procedure
 
@@ -38,7 +40,9 @@ Use this skill when working against a running local Logseq desktop instance that
 4. Only reach for `logseq.DB.datascriptQuery` when the editor/app methods are insufficient.
 5. Record whether a method is working, failing, or ambiguous when investigating bridge coverage.
 6. For persistent appearance changes in this workspace, edit `logseq-db-degrande-colors/custom.css` and load `logseq-db-degrande-colors/` as an unpacked plugin in Logseq.
-7. For the current title-gradient bug, inspect the live title-row DOM first; do not assume preview correctness means the runtime selectors are correct.
+7. For page title gradients, use `.block-main-content:has(.ls-page-title-container)` as the painted page-only row and keep linked-block gradients on their separate `.ls-block > div:first-child` selector path.
+8. Do not broaden page-title rules to `.block-title-wrap` or other shared inner wrappers without a page-only container, or linked blocks will regress.
+9. When node and page-title gradients coexist, exclude page-title containers from the linked-block selector with `:not(:has(.block-content-or-editor-wrap.ls-page-title-container))`.
 
 ## Examples
 
