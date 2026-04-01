@@ -69,6 +69,7 @@
 
       .ctl-window {
         position: relative;
+        box-sizing: border-box;
         width: 100%;
         max-width: 1000px;
         height: 100%;
@@ -76,8 +77,8 @@
         display: grid;
         grid-template-rows: auto auto auto 1fr auto;
         background: var(--ctl-bg);
-        border: 1px solid var(--ctl-border);
-        border-radius: 20px;
+        border: 2px solid var(--ctl-border);
+        border-radius: 0;
         overflow: hidden;
         box-shadow: var(--ctl-shadow);
       }
@@ -330,6 +331,7 @@
       }
 
       .ctl-pane-tags {
+        display: grid;
         overflow: auto;
       }
 
@@ -782,7 +784,9 @@
         display: grid;
         grid-template-columns: minmax(0, 1.2fr) minmax(330px, 0.8fr);
         gap: 16px;
-        min-height: 100%;
+        height: 100%;
+        min-height: 0;
+        align-items: stretch;
       }
 
       .ctl-tags-browser,
@@ -793,7 +797,12 @@
         padding: 16px;
         display: grid;
         gap: 14px;
-        align-content: start;
+        min-height: 0;
+        align-content: stretch;
+      }
+
+      .ctl-tags-browser {
+        grid-template-rows: auto auto minmax(0, 1fr);
       }
 
       .ctl-tags-toolbar {
@@ -1000,24 +1009,25 @@
         flex-wrap: wrap;
         align-content: start;
         gap: 10px;
-        max-height: 48vh;
+        min-height: 0;
         overflow: auto;
         padding-right: 6px;
       }
 
       .ctl-tag-chip,
       .ctl-selected-tag-preview {
+        -webkit-appearance: none;
+        appearance: none;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-height: 26px;
-        padding: 0 10px;
-        font-size: 12px;
-        font-weight: 700;
-        line-height: 1;
+        min-height: 0;
         white-space: nowrap;
-        border-radius: 999px;
         box-sizing: border-box;
+        text-decoration: none;
+        vertical-align: middle;
+        font-family: inherit;
+        background-clip: padding-box;
       }
 
       .ctl-tag-chip {

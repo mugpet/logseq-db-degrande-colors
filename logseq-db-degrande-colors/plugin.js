@@ -5,26 +5,27 @@ const BASE_STYLE_ELEMENT_ID = "degrande-colors-base-style";
 const MANAGED_STYLE_ELEMENT_ID = "degrande-colors-managed-style";
 
 const COLOR_PRESETS = [
-  { token: "red", label: "Red", lightBg: "#fee2e2", lightBorder: "#fca5a5", darkBg: "#7f1d1d", darkBorder: "#dc2626", lightText: "#7f1d1d", darkText: "#fee2e2" },
-  { token: "orange", label: "Orange", lightBg: "#ffedd5", lightBorder: "#fdba74", darkBg: "#7c2d12", darkBorder: "#ea580c", lightText: "#7c2d12", darkText: "#ffedd5" },
-  { token: "yellow", label: "Yellow", lightBg: "#fef9c3", lightBorder: "#fde047", darkBg: "#713f12", darkBorder: "#ca8a04", lightText: "#713f12", darkText: "#fef9c3" },
-  { token: "green", label: "Green", lightBg: "#dcfce7", lightBorder: "#86efac", darkBg: "#14532d", darkBorder: "#16a34a", lightText: "#14532d", darkText: "#dcfce7" },
-  { token: "teal", label: "Teal", lightBg: "#ccfbf1", lightBorder: "#5eead4", darkBg: "#134e4a", darkBorder: "#0d9488", lightText: "#134e4a", darkText: "#ccfbf1" },
-  { token: "blue", label: "Blue", lightBg: "#dbeafe", lightBorder: "#93c5fd", darkBg: "#1e3a8a", darkBorder: "#2563eb", lightText: "#1e3a8a", darkText: "#dbeafe" },
-  { token: "indigo", label: "Indigo", lightBg: "#e0e7ff", lightBorder: "#a5b4fc", darkBg: "#312e81", darkBorder: "#4f46e5", lightText: "#312e81", darkText: "#e0e7ff" },
-  { token: "purple", label: "Purple", lightBg: "#f3e8ff", lightBorder: "#d8b4fe", darkBg: "#4c1d95", darkBorder: "#9333ea", lightText: "#4c1d95", darkText: "#f3e8ff" },
-  { token: "pink", label: "Pink", lightBg: "#fce7f3", lightBorder: "#f9a8d4", darkBg: "#831843", darkBorder: "#db2777", lightText: "#831843", darkText: "#fce7f3" },
-  { token: "grey", label: "Grey", lightBg: "#f3f4f6", lightBorder: "#d1d5db", darkBg: "#374151", darkBorder: "#6b7280", lightText: "#111827", darkText: "#f3f4f6" },
-  { token: "mint", label: "Mint", lightBg: "#f0fdf4", lightBorder: "#bbf7d0", darkBg: "#064e3b", darkBorder: "#059669", lightText: "#064e3b", darkText: "#f0fdf4" },
-  { token: "rose", label: "Rose", lightBg: "#fff1f2", lightBorder: "#fecdd3", darkBg: "#881337", darkBorder: "#e11d48", lightText: "#881337", darkText: "#fff1f2" },
-  { token: "amber", label: "Amber", lightBg: "#fffbeb", lightBorder: "#fef3c7", darkBg: "#78350f", darkBorder: "#d97706", lightText: "#78350f", darkText: "#fffbeb" },
-  { token: "sky", label: "Sky", lightBg: "#f0f9ff", lightBorder: "#bae6fd", darkBg: "#0c4a6e", darkBorder: "#0284c7", lightText: "#0c4a6e", darkText: "#f0f9ff" },
-  { token: "lime", label: "Lime", lightBg: "#f7fee7", lightBorder: "#d9f99d", darkBg: "#3f6212", darkBorder: "#65a30d", lightText: "#3f6212", darkText: "#f7fee7" },
-  { token: "slate", label: "Slate", lightBg: "#f8fafc", lightBorder: "#e2e8f0", darkBg: "#1e293b", darkBorder: "#475569", lightText: "#0f172a", darkText: "#e2e8f0" },
+  { token: "red", label: "Red", lightBg: "#fce7e7", lightBorder: "#ef4444", darkBg: "#7f1d1d", darkBorder: "#f87171", lightText: "#991b1b", darkText: "#fee2e2" },
+  { token: "orange", label: "Orange", lightBg: "#fff0e1", lightBorder: "#fb923c", darkBg: "#7c2d12", darkBorder: "#fdba74", lightText: "#9a3412", darkText: "#ffedd5" },
+  { token: "yellow", label: "Yellow", lightBg: "#fef9c3", lightBorder: "#eab308", darkBg: "#4d3b00", darkBorder: "#facc15", lightText: "#854d0e", darkText: "#fef08a" },
+  { token: "green", label: "Green", lightBg: "#dcfce7", lightBorder: "#22c55e", darkBg: "#14532d", darkBorder: "#4ade80", lightText: "#166534", darkText: "#dcfce7" },
+  { token: "teal", label: "Teal", lightBg: "#d9fbfb", lightBorder: "#14b8a6", darkBg: "#134e4a", darkBorder: "#2dd4bf", lightText: "#115e59", darkText: "#ccfbf1" },
+  { token: "blue", label: "Blue", lightBg: "#dbeafe", lightBorder: "#3b82f6", darkBg: "#1e3a8a", darkBorder: "#60a5fa", lightText: "#1e40af", darkText: "#dbeafe" },
+  { token: "indigo", label: "Indigo", lightBg: "#e8eaff", lightBorder: "#6366f1", darkBg: "#312e81", darkBorder: "#818cf8", lightText: "#3730a3", darkText: "#e0e7ff" },
+  { token: "purple", label: "Purple", lightBg: "#f2e8ff", lightBorder: "#a855f7", darkBg: "#581c87", darkBorder: "#c084fc", lightText: "#6b21a8", darkText: "#f3e8ff" },
+  { token: "pink", label: "Pink", lightBg: "#fce7f3", lightBorder: "#ec4899", darkBg: "#831843", darkBorder: "#f472b6", lightText: "#9d174d", darkText: "#fce7f3" },
+  { token: "grey", label: "Grey", lightBg: "#f3f4f6", lightBorder: "#9ca3af", darkBg: "#374151", darkBorder: "#9ca3af", lightText: "#374151", darkText: "#f3f4f6" },
+  { token: "mint", label: "Mint", lightBg: "#dffcf2", lightBorder: "#34d399", darkBg: "#064e3b", darkBorder: "#6ee7b7", lightText: "#065f46", darkText: "#d1fae5" },
+  { token: "rose", label: "Rose", lightBg: "#ffe4e6", lightBorder: "#f43f5e", darkBg: "#881337", darkBorder: "#fb7185", lightText: "#9f1239", darkText: "#ffe4e6" },
+  { token: "amber", label: "Amber", lightBg: "#fff7d6", lightBorder: "#f59e0b", darkBg: "#78350f", darkBorder: "#fbbf24", lightText: "#92400e", darkText: "#fef3c7" },
+  { token: "sky", label: "Sky", lightBg: "#e0f2fe", lightBorder: "#38bdf8", darkBg: "#0c4a6e", darkBorder: "#7dd3fc", lightText: "#075985", darkText: "#e0f2fe" },
+  { token: "lime", label: "Lime", lightBg: "#f1f9c9", lightBorder: "#84cc16", darkBg: "#365314", darkBorder: "#bef264", lightText: "#3f6212", darkText: "#ecfccb" },
+  { token: "slate", label: "Slate", lightBg: "#e2e8f0", lightBorder: "#64748b", darkBg: "#1e293b", darkBorder: "#94a3b8", lightText: "#334155", darkText: "#e2e8f0" },
 ];
 
 const COLOR_PRESET_MAP = Object.fromEntries(COLOR_PRESETS.map((preset) => [preset.token, preset]));
 const TAGS_DATASCRIPT_QUERY = '[:find ?name :where [_ :block/tags ?t] [?t :block/name ?name]]';
+const REFS_DATASCRIPT_QUERY = '[:find ?name :where [_ :block/refs ?p] [?p :block/name ?name]]';
 const GRADIENT_AREAS = {
   node: {
     label: "Tagged Block Gradient",
@@ -388,11 +389,119 @@ function normalizeTagName(tag) {
     return "";
   }
 
-  const rawName = typeof tag === "string"
-    ? tag
-    : tag.originalName || tag.name || tag.label || tag.tag || "";
+  if (typeof tag === "string") {
+    return tag.trim().replace(/^#+/, "");
+  }
+
+  if (Array.isArray(tag)) {
+    return normalizeTagName(tag[0]);
+  }
+
+  const candidates = [
+    tag.originalName,
+    tag.fullTitle,
+    tag.title,
+    tag.content,
+    tag.name,
+    tag.label,
+    tag.tag,
+    typeof tag.ident === "string" ? tag.ident.split("/").pop() : "",
+  ];
+
+  const rawName = candidates.find((value) => typeof value === "string" && value.trim()) || "";
 
   return String(rawName).trim().replace(/^#+/, "");
+}
+
+function hasCapitalLetters(value) {
+  return /[A-Z]/.test(value);
+}
+
+function choosePreferredTagName(currentName, nextName) {
+  if (!currentName) {
+    return nextName;
+  }
+
+  if (!nextName) {
+    return currentName;
+  }
+
+  const currentHasCaps = hasCapitalLetters(currentName);
+  const nextHasCaps = hasCapitalLetters(nextName);
+
+  if (currentHasCaps !== nextHasCaps) {
+    return nextHasCaps ? nextName : currentName;
+  }
+
+  return currentName.length >= nextName.length ? currentName : nextName;
+}
+
+function dedupeTagNames(tagNames) {
+  const tagMap = new Map();
+
+  for (const tagName of tagNames) {
+    const normalizedKey = tagName.toLowerCase();
+    const currentName = tagMap.get(normalizedKey);
+    tagMap.set(normalizedKey, choosePreferredTagName(currentName, tagName));
+  }
+
+  return Array.from(tagMap.values());
+}
+
+function isTagCandidatePage(page) {
+  if (!page || typeof page !== "object") {
+    return false;
+  }
+
+  return !page.journalDay && page["journal?"] !== true;
+}
+
+async function collectRawTags() {
+  const rawTags = [];
+  const sourceCounts = {};
+
+  if (typeof logseq.Editor.getAllTags === "function") {
+    try {
+      const tags = await logseq.Editor.getAllTags();
+      rawTags.push(...(tags || []));
+      sourceCounts.getAllTags = tags?.length || 0;
+    } catch (error) {
+      console.warn("[Local Custom Theme Loader] Failed to load tags from logseq.Editor.getAllTags", error);
+    }
+  }
+
+  if (typeof logseq.DB?.datascriptQuery === "function") {
+    try {
+      const tagRows = await logseq.DB.datascriptQuery(TAGS_DATASCRIPT_QUERY);
+      rawTags.push(...(tagRows || []));
+      sourceCounts.datascriptTags = tagRows?.length || 0;
+    } catch (error) {
+      console.warn("[Local Custom Theme Loader] Failed to load tags from datascript tag query", error);
+    }
+
+    try {
+      const refRows = await logseq.DB.datascriptQuery(REFS_DATASCRIPT_QUERY);
+      rawTags.push(...(refRows || []));
+      sourceCounts.datascriptRefs = refRows?.length || 0;
+    } catch (error) {
+      console.warn("[Local Custom Theme Loader] Failed to load tags from datascript refs query", error);
+    }
+  }
+
+  if (typeof logseq.Editor.getAllPages === "function") {
+    try {
+      const pages = await logseq.Editor.getAllPages();
+      const candidatePages = (pages || []).filter(isTagCandidatePage);
+      rawTags.push(...candidatePages);
+      sourceCounts.allPages = candidatePages.length;
+    } catch (error) {
+      console.warn("[Local Custom Theme Loader] Failed to load pages from logseq.Editor.getAllPages", error);
+    }
+  }
+
+  console.info("[Local Custom Theme Loader] Loaded tag candidates", sourceCounts);
+
+  return rawTags;
 }
 
 function getPresetMeta(token) {
@@ -1362,7 +1471,29 @@ function getVisibleTags() {
 
 function buildTagChipStyleAttribute(tagName) {
   const style = getTagChipThemeStyle(getTagColorAssignment(tagName));
-  return `background:${style.background};border-color:${style.borderColor};color:${style.color};`;
+  const controls = panelState.controlState;
+  const isDark = panelState.themeMode === "dark";
+  const baseShadow = isDark
+    ? "inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 1px 2px rgba(2, 6, 23, 0.28)"
+    : "inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 1px 2px rgba(15, 23, 42, 0.08)";
+  const hoverShadow = isDark
+    ? "inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 4px rgba(2, 6, 23, 0.34)"
+    : "inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 2px 4px rgba(15, 23, 42, 0.12)";
+
+  return [
+    `background:${style.background}`,
+    `border:${controls.tagBorderWidth}px solid ${style.borderColor}`,
+    `color:${style.color}`,
+    `border-radius:${controls.tagRadius}px`,
+    `font-size:${controls.tagFontSize}px`,
+    `line-height:1.2`,
+    "font-weight:500",
+    `height:${controls.tagHeight}px`,
+    `padding:1px ${controls.tagPaddingX}px`,
+    `box-shadow:${baseShadow}`,
+    `--ctl-tag-chip-base-shadow:${baseShadow}`,
+    `--ctl-tag-chip-hover-shadow:${hoverShadow}`,
+  ].join(";");
 }
 
 function buildTagListMarkup() {
@@ -1732,26 +1863,22 @@ function buildGradientEditorMarkup(areaKey, previewMarkup, controlKeys = []) {
 
 async function refreshTags(showToast = false) {
   try {
-    let rawTags = [];
+    const rawTags = await collectRawTags();
+    const previousSelectedKey = panelState.selectedTag.toLowerCase();
 
-    if (typeof logseq.Editor.getAllTags === "function") {
-      rawTags = await logseq.Editor.getAllTags();
-    } else if (typeof logseq.DB?.datascriptQuery === "function") {
-      const rows = await logseq.DB.datascriptQuery(TAGS_DATASCRIPT_QUERY);
-      rawTags = (rows || []).map((row) => Array.isArray(row) ? row[0] : row);
-    } else if (typeof logseq.Editor.getAllPages === "function") {
-      rawTags = await logseq.Editor.getAllPages();
-    }
-
-    const normalizedTags = Array.from(new Set((rawTags || [])
+    const normalizedTags = dedupeTagNames((rawTags || [])
       .map(normalizeTagName)
       .filter(Boolean)
-      .filter((tagName) => tagName.toLowerCase() !== "tags")))
+      .filter((tagName) => tagName.toLowerCase() !== "tags"))
       .sort((left, right) => left.localeCompare(right));
 
     panelState.tags = normalizedTags;
 
-    if (!normalizedTags.includes(panelState.selectedTag)) {
+    const matchingSelectedTag = normalizedTags.find((tagName) => tagName.toLowerCase() === previousSelectedKey);
+
+    if (matchingSelectedTag) {
+      panelState.selectedTag = matchingSelectedTag;
+    } else {
       panelState.selectedTag = normalizedTags[0] || "";
     }
 
@@ -2413,6 +2540,38 @@ function refreshPanel(statusMessage, { rerenderPreview = false, rerenderTags = f
   syncTabState();
 }
 
+function rerenderTagsPanePreservingFocus(statusMessage) {
+  const activeElement = document.activeElement;
+  const shouldRestoreFilter = activeElement?.matches?.("[data-tag-filter]");
+  const shouldRestoreSort = activeElement?.matches?.("[data-tag-sort]");
+  const selectionStart = shouldRestoreFilter && typeof activeElement.selectionStart === "number"
+    ? activeElement.selectionStart
+    : null;
+  const selectionEnd = shouldRestoreFilter && typeof activeElement.selectionEnd === "number"
+    ? activeElement.selectionEnd
+    : null;
+
+  refreshPanel(statusMessage, { rerenderTags: true });
+
+  if (shouldRestoreFilter) {
+    const filterInput = document.querySelector("[data-tag-filter]");
+
+    if (filterInput) {
+      filterInput.focus();
+
+      if (selectionStart !== null && selectionEnd !== null && typeof filterInput.setSelectionRange === "function") {
+        filterInput.setSelectionRange(selectionStart, selectionEnd);
+      }
+    }
+
+    return;
+  }
+
+  if (shouldRestoreSort) {
+    document.querySelector("[data-tag-sort]")?.focus();
+  }
+}
+
 function setActiveTab(tab) {
   panelState.activeTab = ["preview", "css", "tags"].includes(tab) ? tab : "preview";
   syncTabState();
@@ -2514,10 +2673,25 @@ a.tag[data-ref="${escapedTagName}" i]:hover {
       return "";
     }
 
+    const preset = getPresetMeta(token);
+
+    if (!preset) {
+      return "";
+    }
+
     return `
-a.tag[data-ref="${escapedTagName}" i] {
+a.tag[data-ref="${escapedTagName}" i],
+a.tag[data-ref="${escapedTagName}" i]:hover {
   background-color: var(--bg-${token}) !important;
   border-color: var(--bd-${token}) !important;
+  color: ${preset.lightText} !important;
+}
+
+.dark-theme a.tag[data-ref="${escapedTagName}" i],
+.dark-theme a.tag[data-ref="${escapedTagName}" i]:hover {
+  background-color: var(--bg-${token}) !important;
+  border-color: var(--bd-${token}) !important;
+  color: ${preset.darkText} !important;
 }
 
 :is(.ls-block > div:first-child, h1.title, .journal-title):has(a.tag[data-ref="${escapedTagName}" i]) {
@@ -3077,7 +3251,7 @@ function mountPanel() {
 
     if (tagFilterInput) {
       panelState.tagFilter = tagFilterInput.value || "";
-      renderPanel();
+      rerenderTagsPanePreservingFocus();
       return;
     }
 
@@ -3116,7 +3290,7 @@ function mountPanel() {
     }
 
     panelState.tagSortMode = sortSelect.value || "name";
-    renderPanel();
+    rerenderTagsPanePreservingFocus();
   });
 
   document.addEventListener("keydown", (event) => {

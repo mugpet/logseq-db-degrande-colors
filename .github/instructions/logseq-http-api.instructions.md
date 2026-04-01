@@ -8,6 +8,7 @@ description: "Use for files and docs related to Logseq DB graph investigation, t
 - Use `POST /api` with a JSON body containing `method` and `args`.
 - Keep examples concrete and reproducible against a local Logseq desktop instance.
 - Prefer documented SDK method names such as `logseq.Editor.getAllTags` instead of undocumented internal endpoints.
+- In this investigated DB graph, treat `logseq.Editor.getAllTags` as the first source for tags, but not necessarily the complete source. If tag coverage matters, merge it with Datascript results such as `:block/tags` and `:block/refs`, and fall back to `logseq.Editor.getAllPages()` for missing tag-like pages.
 - Document whether a method was verified working, inferred from docs, or verified failing through the HTTP bridge.
 - When discussing UI customization for DB graphs, note that a file-backed `custom.css` was not found in the investigated graph and runtime style injection was not exposed through the HTTP bridge in this environment.
 - In this workspace, `logseq-db-degrande-colors/` contains the unpacked plugin that loads `custom.css`; prefer evolving that plugin for persistent UI changes.

@@ -21,7 +21,9 @@
 
 - `logseq.App.getCurrentGraph` returned the active graph metadata.
 - `logseq.App.getUserConfigs` returned user settings including theme mode and current graph.
-- `logseq.Editor.getAllTags` returned 21 tags in the investigated graph.
+- `logseq.Editor.getAllTags` returned a small subset of tags in the investigated graph and was not exhaustive for the plugin tag browser.
+- `logseq.Editor.getAllPages` returned a larger set of page names, including entries such as `journal` and `tag` that were absent from `getAllTags`.
+- For exhaustive tag-like name recovery in this DB graph, merge `getAllTags`, Datascript queries over `:block/tags` and `:block/refs`, and non-journal pages from `getAllPages`.
 - `logseq.UI.showMsg` displayed an in-app toast successfully.
 
 ## Observed Limitations
@@ -69,3 +71,9 @@
 - Role
 - Task
 - Template
+
+## Additional Tag-Like Pages Observed Outside `getAllTags`
+
+- journal
+- tag
+- tags
