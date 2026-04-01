@@ -1421,10 +1421,18 @@ function addGradientStop(areaKey, position = null) {
     return 0;
   }
 
-  const nextStop = {
-    source: "linked",
-    position: Math.min(100, Math.max(0, Number(position ?? getSuggestedGradientStopPosition(area)))),
-  };
+  const selectedStop = area.stops[getSelectedGradientStopIndex(areaKey)] || null;
+  const nextStop = selectedStop
+    ? {
+        source: selectedStop.source,
+        ...(selectedStop.token ? { token: selectedStop.token } : {}),
+        ...(selectedStop.color ? { color: selectedStop.color } : {}),
+      }
+    : {
+        source: "linked",
+      };
+
+  nextStop.position = Math.min(100, Math.max(0, Number(position ?? getSuggestedGradientStopPosition(area))));
 
   area.stops.push(nextStop);
   area.stops.sort((left, right) => left.position - right.position);
