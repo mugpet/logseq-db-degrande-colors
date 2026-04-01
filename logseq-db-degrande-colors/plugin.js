@@ -182,11 +182,19 @@ const panelState = {
   controlState: { ...DEFAULT_CONTROL_STATE },
   gradientState: createDefaultGradientState(),
   gradientSelections: Object.fromEntries(Object.keys(GRADIENT_AREAS).map((areaKey) => [areaKey, 0])),
+  gradientDrag: null,
+  colorDrag: null,
+  suppressGradientClick: false,
   tagColorAssignments: {},
   baseTagColorMap: {},
   tags: [],
   selectedTag: "",
   tagCustomColorDraft: "#14b8a6",
+  tagCustomForegroundDraft: "#0f172a",
+  tagCustomModeDrafts: {
+    light: { backgroundColor: "#14b8a6", foregroundColor: "#0f172a" },
+    dark: { backgroundColor: "#14b8a6", foregroundColor: "#f8fafc" },
+  },
   tagSortMode: "name",
   tagFilter: "",
   activeTab: "preview",
@@ -260,6 +268,26 @@ function setThemeMode(mode) {
   document.body.classList.toggle("theme-dark", panelState.themeMode === "dark");
 }
 
+function getThemeToggleLabel() {
+  return panelState.themeMode === "dark" ? "Switch to Light" : "Switch to Dark";
+}
+
+async function toggleLogseqTheme() {
+  const nextTheme = panelState.themeMode === "dark" ? "light" : "dark";
+
+  try {
+    await logseq.App.invokeExternalCommand("logseq.ui/toggle-theme");
+    refreshPanel(`Switching Logseq to ${nextTheme} mode`, {
+      rerenderPreview: true,
+      rerenderTags: true,
+    });
+  } catch (error) {
+    console.error("[Local Custom Theme Loader] Failed to toggle Logseq theme", error);
+    renderPanel("Unable to toggle the Logseq theme");
+    await logseq.UI.showMsg("Unable to toggle the Logseq theme.", "warning");
+  }
+}
+
 function lineCount(text) {
   return text ? text.split(/\r?\n/).length : 0;
 }
@@ -320,11 +348,15 @@ function normalizeHexColor(value) {
 
   const trimmed = value.trim();
 
-  if (!/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) {
+  if (!/^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(trimmed)) {
     return null;
   }
 
   if (trimmed.length === 4) {
+    return `#${trimmed.slice(1).split("").map((char) => char + char).join("")}`.toLowerCase();
+  }
+
+  if (trimmed.length === 5) {
     return `#${trimmed.slice(1).split("").map((char) => char + char).join("")}`.toLowerCase();
   }
 
@@ -342,6 +374,88 @@ function hexToRgb(hexColor) {
     r: Number.parseInt(normalized.slice(1, 3), 16),
     g: Number.parseInt(normalized.slice(3, 5), 16),
     b: Number.parseInt(normalized.slice(5, 7), 16),
+    a: normalized.length === 9 ? Number.parseInt(normalized.slice(7, 9), 16) / 255 : 1,
+  };
+}
+
+function rgbToHex(rgb) {
+  const toHex = (value) => Math.min(255, Math.max(0, Number(value) || 0)).toString(16).padStart(2, "0");
+  const alpha = Number.isFinite(rgb.a) ? Math.min(1, Math.max(0, rgb.a)) : 1;
+  const alphaHex = toHex(Math.round(alpha * 255));
+  const base = `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`;
+  return alpha >= 0.999 ? base : `${base}${alphaHex}`;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function rgbToHsv(rgb) {
+  const red = clamp((rgb.r ?? 0) / 255, 0, 1);
+  const green = clamp((rgb.g ?? 0) / 255, 0, 1);
+  const blue = clamp((rgb.b ?? 0) / 255, 0, 1);
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const delta = max - min;
+  let hue = 0;
+
+  if (delta > 0) {
+    if (max === red) {
+      hue = ((green - blue) / delta) % 6;
+    } else if (max === green) {
+      hue = (blue - red) / delta + 2;
+    } else {
+      hue = (red - green) / delta + 4;
+    }
+  }
+
+  hue = Math.round((((hue * 60) + 360) % 360));
+
+  return {
+    h: hue,
+    s: max === 0 ? 0 : delta / max,
+    v: max,
+    a: Number.isFinite(rgb.a) ? clamp(rgb.a, 0, 1) : 1,
+  };
+}
+
+function hsvToRgb(hsv) {
+  const hue = ((Number(hsv.h) % 360) + 360) % 360;
+  const saturation = clamp(Number(hsv.s), 0, 1);
+  const value = clamp(Number(hsv.v), 0, 1);
+  const alpha = clamp(Number(hsv.a ?? 1), 0, 1);
+  const chroma = value * saturation;
+  const secondary = chroma * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const match = value - chroma;
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+
+  if (hue < 60) {
+    red = chroma;
+    green = secondary;
+  } else if (hue < 120) {
+    red = secondary;
+    green = chroma;
+  } else if (hue < 180) {
+    green = chroma;
+    blue = secondary;
+  } else if (hue < 240) {
+    green = secondary;
+    blue = chroma;
+  } else if (hue < 300) {
+    red = secondary;
+    blue = chroma;
+  } else {
+    red = chroma;
+    blue = secondary;
+  }
+
+  return {
+    r: Math.round((red + match) * 255),
+    g: Math.round((green + match) * 255),
+    b: Math.round((blue + match) * 255),
+    a: alpha,
   };
 }
 
@@ -353,40 +467,116 @@ function mixRgb(source, target, amount) {
   };
 }
 
-function rgbToCss(rgb, alpha = 1) {
-  if (alpha >= 1) {
+function rgbToCss(rgb, alpha = undefined) {
+  const resolvedAlpha = alpha == null
+    ? (Number.isFinite(rgb?.a) ? rgb.a : 1)
+    : alpha;
+
+  if (resolvedAlpha >= 1) {
     return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
   }
 
-  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${resolvedAlpha})`;
+}
+
+function getRgbLuminance(rgb) {
+  return (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+}
+
+function getRelativeLuminance(rgb) {
+  const toLinear = (channel) => {
+    const normalized = channel / 255;
+    return normalized <= 0.04045
+      ? normalized / 12.92
+      : ((normalized + 0.055) / 1.055) ** 2.4;
+  };
+
+  return 0.2126 * toLinear(rgb.r) + 0.7152 * toLinear(rgb.g) + 0.0722 * toLinear(rgb.b);
+}
+
+function getContrastRatio(foreground, background) {
+  const lighter = Math.max(getRelativeLuminance(foreground), getRelativeLuminance(background));
+  const darker = Math.min(getRelativeLuminance(foreground), getRelativeLuminance(background));
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function getReadableToneFromBase(baseRgb, backgroundRgb, preferLight = false, minimumRatio = 4.5) {
+  if (getContrastRatio(baseRgb, backgroundRgb) >= minimumRatio) {
+    return {
+      r: baseRgb.r,
+      g: baseRgb.g,
+      b: baseRgb.b,
+    };
+  }
+
+  const target = preferLight
+    ? { r: 255, g: 255, b: 255 }
+    : { r: 0, g: 0, b: 0 };
+
+  for (let amount = 0.12; amount <= 1.0001; amount += 0.08) {
+    const candidate = mixRgb(baseRgb, target, amount);
+
+    if (getContrastRatio(candidate, backgroundRgb) >= minimumRatio) {
+      return candidate;
+    }
+  }
+
+  return target;
 }
 
 function getContrastTextColor(rgb) {
-  const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+  const luminance = getRgbLuminance(rgb);
   return luminance > 0.62 ? "#0f172a" : "#f8fafc";
 }
 
-function getCustomColorTheme(baseColor) {
-  const rgb = hexToRgb(baseColor);
+function getCustomColorTheme(colorInput) {
+  const backgroundColor = typeof colorInput === "string"
+    ? normalizeHexColor(colorInput)
+    : normalizeHexColor(colorInput?.backgroundColor || colorInput?.baseColor);
+  const foregroundColor = typeof colorInput === "string"
+    ? null
+    : normalizeHexColor(colorInput?.foregroundColor);
+  const rgb = hexToRgb(backgroundColor);
 
   if (!rgb) {
     return null;
   }
 
-  const lightBg = mixRgb(rgb, { r: 255, g: 255, b: 255 }, 0.82);
-  const lightBorder = mixRgb(rgb, { r: 255, g: 255, b: 255 }, 0.58);
-  const darkBg = mixRgb(rgb, { r: 0, g: 0, b: 0 }, 0.58);
-  const darkBorder = mixRgb(rgb, { r: 255, g: 255, b: 255 }, 0.16);
+  const baseAlpha = Number.isFinite(rgb.a) ? rgb.a : 1;
+  const luminance = getRgbLuminance(rgb);
+  const foregroundRgb = hexToRgb(foregroundColor) || rgb;
+  const lightBg = luminance < 0.18
+    ? mixRgb(rgb, { r: 255, g: 255, b: 255 }, 0.06)
+    : { r: rgb.r, g: rgb.g, b: rgb.b };
+  const lightBorder = luminance < 0.4
+    ? mixRgb(rgb, { r: 255, g: 255, b: 255 }, 0.24)
+    : mixRgb(rgb, { r: 0, g: 0, b: 0 }, 0.18);
+  const lightText = getReadableToneFromBase(foregroundRgb, lightBg, getRgbLuminance(lightBg) < 0.5);
+
+  const darkLightenAmount = luminance < 0.2
+    ? 0.82
+    : luminance < 0.35
+      ? 0.72
+      : luminance < 0.5
+        ? 0.6
+        : 0.42;
+  const darkBg = mixRgb(rgb, { r: 255, g: 255, b: 255 }, darkLightenAmount);
+  const darkBorder = mixRgb(darkBg, { r: 255, g: 255, b: 255 }, 0.16);
+  const darkText = getReadableToneFromBase(foregroundRgb, darkBg, getRgbLuminance(darkBg) < 0.5);
 
   return {
-    lightBg: rgbToCss(lightBg),
-    lightBorder: rgbToCss(lightBorder),
-    lightText: getContrastTextColor(lightBg),
-    darkBg: rgbToCss(darkBg),
-    darkBorder: rgbToCss(darkBorder),
-    darkText: getContrastTextColor(darkBg),
-    gradient: rgbToCss(rgb, 0.25),
-    border: rgbToCss(rgb, 0.78),
+    lightBg: rgbToCss(lightBg, Math.max(0.92, baseAlpha)),
+    lightBorder: rgbToCss(lightBorder, Math.max(0.84, baseAlpha)),
+    lightText: rgbToCss(lightText),
+    lightBackgroundColor: rgbToHex({ ...lightBg, a: Math.max(0.92, baseAlpha) }),
+    lightForegroundColor: rgbToHex(lightText),
+    darkBg: rgbToCss(darkBg, Math.max(0.88, baseAlpha)),
+    darkBorder: rgbToCss(darkBorder, Math.max(0.82, baseAlpha)),
+    darkText: rgbToCss(darkText),
+    darkBackgroundColor: rgbToHex({ ...darkBg, a: Math.max(0.88, baseAlpha) }),
+    darkForegroundColor: rgbToHex(darkText),
+    gradient: rgbToCss(rgb, Math.max(0.06, baseAlpha * 0.25)),
+    border: rgbToCss(rgb, Math.max(0.24, baseAlpha * 0.78)),
   };
 }
 
@@ -405,10 +595,23 @@ function normalizeTagColorAssignment(entry) {
     }
 
     if (entry.type === "custom") {
-      const baseColor = normalizeHexColor(entry.baseColor);
+      const backgroundColor = normalizeHexColor(entry.backgroundColor || entry.baseColor);
+      const foregroundColor = normalizeHexColor(entry.foregroundColor);
+      const lightBackgroundColor = normalizeHexColor(entry.lightBackgroundColor);
+      const lightForegroundColor = normalizeHexColor(entry.lightForegroundColor);
+      const darkBackgroundColor = normalizeHexColor(entry.darkBackgroundColor);
+      const darkForegroundColor = normalizeHexColor(entry.darkForegroundColor);
 
-      if (baseColor) {
-        return { type: "custom", baseColor };
+      if (backgroundColor || lightBackgroundColor || darkBackgroundColor) {
+        return {
+          type: "custom",
+          ...(backgroundColor ? { backgroundColor } : {}),
+          ...(foregroundColor ? { foregroundColor } : {}),
+          ...(lightBackgroundColor ? { lightBackgroundColor } : {}),
+          ...(lightForegroundColor ? { lightForegroundColor } : {}),
+          ...(darkBackgroundColor ? { darkBackgroundColor } : {}),
+          ...(darkForegroundColor ? { darkForegroundColor } : {}),
+        };
       }
     }
   }
@@ -439,13 +642,13 @@ function getTagChipThemeStyle(assignmentOrToken) {
   const isDark = panelState.themeMode === "dark";
 
   if (assignment?.type === "custom") {
-    const customTheme = getCustomColorTheme(assignment.baseColor);
+    const customTheme = getResolvedCustomTagTheme(assignment, isDark ? "dark" : "light");
 
     if (customTheme) {
       return {
-        background: isDark ? customTheme.darkBg : customTheme.lightBg,
-        borderColor: isDark ? customTheme.darkBorder : customTheme.lightBorder,
-        color: isDark ? customTheme.darkText : customTheme.lightText,
+        background: customTheme.background,
+        borderColor: customTheme.borderColor,
+        color: customTheme.color,
       };
     }
   }
@@ -457,6 +660,152 @@ function getTagChipThemeStyle(assignmentOrToken) {
     borderColor: isDark ? preset.darkBorder : preset.lightBorder,
     color: isDark ? preset.darkText : preset.lightText,
   };
+}
+
+function getResolvedCustomTagTheme(assignment, mode = panelState.themeMode) {
+  if (assignment?.type !== "custom") {
+    return null;
+  }
+
+  const resolvedMode = mode === "dark" ? "dark" : "light";
+  const derivedTheme = getCustomColorTheme(assignment);
+  const explicitBackgroundColor = normalizeHexColor(assignment[`${resolvedMode}BackgroundColor`]);
+  const explicitForegroundColor = normalizeHexColor(assignment[`${resolvedMode}ForegroundColor`]);
+
+  if (!explicitBackgroundColor && !explicitForegroundColor) {
+    if (!derivedTheme) {
+      return null;
+    }
+
+    return {
+      background: resolvedMode === "dark" ? derivedTheme.darkBg : derivedTheme.lightBg,
+      borderColor: resolvedMode === "dark" ? derivedTheme.darkBorder : derivedTheme.lightBorder,
+      color: resolvedMode === "dark" ? derivedTheme.darkText : derivedTheme.lightText,
+      backgroundColor: resolvedMode === "dark" ? derivedTheme.darkBackgroundColor : derivedTheme.lightBackgroundColor,
+      foregroundColor: resolvedMode === "dark" ? derivedTheme.darkForegroundColor : derivedTheme.lightForegroundColor,
+    };
+  }
+
+  const fallbackBackgroundColor = explicitBackgroundColor
+    || (resolvedMode === "dark" ? derivedTheme?.darkBackgroundColor : derivedTheme?.lightBackgroundColor)
+    || assignment.backgroundColor
+    || "#14b8a6";
+  const backgroundRgb = hexToRgb(fallbackBackgroundColor);
+
+  if (!backgroundRgb) {
+    return null;
+  }
+
+  const backgroundBase = {
+    r: backgroundRgb.r,
+    g: backgroundRgb.g,
+    b: backgroundRgb.b,
+  };
+  const backgroundAlpha = Number.isFinite(backgroundRgb.a) ? backgroundRgb.a : 1;
+  const luminance = getRgbLuminance(backgroundBase);
+  const borderRgb = luminance < 0.5
+    ? mixRgb(backgroundBase, { r: 255, g: 255, b: 255 }, resolvedMode === "dark" ? 0.18 : 0.24)
+    : mixRgb(backgroundBase, { r: 0, g: 0, b: 0 }, resolvedMode === "dark" ? 0.12 : 0.18);
+  const fallbackForegroundColor = explicitForegroundColor
+    || (resolvedMode === "dark" ? derivedTheme?.darkForegroundColor : derivedTheme?.lightForegroundColor)
+    || assignment.foregroundColor;
+  const foregroundRgb = hexToRgb(fallbackForegroundColor) || backgroundBase;
+  const textRgb = explicitForegroundColor
+    ? {
+        r: foregroundRgb.r,
+        g: foregroundRgb.g,
+        b: foregroundRgb.b,
+      }
+    : getReadableToneFromBase(foregroundRgb, backgroundBase, luminance < 0.5);
+
+  return {
+    background: rgbToCss(backgroundRgb),
+    borderColor: rgbToCss(borderRgb, Math.max(resolvedMode === "dark" ? 0.8 : 0.84, backgroundAlpha)),
+    color: rgbToCss(textRgb),
+    backgroundColor: rgbToHex(backgroundRgb),
+    foregroundColor: explicitForegroundColor || rgbToHex(textRgb),
+  };
+}
+
+function getCustomTagGradientColor(assignment, mode = panelState.themeMode) {
+  if (assignment?.type !== "custom") {
+    return null;
+  }
+
+  const resolvedMode = mode === "dark" ? "dark" : "light";
+  const resolvedTheme = getResolvedCustomTagTheme(assignment, resolvedMode);
+  const backgroundColor = resolvedTheme?.backgroundColor
+    || normalizeHexColor(assignment[`${resolvedMode}BackgroundColor`])
+    || normalizeHexColor(assignment.backgroundColor || assignment.baseColor);
+  const foregroundColor = resolvedTheme?.foregroundColor
+    || normalizeHexColor(assignment[`${resolvedMode}ForegroundColor`])
+    || normalizeHexColor(assignment.foregroundColor);
+
+  if (!backgroundColor) {
+    return null;
+  }
+
+  return getCustomColorTheme({
+    backgroundColor,
+    ...(foregroundColor ? { foregroundColor } : {}),
+  })?.gradient || null;
+}
+
+function getTagModeDraft(mode = panelState.themeMode) {
+  const resolvedMode = mode === "dark" ? "dark" : "light";
+  return panelState.tagCustomModeDrafts[resolvedMode] || panelState.tagCustomModeDrafts.light;
+}
+
+function getOppositeThemeMode(mode = panelState.themeMode) {
+  return mode === "dark" ? "light" : "dark";
+}
+
+function getCopyTagColorsButtonLabel(mode = panelState.themeMode) {
+  return mode === "dark" ? "Copy From Light Mode" : "Copy From Dark Mode";
+}
+
+function getTagCustomColors(selectedAssignment = null, mode = panelState.themeMode) {
+  const resolvedTheme = selectedAssignment?.type === "custom"
+    ? getResolvedCustomTagTheme(selectedAssignment, mode)
+    : null;
+  const draft = getTagModeDraft(mode);
+
+  return {
+    backgroundColor: resolvedTheme?.backgroundColor || draft.backgroundColor || panelState.tagCustomColorDraft || "#14b8a6",
+    foregroundColor: resolvedTheme?.foregroundColor || draft.foregroundColor || panelState.tagCustomForegroundDraft || "#0f172a",
+  };
+}
+
+function copyTagColorsFromOtherMode() {
+  if (!panelState.selectedTag) {
+    return false;
+  }
+
+  const selectedAssignment = getTagColorAssignment(panelState.selectedTag);
+
+  if (selectedAssignment?.type !== "custom") {
+    return false;
+  }
+
+  const currentMode = panelState.themeMode === "dark" ? "dark" : "light";
+  const sourceMode = getOppositeThemeMode(currentMode);
+  const sourceColors = getTagCustomColors(selectedAssignment, sourceMode);
+
+  getTagModeDraft(currentMode).backgroundColor = sourceColors.backgroundColor;
+  getTagModeDraft(currentMode).foregroundColor = sourceColors.foregroundColor;
+  panelState.tagCustomColorDraft = sourceColors.backgroundColor;
+  panelState.tagCustomForegroundDraft = sourceColors.foregroundColor;
+
+  panelState.tagColorAssignments[panelState.selectedTag.toLowerCase()] = {
+    type: "custom",
+    lightBackgroundColor: currentMode === "light" ? sourceColors.backgroundColor : getTagCustomColors(selectedAssignment, "light").backgroundColor,
+    lightForegroundColor: currentMode === "light" ? sourceColors.foregroundColor : getTagCustomColors(selectedAssignment, "light").foregroundColor,
+    darkBackgroundColor: currentMode === "dark" ? sourceColors.backgroundColor : getTagCustomColors(selectedAssignment, "dark").backgroundColor,
+    darkForegroundColor: currentMode === "dark" ? sourceColors.foregroundColor : getTagCustomColors(selectedAssignment, "dark").foregroundColor,
+  };
+
+  schedulePersistTagColors();
+  return true;
 }
 
 function parseBaseTagColorMap(cssText) {
@@ -718,6 +1067,22 @@ function getSuggestedGradientStopPosition(area) {
   return Math.round(Math.min(100, Math.max(0, suggestedPosition)));
 }
 
+function getGradientStripElement(areaKey) {
+  return document.querySelector(`[data-gradient-strip][data-area-key="${areaKey}"]`);
+}
+
+function getGradientPositionFromClientX(areaKey, clientX) {
+  const strip = getGradientStripElement(areaKey);
+
+  if (!strip) {
+    return null;
+  }
+
+  const rect = strip.getBoundingClientRect();
+  const relativeX = clientX - rect.left;
+  return Math.round(Math.min(100, Math.max(0, (relativeX / Math.max(rect.width, 1)) * 100)));
+}
+
 function getGradientStopColor(stop, linkedColor, mode = "runtime") {
   if (!stop) {
     return "transparent";
@@ -741,9 +1106,8 @@ function getGradientStopColor(stop, linkedColor, mode = "runtime") {
   }
 
   if (stop.source === "custom" && stop.color) {
-    return mode === "runtime"
-      ? getCustomColorTheme(stop.color)?.gradient || stop.color
-      : stop.color;
+    const rgb = hexToRgb(stop.color);
+    return rgb ? rgbToCss(rgb) : stop.color;
   }
 
   return "transparent";
@@ -871,6 +1235,7 @@ function buildTagListMarkup() {
         class="ctl-tag-chip${isSelected ? " is-selected" : ""}"
         type="button"
         data-select-tag="${escapeHtml(tagName)}"
+        data-tag-chip-name="${escapeHtml(tagName)}"
         title="${escapeHtml(label)}"
         style="${buildTagChipStyleAttribute(tagName)}"
       >#${escapeHtml(tagName)}</button>
@@ -892,29 +1257,75 @@ function buildColorPaletteMarkup() {
         class="ctl-color-option${isActive ? " is-active" : ""}"
         type="button"
         data-set-tag-color="${preset.token}"
+        aria-label="Set ${escapeHtml(panelState.selectedTag)} to ${preset.label}"
         title="Set ${escapeHtml(panelState.selectedTag)} to ${preset.label}"
         style="background:${style.background};border-color:${style.borderColor};color:${style.color};"
-      >
-        <span class="ctl-color-swatch" style="background:${style.background};border-color:${style.borderColor};"></span>
-        <span>${preset.label}</span>
-      </button>
+      ></button>
     `;
   }).join("");
 }
 
 function buildCustomTagColorMarkup() {
   const selectedAssignment = panelState.selectedTag ? getTagColorAssignment(panelState.selectedTag) : null;
-  const currentColor = selectedAssignment?.type === "custom" ? selectedAssignment.baseColor : panelState.tagCustomColorDraft;
+  const { backgroundColor, foregroundColor } = getTagCustomColors(selectedAssignment);
 
   return `
     <div class="ctl-custom-color-box">
       <div class="ctl-custom-color-head">
-        <strong>Custom Base Color</strong>
-        <span>Create a tag-specific color outside the preset palette.</span>
+        <strong>Custom Tag Colors</strong>
+        <span>Choose a color and it applies directly to the selected tag.</span>
       </div>
-      <div class="ctl-custom-color-row">
-        <input class="ctl-color-input" type="color" data-tag-custom-color value="${escapeHtml(currentColor || "#14b8a6")}">
-        <button class="ctl-button ctl-button-secondary" type="button" data-action="apply-custom-tag-color"${panelState.selectedTag ? "" : " disabled"}>Apply Custom</button>
+      <div class="ctl-custom-color-grid">
+        <section class="ctl-custom-color-panel">
+          <span class="ctl-custom-color-label">Background</span>
+          ${buildInlineColorEditorMarkup({
+            color: backgroundColor,
+            scope: "tag-custom-background",
+            disabled: !panelState.selectedTag,
+          })}
+        </section>
+        <section class="ctl-custom-color-panel">
+          <span class="ctl-custom-color-label">Foreground</span>
+          ${buildInlineColorEditorMarkup({
+            color: foregroundColor,
+            scope: "tag-custom-foreground",
+            disabled: !panelState.selectedTag,
+          })}
+        </section>
+      </div>
+    </div>
+  `;
+}
+
+function buildInlineColorEditorMarkup({ color, scope, areaKey = "", stopIndex = "", disabled = false }) {
+  const rgb = hexToRgb(color) || { r: 20, g: 184, b: 166, a: 1 };
+  const hsv = rgbToHsv(rgb);
+  const normalized = normalizeHexColor(color) || rgbToHex(rgb);
+  const disabledAttr = disabled ? " disabled" : "";
+  const scopeAttrs = `data-inline-color-editor data-color-scope="${scope}" data-color-value="${normalized}" data-inline-color-disabled="${disabled ? "true" : "false"}"${areaKey ? ` data-area-key="${areaKey}"` : ""}${stopIndex !== "" ? ` data-stop-index="${stopIndex}"` : ""}`;
+  const hueColor = rgbToCss(hsvToRgb({ h: hsv.h, s: 1, v: 1, a: 1 }));
+  const alphaBase = rgbToCss({ r: rgb.r, g: rgb.g, b: rgb.b, a: 1 });
+
+  return `
+    <div class="ctl-inline-color-editor" ${scopeAttrs}>
+      <div class="ctl-inline-color-top">
+        <span class="ctl-inline-color-swatch" data-inline-color-swatch style="background-color:${normalized};"></span>
+        <input class="ctl-input ctl-inline-color-hex" type="text" value="${normalized}" maxlength="9" spellcheck="false" data-inline-color-hex${disabledAttr}>
+      </div>
+      <div class="ctl-inline-color-spectrum" data-inline-color-spectrum style="--ctl-picker-hue:${hueColor};">
+        <div class="ctl-inline-color-spectrum-thumb" data-inline-color-spectrum-thumb style="left:${hsv.s * 100}%; top:${(1 - hsv.v) * 100}%;"></div>
+      </div>
+      <div class="ctl-inline-color-sliders">
+        <label class="ctl-inline-color-slider">
+          <span>Hue</span>
+          <input class="ctl-range ctl-inline-color-range" type="range" min="0" max="360" step="1" value="${hsv.h}" data-inline-color-hue${disabledAttr}>
+          <strong data-inline-color-hue-value>${Math.round(hsv.h)}deg</strong>
+        </label>
+        <label class="ctl-inline-color-slider">
+          <span>Alpha</span>
+          <input class="ctl-range ctl-inline-color-range ctl-inline-color-alpha" type="range" min="0" max="100" step="1" value="${Math.round(hsv.a * 100)}" data-inline-color-alpha style="--ctl-alpha-base:${alphaBase};"${disabledAttr}>
+          <strong data-inline-color-alpha-value>${Math.round(hsv.a * 100)}%</strong>
+        </label>
       </div>
     </div>
   `;
@@ -924,7 +1335,8 @@ function buildTagsPaneMarkup() {
   const tags = getVisibleTags();
   const selectedTag = panelState.selectedTag;
   const selectedColor = selectedTag ? getTagColorToken(selectedTag) : null;
-  const hasCustomAssignment = selectedTag ? Boolean(panelState.tagColorAssignments[selectedTag.toLowerCase()]) : false;
+  const selectedAssignment = selectedTag ? getTagColorAssignment(selectedTag) : null;
+  const hasCustomAssignment = selectedAssignment?.type === "custom";
 
   return `
     <div class="ctl-tags-layout">
@@ -949,15 +1361,16 @@ function buildTagsPaneMarkup() {
       <section class="ctl-tags-detail">
         <div class="ctl-tags-detail-head">
           <strong>${selectedTag ? `#${escapeHtml(selectedTag)}` : "Tag Color"}</strong>
-          <span>${selectedTag ? `Current color: ${selectedColor || "default"}` : "Choose a tag to edit its color"}</span>
+          <span data-role="selected-tag-color-label">${selectedTag ? `Current color: ${selectedColor || "default"}` : "Choose a tag to edit its color"}</span>
         </div>
         <div class="ctl-selected-tag-preview-wrap">
-          ${selectedTag ? `<span class="ctl-selected-tag-preview" style="${buildTagChipStyleAttribute(selectedTag)}">#${escapeHtml(selectedTag)}</span>` : ""}
+          ${selectedTag ? `<span class="ctl-selected-tag-preview" data-role="selected-tag-preview" style="${buildTagChipStyleAttribute(selectedTag)}">#${escapeHtml(selectedTag)}</span>` : ""}
         </div>
         <div class="ctl-color-grid">${buildColorPaletteMarkup()}</div>
         ${buildCustomTagColorMarkup()}
         <div class="ctl-tags-actions">
           <button class="ctl-button ctl-button-secondary" type="button" data-action="refresh-tags">Refresh Tags</button>
+          <button class="ctl-button ctl-button-secondary" type="button" data-action="copy-tag-colors-from-other-mode"${selectedTag && hasCustomAssignment ? "" : " disabled"}>${getCopyTagColorsButtonLabel()}</button>
           <button class="ctl-button ctl-button-secondary" type="button" data-action="clear-tag-color"${selectedTag && hasCustomAssignment ? "" : " disabled"}>Clear Custom Color</button>
         </div>
       </section>
@@ -1004,10 +1417,110 @@ function buildNumericControlsMarkup(controlKeys) {
   }).join("");
 }
 
-function buildGradientEditorMarkup(areaKey, controlKeys = []) {
+function buildGradientModeOptionsMarkup(areaKey, stopIndex, selectedStop, areaConfig) {
+  const options = [
+    { mode: "linked", title: areaConfig.linkedLabel, caption: "Follows the live graph color" },
+    { mode: "transparent", title: "Transparent", caption: "Leaves the stop clear" },
+  ];
+
+  return options.map((option) => `
+    <button
+      class="ctl-mode-option${selectedStop.source === option.mode ? " is-active" : ""}"
+      type="button"
+      data-action="set-gradient-stop-mode"
+      data-area-key="${areaKey}"
+      data-stop-index="${stopIndex}"
+      data-stop-mode="${option.mode}"
+      title="${option.caption}"
+    >
+      <strong>${option.title}</strong>
+      <span>${option.caption}</span>
+    </button>
+  `).join("");
+}
+
+function buildGradientPresetPaletteMarkup(areaKey, stopIndex, selectedStop) {
+  return COLOR_PRESETS.map((preset) => {
+    const style = getTagChipThemeStyle(preset.token);
+    const isActive = selectedStop.source === "preset" && selectedStop.token === preset.token;
+
+    return `
+      <button
+        class="ctl-preset-option${isActive ? " is-active" : ""}"
+        type="button"
+        data-action="set-gradient-stop-preset"
+        data-area-key="${areaKey}"
+        data-stop-index="${stopIndex}"
+        data-stop-token="${preset.token}"
+        aria-label="Use ${preset.label} for this stop"
+        style="background:${style.background};border-color:${style.borderColor};color:${style.color};"
+        title="Use ${preset.label} for this stop"
+      ></button>
+    `;
+  }).join("");
+}
+
+function buildGradientCustomColorMarkup(areaKey, stopIndex, selectedStop) {
+  const customColor = selectedStop.source === "custom"
+    ? selectedStop.color || "#14b8a6"
+    : panelState.tagCustomColorDraft;
+
+  return `
+    <div class="ctl-gradient-custom-card${selectedStop.source === "custom" ? " is-active" : ""}">
+      <div class="ctl-gradient-custom-head">
+        <span class="ctl-gradient-custom-swatch" style="background:${escapeHtml(customColor)};"></span>
+        <div>
+          <strong>Custom Color</strong>
+          <span>Pick any color and it applies immediately.</span>
+        </div>
+      </div>
+      ${buildInlineColorEditorMarkup({
+        color: customColor,
+        scope: "gradient-stop",
+        areaKey,
+        stopIndex,
+      })}
+    </div>
+  `;
+}
+
+function buildGradientStripMarkup(areaKey, area, areaConfig, selectedIndex) {
+  return `
+    <div class="ctl-gradient-strip" data-gradient-strip data-area-key="${areaKey}" title="Click to add a stop, and right-click to remove a stop">
+      ${area.stops.map((stop, index) => {
+        const swatchColor = getGradientStopColor(stop, areaConfig.previewLinkedColor, "preview");
+        const isTransparent = stop.source === "transparent";
+        const style = isTransparent
+          ? `left: calc(${stop.position}% - 9px);`
+          : `left: calc(${stop.position}% - 9px); --ctl-stop-swatch:${swatchColor};`;
+        const label = stop.source === "linked"
+          ? areaConfig.linkedLabel
+          : stop.source === "preset"
+            ? "Preset Color"
+            : stop.source === "custom"
+              ? "Custom Color"
+              : "Transparent";
+
+        return `
+          <button
+            class="ctl-gradient-handle${index === selectedIndex ? " is-active" : ""}${isTransparent ? " is-transparent" : ""}"
+            type="button"
+            style="${style}"
+            data-action="select-gradient-stop"
+            data-gradient-handle
+            data-area-key="${areaKey}"
+            data-stop-index="${index}"
+            title="${label} at ${Math.round(stop.position)}%. Click to add a stop, and right-click to remove a stop."
+          ></button>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function buildGradientEditorMarkup(areaKey, previewMarkup, controlKeys = []) {
   const area = getGradientArea(areaKey);
   const areaConfig = GRADIENT_AREAS[areaKey];
-  const previewGradient = buildGradientCss(areaKey, areaConfig.previewLinkedColor, "preview");
   const selectedIndex = getSelectedGradientStopIndex(areaKey);
   const selectedStop = area.stops[selectedIndex];
   const selectedLabel = selectedStop.source === "linked"
@@ -1020,93 +1533,47 @@ function buildGradientEditorMarkup(areaKey, controlKeys = []) {
 
   return `
     <section class="ctl-section ctl-section-inline ctl-gradient-editor">
-      <div class="ctl-section-head">
-        <div>
-          <h2>${areaConfig.label}</h2>
-          <p>Click the strip to add a stop, then tune the selected stop below.</p>
+      <div class="ctl-gradient-column ctl-gradient-column-main">
+        ${previewMarkup}
+        <div class="ctl-gradient-toolbar">
+          <label class="ctl-control ctl-control-tight ctl-gradient-angle" for="gradient-angle-${areaKey}">
+            <div class="ctl-control-header">
+              <span class="ctl-control-label">Angle</span>
+              <strong class="ctl-control-value" data-gradient-angle-value="${areaKey}">${Math.round(area.angle)}deg</strong>
+            </div>
+            <input class="ctl-range" id="gradient-angle-${areaKey}" type="range" min="0" max="360" step="1" value="${area.angle}" data-gradient-angle="${areaKey}">
+          </label>
+          <button class="ctl-button ctl-button-secondary ctl-button-small" type="button" data-action="add-gradient-stop" data-area-key="${areaKey}">Add Stop</button>
         </div>
+        ${controlKeys.length ? `<div class="ctl-gradient-extra">${buildNumericControlsMarkup(controlKeys)}</div>` : ""}
       </div>
-      <div class="ctl-gradient-canvas">
-        <div class="ctl-gradient-preview" data-gradient-preview="${areaKey}" style="background-image:${previewGradient};"></div>
-        <div class="ctl-gradient-strip" data-gradient-strip data-area-key="${areaKey}" title="Click to add a stop">
-          ${area.stops.map((stop, index) => {
-            const swatchColor = getGradientStopColor(stop, areaConfig.previewLinkedColor, "preview");
-            const isTransparent = stop.source === "transparent";
-            const style = isTransparent
-              ? `left: calc(${stop.position}% - 9px);`
-              : `left: calc(${stop.position}% - 9px); --ctl-stop-swatch:${swatchColor};`;
-            const label = stop.source === "linked"
-              ? areaConfig.linkedLabel
-              : stop.source === "preset"
-                ? "Preset Color"
-                : stop.source === "custom"
-                  ? "Custom Color"
-                  : "Transparent";
-
-            return `
-              <button
-                class="ctl-gradient-handle${index === selectedIndex ? " is-active" : ""}${isTransparent ? " is-transparent" : ""}"
-                type="button"
-                style="${style}"
-                data-action="select-gradient-stop"
-                data-area-key="${areaKey}"
-                data-stop-index="${index}"
-                title="${label} at ${Math.round(stop.position)}%"
-              ></button>
-            `;
-          }).join("")}
-        </div>
-      </div>
-      <div class="ctl-gradient-toolbar">
-        <label class="ctl-control ctl-control-tight ctl-gradient-angle" for="gradient-angle-${areaKey}">
-          <div class="ctl-control-header">
-            <span class="ctl-control-label">Angle</span>
-            <strong class="ctl-control-value" data-gradient-angle-value="${areaKey}">${Math.round(area.angle)}deg</strong>
-          </div>
-          <input class="ctl-range" id="gradient-angle-${areaKey}" type="range" min="0" max="360" step="1" value="${area.angle}" data-gradient-angle="${areaKey}">
-        </label>
-        <button class="ctl-button ctl-button-secondary ctl-button-small" type="button" data-action="add-gradient-stop" data-area-key="${areaKey}">Add Stop</button>
-      </div>
-      <div class="ctl-gradient-inspector">
+      <aside class="ctl-gradient-inspector ctl-gradient-column ctl-gradient-column-side">
         <div class="ctl-gradient-inspector-head">
           <strong data-gradient-selected-index="${areaKey}">Stop ${selectedIndex + 1}</strong>
           <span data-gradient-selected-label="${areaKey}">${selectedLabel} · ${Math.round(selectedStop.position)}%</span>
         </div>
-        <div class="ctl-gradient-inspector-grid">
-          <label class="ctl-field">
-            <span>Mode</span>
-            <select class="ctl-select ctl-select-compact" data-gradient-stop-source data-area-key="${areaKey}" data-stop-index="${selectedIndex}">
-              <option value="linked"${selectedStop.source === "linked" ? " selected" : ""}>${areaConfig.linkedLabel}</option>
-              <option value="transparent"${selectedStop.source === "transparent" ? " selected" : ""}>Transparent</option>
-              <option value="preset"${selectedStop.source === "preset" ? " selected" : ""}>Preset Color</option>
-              <option value="custom"${selectedStop.source === "custom" ? " selected" : ""}>Custom Color</option>
-            </select>
-          </label>
-          ${selectedStop.source === "preset" ? `
-            <label class="ctl-field">
-              <span>Preset</span>
-              <select class="ctl-select ctl-select-compact" data-gradient-stop-preset data-area-key="${areaKey}" data-stop-index="${selectedIndex}">
-                ${COLOR_PRESETS.map((preset) => `<option value="${preset.token}"${selectedStop.token === preset.token ? " selected" : ""}>${preset.label}</option>`).join("")}
-              </select>
-            </label>
-          ` : ""}
-          ${selectedStop.source === "custom" ? `
-            <label class="ctl-field">
-              <span>Custom</span>
-              <input class="ctl-color-input ctl-color-input-wide" type="color" value="${escapeHtml(selectedStop.color || "#14b8a6")}" data-gradient-stop-color data-area-key="${areaKey}" data-stop-index="${selectedIndex}">
-            </label>
-          ` : ""}
-          <button class="ctl-icon-button" type="button" data-action="remove-gradient-stop" data-area-key="${areaKey}" data-stop-index="${selectedIndex}"${area.stops.length <= 2 ? " disabled" : ""}>Remove Stop</button>
-        </div>
-        <label class="ctl-control ctl-control-tight" for="gradient-${areaKey}-${selectedIndex}">
-          <div class="ctl-control-header">
-            <span class="ctl-control-label">Position</span>
-            <strong class="ctl-control-value" data-gradient-position-value="${areaKey}">${Math.round(selectedStop.position)}%</strong>
+        <section class="ctl-gradient-group">
+          <span class="ctl-gradient-group-label">Quick Modes</span>
+          <div class="ctl-mode-grid">
+            ${buildGradientModeOptionsMarkup(areaKey, selectedIndex, selectedStop, areaConfig)}
           </div>
-          <input class="ctl-range" id="gradient-${areaKey}-${selectedIndex}" type="range" min="0" max="100" step="1" value="${selectedStop.position}" data-gradient-stop-position data-area-key="${areaKey}" data-stop-index="${selectedIndex}">
-        </label>
-      </div>
-      ${controlKeys.length ? `<div class="ctl-gradient-extra">${buildNumericControlsMarkup(controlKeys)}</div>` : ""}
+        </section>
+        <section class="ctl-gradient-group">
+          <span class="ctl-gradient-group-label">Preset Colors</span>
+          <div class="ctl-preset-grid">
+            ${buildGradientPresetPaletteMarkup(areaKey, selectedIndex, selectedStop)}
+          </div>
+        </section>
+        <details class="ctl-gradient-group ctl-gradient-custom-toggle"${selectedStop.source === "custom" ? " open" : ""}>
+          <summary class="ctl-gradient-custom-summary">
+            <span class="ctl-gradient-group-label">Custom Color</span>
+            <span class="ctl-gradient-custom-summary-text">Show / Hide</span>
+          </summary>
+          <div class="ctl-gradient-custom-toggle-body">
+            ${buildGradientCustomColorMarkup(areaKey, selectedIndex, selectedStop)}
+          </div>
+        </details>
+      </aside>
     </section>
   `;
 }
@@ -1264,12 +1731,54 @@ function renderPreviewPane() {
 }
 
 function buildPreviewMarkup() {
+  const nodePreview = buildGradientEditorMarkup(
+    "node",
+    `
+      <div class="ctl-preview-block ctl-gradient-preview-surface" data-role="preview-block" data-gradient-preview="node">
+        <div class="ctl-preview-meta">#Project</div>
+        <div class="ctl-preview-heading">Tune the block gradient</div>
+        <p>Use this area to preview the spread and fade for tag-driven block highlights.</p>
+        ${buildGradientStripMarkup("node", getGradientArea("node"), GRADIENT_AREAS.node, getSelectedGradientStopIndex("node"))}
+      </div>
+    `
+  );
+  const titlePreview = buildGradientEditorMarkup(
+    "title",
+    `
+      <div class="ctl-preview-title-card ctl-gradient-preview-surface" data-role="preview-title-card" data-gradient-preview="title">
+        <div class="ctl-preview-meta">Journal</div>
+        <h3 class="ctl-preview-title">Project Compass</h3>
+        ${buildGradientStripMarkup("title", getGradientArea("title"), GRADIENT_AREAS.title, getSelectedGradientStopIndex("title"))}
+      </div>
+    `
+  );
+  const quotePreview = buildGradientEditorMarkup(
+    "quote",
+    `
+      <blockquote class="ctl-preview-quote ctl-gradient-preview-surface" data-role="preview-quote" data-gradient-preview="quote">
+        <div>A gradient should support the content, not swallow it.</div>
+        ${buildGradientStripMarkup("quote", getGradientArea("quote"), GRADIENT_AREAS.quote, getSelectedGradientStopIndex("quote"))}
+      </blockquote>
+    `,
+    ["quoteBorderWidth", "quoteRadius", "quotePaddingY", "quotePaddingX"]
+  );
+  const backgroundPreview = buildGradientEditorMarkup(
+    "background",
+    `
+      <div class="ctl-preview-background ctl-gradient-preview-surface" data-role="preview-background" data-gradient-preview="background">
+        <div>Standalone background blocks keep their color banding, but you can tune the angle, fade, radius, and padding here.</div>
+        ${buildGradientStripMarkup("background", getGradientArea("background"), GRADIENT_AREAS.background, getSelectedGradientStopIndex("background"))}
+      </div>
+    `,
+    ["bgRadius", "bgPaddingY", "bgPaddingX"]
+  );
+
   return `
     <div class="ctl-preview-grid">
       <article class="ctl-preview-card">
         <div class="ctl-preview-card-head">
-          <strong>Tag Chips</strong>
-          <span>Inline tags and hover lift</span>
+          <strong>Tags</strong>
+          <span>Inline chips</span>
         </div>
         <div class="ctl-preview-card-body">
           <div class="ctl-preview-stage ctl-preview-stage-tags">
@@ -1279,8 +1788,8 @@ function buildPreviewMarkup() {
           <section class="ctl-section ctl-section-inline">
             <div class="ctl-section-head">
               <div>
-                <h2>Tag Chip Styling</h2>
-                <p>Shape, size, and hover motion for inline tags.</p>
+                <h2>Chip Controls</h2>
+                <p>Shape, spacing, and hover.</p>
               </div>
             </div>
             ${buildNumericControlsMarkup(["tagRadius", "tagFontSize", "tagHeight", "tagPaddingX", "tagBorderWidth", "tagHoverLift"])}
@@ -1289,53 +1798,38 @@ function buildPreviewMarkup() {
       </article>
       <article class="ctl-preview-card">
         <div class="ctl-preview-card-head">
-          <strong>Tagged Block</strong>
-          <span>Block highlight sweep</span>
+          <strong>Linked Blocks</strong>
+          <span>Tag-based fill</span>
         </div>
         <div class="ctl-preview-card-body">
-          <div class="ctl-preview-block" data-role="preview-block">
-            <div class="ctl-preview-meta">#Project</div>
-            <div class="ctl-preview-heading">Tune the block gradient</div>
-            <p>Use this area to preview the spread and fade for tag-driven block highlights.</p>
-          </div>
-          ${buildGradientEditorMarkup("node")}
+          ${nodePreview}
         </div>
       </article>
       <article class="ctl-preview-card">
         <div class="ctl-preview-card-head">
-          <strong>Page Title</strong>
-          <span>Page and journal title accent</span>
+          <strong>Page Titles</strong>
+          <span>Title accent</span>
         </div>
         <div class="ctl-preview-card-body">
-          <div class="ctl-preview-title-card" data-role="preview-title-card">
-            <div class="ctl-preview-meta">Journal</div>
-            <h3 class="ctl-preview-title">Project Compass</h3>
-          </div>
-          ${buildGradientEditorMarkup("title")}
+          ${titlePreview}
         </div>
       </article>
       <article class="ctl-preview-card">
         <div class="ctl-preview-card-head">
-          <strong>Quote</strong>
-          <span>Quote edge glow and spacing</span>
+          <strong>Quotes</strong>
+          <span>Edge glow</span>
         </div>
         <div class="ctl-preview-card-body">
-          <blockquote class="ctl-preview-quote" data-role="preview-quote">
-            A gradient should support the content, not swallow it.
-          </blockquote>
-          ${buildGradientEditorMarkup("quote", ["quoteBorderWidth", "quoteRadius", "quotePaddingY", "quotePaddingX"])}
+          ${quotePreview}
         </div>
       </article>
       <article class="ctl-preview-card">
         <div class="ctl-preview-card-head">
           <strong>Background Block</strong>
-          <span>Regular block background sweep</span>
+          <span>Standalone fill</span>
         </div>
         <div class="ctl-preview-card-body">
-          <div class="ctl-preview-background" data-role="preview-background">
-            Standalone background blocks keep their color banding, but you can tune the angle, fade, radius, and padding here.
-          </div>
-          ${buildGradientEditorMarkup("background", ["bgRadius", "bgPaddingY", "bgPaddingX"])}
+          ${backgroundPreview}
         </div>
       </article>
     </div>
@@ -1462,12 +1956,6 @@ function syncGradientEditorState() {
       selectedTextLabel.textContent = `${selectedLabel} · ${Math.round(selectedStop.position)}%`;
     }
 
-    const positionValue = document.querySelector(`[data-gradient-position-value="${areaKey}"]`);
-
-    if (positionValue) {
-      positionValue.textContent = `${Math.round(selectedStop.position)}%`;
-    }
-
     const handles = document.querySelectorAll(`[data-action="select-gradient-stop"][data-area-key="${areaKey}"]`);
 
     handles.forEach((handle, index) => {
@@ -1502,10 +1990,245 @@ function syncGradientEditorState() {
   }
 }
 
+function syncInlineColorEditor(editor, hexColor) {
+  if (!editor) {
+    return;
+  }
+
+  const normalized = normalizeHexColor(hexColor);
+  const rgb = normalized ? hexToRgb(normalized) : null;
+  const hsv = rgb ? rgbToHsv(rgb) : null;
+
+  if (!normalized || !rgb || !hsv) {
+    return;
+  }
+
+  editor.dataset.colorValue = normalized;
+
+  const swatch = editor.querySelector("[data-inline-color-swatch]");
+
+  if (swatch) {
+    swatch.style.backgroundColor = normalized;
+  }
+
+  const hexInput = editor.querySelector("[data-inline-color-hex]");
+
+  if (hexInput && hexInput !== document.activeElement) {
+    hexInput.value = normalized;
+  }
+
+  const spectrum = editor.querySelector("[data-inline-color-spectrum]");
+  const spectrumThumb = editor.querySelector("[data-inline-color-spectrum-thumb]");
+  const hueInput = editor.querySelector("[data-inline-color-hue]");
+  const hueValue = editor.querySelector("[data-inline-color-hue-value]");
+  const alphaInput = editor.querySelector("[data-inline-color-alpha]");
+  const alphaValue = editor.querySelector("[data-inline-color-alpha-value]");
+  const hueColor = rgbToCss(hsvToRgb({ h: hsv.h, s: 1, v: 1, a: 1 }));
+  const alphaBase = rgbToCss({ r: rgb.r, g: rgb.g, b: rgb.b, a: 1 });
+
+  if (spectrum) {
+    spectrum.style.setProperty("--ctl-picker-hue", hueColor);
+  }
+
+  if (spectrumThumb) {
+    spectrumThumb.style.left = `${hsv.s * 100}%`;
+    spectrumThumb.style.top = `${(1 - hsv.v) * 100}%`;
+  }
+
+  if (hueInput) {
+    hueInput.value = String(Math.round(hsv.h));
+  }
+
+  if (hueValue) {
+    hueValue.textContent = `${Math.round(hsv.h)}deg`;
+  }
+
+  if (alphaInput) {
+    alphaInput.value = String(Math.round(hsv.a * 100));
+    alphaInput.style.setProperty("--ctl-alpha-base", alphaBase);
+  }
+
+  if (alphaValue) {
+    alphaValue.textContent = `${Math.round(hsv.a * 100)}%`;
+  }
+}
+
+function getInlineColorEditorColor(editor) {
+  const stored = normalizeHexColor(editor?.dataset.colorValue);
+
+  if (stored) {
+    return stored;
+  }
+
+  const hue = Number(editor?.querySelector("[data-inline-color-hue]")?.value ?? 170);
+  const alpha = Number(editor?.querySelector("[data-inline-color-alpha]")?.value ?? 100) / 100;
+  const thumb = editor?.querySelector("[data-inline-color-spectrum-thumb]");
+  const saturation = clamp(Number.parseFloat(thumb?.style.left ?? "100") / 100, 0, 1);
+  const value = clamp(1 - (Number.parseFloat(thumb?.style.top ?? "0") / 100), 0, 1);
+  return rgbToHex(hsvToRgb({ h: hue, s: saturation, v: value, a: alpha }));
+}
+
+function syncTagsPaneState() {
+  const selectedTag = panelState.selectedTag;
+  const preview = document.querySelector('[data-role="selected-tag-preview"]');
+  const colorLabel = document.querySelector('[data-role="selected-tag-color-label"]');
+
+  if (preview && selectedTag) {
+    preview.setAttribute("style", buildTagChipStyleAttribute(selectedTag));
+  }
+
+  if (colorLabel) {
+    colorLabel.textContent = selectedTag
+      ? `Current color: ${getTagColorToken(selectedTag) || "custom"}`
+      : "Choose a tag to edit its color";
+  }
+
+  document.querySelectorAll("[data-tag-chip-name]").forEach((chip) => {
+    chip.setAttribute("style", buildTagChipStyleAttribute(chip.dataset.tagChipName || ""));
+  });
+
+  document.querySelectorAll("[data-set-tag-color]").forEach((button) => {
+    const isActive = selectedTag && getTagColorToken(selectedTag) === button.dataset.setTagColor;
+    button.classList.toggle("is-active", Boolean(isActive));
+  });
+
+  const selectedAssignment = selectedTag ? getTagColorAssignment(selectedTag) : null;
+  const { backgroundColor, foregroundColor } = getTagCustomColors(selectedAssignment, panelState.themeMode);
+  syncInlineColorEditor(document.querySelector('[data-inline-color-editor][data-color-scope="tag-custom-background"]'), backgroundColor);
+  syncInlineColorEditor(document.querySelector('[data-inline-color-editor][data-color-scope="tag-custom-foreground"]'), foregroundColor);
+}
+
+function applyInlineEditorColor(editor, color, renderMode = "soft") {
+  const normalized = normalizeHexColor(color);
+
+  if (!editor || !normalized) {
+    return;
+  }
+
+  syncInlineColorEditor(editor, normalized);
+
+  if (editor.dataset.colorScope === "gradient-stop") {
+    updateGradientStop(
+      editor.dataset.areaKey,
+      Number(editor.dataset.stopIndex),
+      { color: normalized, source: "custom" }
+    );
+    void applyManagedOverrides(false, "Updated custom gradient color", renderMode);
+    schedulePersistGradients();
+    return;
+  }
+
+  const selectedAssignment = panelState.selectedTag ? getTagColorAssignment(panelState.selectedTag) : null;
+  const currentMode = panelState.themeMode === "dark" ? "dark" : "light";
+  const otherMode = currentMode === "dark" ? "light" : "dark";
+  const currentColors = getTagCustomColors(selectedAssignment, currentMode);
+  const otherModeColors = getTagCustomColors(selectedAssignment, otherMode);
+  const isForegroundEditor = editor.dataset.colorScope === "tag-custom-foreground";
+
+  getTagModeDraft(currentMode)[isForegroundEditor ? "foregroundColor" : "backgroundColor"] = normalized;
+
+  if (isForegroundEditor) {
+    panelState.tagCustomForegroundDraft = normalized;
+  } else {
+    panelState.tagCustomColorDraft = normalized;
+  }
+
+  if (!panelState.selectedTag) {
+    syncTagsPaneState();
+    return;
+  }
+
+  panelState.tagColorAssignments[panelState.selectedTag.toLowerCase()] = {
+    type: "custom",
+    lightBackgroundColor: currentMode === "light" ? (isForegroundEditor ? currentColors.backgroundColor : normalized) : otherModeColors.backgroundColor,
+    lightForegroundColor: currentMode === "light" ? (isForegroundEditor ? normalized : currentColors.foregroundColor) : otherModeColors.foregroundColor,
+    darkBackgroundColor: currentMode === "dark" ? (isForegroundEditor ? currentColors.backgroundColor : normalized) : otherModeColors.backgroundColor,
+    darkForegroundColor: currentMode === "dark" ? (isForegroundEditor ? normalized : currentColors.foregroundColor) : otherModeColors.foregroundColor,
+  };
+  void applyManagedOverrides(false, `Updated ${panelState.selectedTag} custom color`, renderMode);
+  schedulePersistTagColors();
+}
+
+function beginInlineColorDrag(editor, pointerId) {
+  if (!editor) {
+    return;
+  }
+
+  panelState.colorDrag = {
+    pointerId,
+    editor,
+  };
+}
+
+function updateInlineColorSpectrum(editor, clientX, clientY, renderMode = "soft") {
+  const spectrum = editor?.querySelector("[data-inline-color-spectrum]");
+
+  if (!spectrum) {
+    return;
+  }
+
+  const rect = spectrum.getBoundingClientRect();
+  const saturation = clamp((clientX - rect.left) / Math.max(rect.width, 1), 0, 1);
+  const value = clamp(1 - ((clientY - rect.top) / Math.max(rect.height, 1)), 0, 1);
+  const current = hexToRgb(getInlineColorEditorColor(editor)) || { r: 20, g: 184, b: 166, a: 1 };
+  const hsv = rgbToHsv(current);
+  applyInlineEditorColor(editor, rgbToHex(hsvToRgb({ h: hsv.h, s: saturation, v: value, a: hsv.a })), renderMode);
+}
+
+function endInlineColorDrag() {
+  panelState.colorDrag = null;
+}
+
+function beginGradientHandleDrag(areaKey, stopIndex, pointerId) {
+  setSelectedGradientStop(areaKey, stopIndex);
+  panelState.gradientDrag = {
+    areaKey,
+    stopIndex,
+    pointerId,
+    moved: false,
+  };
+  syncGradientEditorState();
+}
+
+function updateGradientHandleDrag(clientX) {
+  const drag = panelState.gradientDrag;
+
+  if (!drag) {
+    return;
+  }
+
+  const nextPosition = getGradientPositionFromClientX(drag.areaKey, clientX);
+
+  if (nextPosition === null) {
+    return;
+  }
+
+  drag.moved = true;
+  updateGradientStop(drag.areaKey, drag.stopIndex, { position: nextPosition });
+  void applyManagedOverrides(false, "Adjusted gradient stop", "soft");
+  schedulePersistGradients();
+}
+
+function endGradientHandleDrag() {
+  const drag = panelState.gradientDrag;
+
+  if (!drag) {
+    return;
+  }
+
+  panelState.gradientDrag = null;
+
+  if (drag.moved) {
+    panelState.suppressGradientClick = true;
+    renderPanel("Adjusted gradient stop");
+  }
+}
+
 function syncPanelMeta(statusMessage) {
   const content = document.querySelector('[data-role="css-content"]');
   const meta = document.querySelector('[data-role="meta"]');
   const status = document.querySelector('[data-role="status"]');
+  const themeToggleButton = document.querySelector('[data-action="toggle-logseq-theme"]');
 
   if (!content || !meta || !status) {
     return;
@@ -1514,6 +2237,11 @@ function syncPanelMeta(statusMessage) {
   content.value = panelState.cssText;
   meta.textContent = `${lineCount(panelState.cssText)} lines | ${panelState.cssText.length} chars | Base file plus live overrides | Applied ${formatAppliedAt(panelState.lastAppliedAt)}`;
   status.textContent = statusMessage ?? `Theme mode: ${panelState.themeMode} | Controls are stored in plugin state`;
+
+  if (themeToggleButton) {
+    themeToggleButton.textContent = getThemeToggleLabel();
+    themeToggleButton.setAttribute("title", `Toggle Logseq to ${panelState.themeMode === "dark" ? "light" : "dark"} mode`);
+  }
 }
 
 function refreshPanel(statusMessage, { rerenderPreview = false, rerenderTags = false } = {}) {
@@ -1529,6 +2257,7 @@ function refreshPanel(statusMessage, { rerenderPreview = false, rerenderTags = f
   syncControlInputs();
   syncPreviewStyles();
   syncGradientEditorState();
+  syncTagsPaneState();
   syncTabState();
 }
 
@@ -1567,27 +2296,52 @@ ${selector} {
     const escapedTagName = escapeAttributeValue(tagName);
 
     if (assignment?.type === "custom") {
-      const customTheme = getCustomColorTheme(assignment.baseColor);
+      const lightTheme = getResolvedCustomTagTheme(assignment, "light");
+      const darkTheme = getResolvedCustomTagTheme(assignment, "dark");
+      const lightGradient = getCustomTagGradientColor(assignment, "light");
+      const darkGradient = getCustomTagGradientColor(assignment, "dark") || lightGradient;
 
-      if (!customTheme) {
+      if (!lightTheme || !darkTheme || !lightGradient) {
         return "";
       }
 
       return `
 a.tag[data-ref="${escapedTagName}" i] {
-  background-color: ${customTheme.lightBg} !important;
-  border-color: ${customTheme.lightBorder} !important;
-  color: ${customTheme.lightText} !important;
+  background-color: ${lightTheme.background} !important;
+  border-color: ${lightTheme.borderColor} !important;
+  color: ${lightTheme.color} !important;
 }
 
 .dark-theme a.tag[data-ref="${escapedTagName}" i] {
-  background-color: ${customTheme.darkBg} !important;
-  border-color: ${customTheme.darkBorder} !important;
-  color: ${customTheme.darkText} !important;
+  background-color: ${darkTheme.background} !important;
+  border-color: ${darkTheme.borderColor} !important;
+  color: ${darkTheme.color} !important;
 }
 
 :is(.ls-block > div:first-child, h1.title, .journal-title):has(a.tag[data-ref="${escapedTagName}" i]) {
-  --node-color: ${customTheme.gradient};
+  --node-color: ${lightGradient};
+}
+
+.dark-theme :is(.ls-block > div:first-child, h1.title, .journal-title):has(a.tag[data-ref="${escapedTagName}" i]) {
+  --node-color: ${darkGradient};
+}
+
+:is(
+  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref="${escapedTagName}" i]),
+  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref="${escapedTagName}" i]),
+  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref="${escapedTagName}" i]),
+  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref="${escapedTagName}" i])
+) {
+  --node-color: ${lightGradient};
+}
+
+.dark-theme :is(
+  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref="${escapedTagName}" i]),
+  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref="${escapedTagName}" i]),
+  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref="${escapedTagName}" i]),
+  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref="${escapedTagName}" i])
+) {
+  --node-color: ${darkGradient};
 }
 `;
     }
@@ -1605,6 +2359,15 @@ a.tag[data-ref="${escapedTagName}" i] {
 }
 
 :is(.ls-block > div:first-child, h1.title, .journal-title):has(a.tag[data-ref="${escapedTagName}" i]) {
+  --node-color: var(--grad-${token});
+}
+
+:is(
+  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref="${escapedTagName}" i]),
+  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref="${escapedTagName}" i]),
+  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref="${escapedTagName}" i]),
+  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref="${escapedTagName}" i])
+) {
   --node-color: var(--grad-${token});
 }
 `;
@@ -1649,6 +2412,26 @@ a.tag:hover {
   background-color: transparent !important;
 }
 
+:is(
+  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref]),
+  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref]),
+  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref]),
+  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref])
+) {
+  background-image: ${titleGradient} !important;
+  background-color: transparent !important;
+}
+
+.dark-theme :is(
+  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref]),
+  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref]),
+  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref]),
+  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref])
+) {
+  background-image: ${titleGradient} !important;
+  background-color: transparent !important;
+}
+
 div[data-node-type="quote"] {
   --ctl-quote-color: rgba(99, 102, 241, ${controls.quoteLightOpacity});
   border-left-width: ${controls.quoteBorderWidth}px !important;
@@ -1687,17 +2470,17 @@ function mountPanel() {
   const app = document.getElementById("app");
 
   if (!app) {
-    throw new Error("Missing #app root for Custom Theme Loader panel");
+    throw new Error("Missing #app root for Degrande Colors for Logseq DB panel");
   }
 
   app.innerHTML = `
     <div class="ctl-shell">
       <div class="ctl-backdrop" data-action="close"></div>
-      <section class="ctl-window" aria-label="Custom Theme Loader panel">
+      <section class="ctl-window" aria-label="Degrande Colors for Logseq DB panel">
         <header class="ctl-header">
           <div>
             <p class="ctl-eyebrow">Live Theme Controls</p>
-            <h1>Custom Theme Loader</h1>
+            <h1>Degrande Colors for Logseq DB</h1>
             <p class="ctl-subtitle">Tune gradients for tags, background blocks, and quotes. The live stylesheet preview updates as you move the controls.</p>
           </div>
           <aside class="ctl-header-meta">
@@ -1708,6 +2491,7 @@ function mountPanel() {
         <div class="ctl-toolbar">
           <div class="ctl-toolbar-actions">
             <button class="ctl-button ctl-button-primary" data-action="reload-file">Reload File</button>
+            <button class="ctl-button ctl-button-secondary" data-action="toggle-logseq-theme">${getThemeToggleLabel()}</button>
             <button class="ctl-button ctl-button-secondary" data-action="refresh-tags">Refresh Tags</button>
             <button class="ctl-button ctl-button-secondary" data-action="reset-controls">Reset Controls</button>
             <button class="ctl-button ctl-button-secondary" data-action="copy">Copy CSS</button>
@@ -1791,6 +2575,11 @@ function mountPanel() {
     const { action } = target.dataset;
 
     if (action === "select-gradient-stop") {
+      if (panelState.suppressGradientClick) {
+        panelState.suppressGradientClick = false;
+        return;
+      }
+
       setSelectedGradientStop(target.dataset.areaKey, Number(target.dataset.stopIndex));
       renderPanel();
       return;
@@ -1803,6 +2592,11 @@ function mountPanel() {
 
     if (action === "reload-file") {
       await reloadThemeCss(true);
+      return;
+    }
+
+    if (action === "toggle-logseq-theme") {
+      await toggleLogseqTheme();
       return;
     }
 
@@ -1828,24 +2622,41 @@ function mountPanel() {
       return;
     }
 
-    if (action === "apply-custom-tag-color") {
-      if (!panelState.selectedTag) {
+    if (action === "copy-tag-colors-from-other-mode") {
+      if (!copyTagColorsFromOtherMode()) {
         return;
       }
 
-      panelState.tagColorAssignments[panelState.selectedTag.toLowerCase()] = {
-        type: "custom",
-        baseColor: panelState.tagCustomColorDraft,
-      };
-      void applyManagedOverrides(false, `Updated ${panelState.selectedTag} custom color`);
-      renderPanel(`Set ${panelState.selectedTag} to a custom color`);
-      schedulePersistTagColors();
+      renderPanel(`Copied ${getOppositeThemeMode()} mode colors to ${panelState.themeMode} for ${panelState.selectedTag}`);
+      void applyManagedOverrides(false, `Copied ${panelState.selectedTag} colors from ${getOppositeThemeMode()}`);
       return;
     }
 
     if (action === "add-gradient-stop") {
       addGradientStop(target.dataset.areaKey);
       void applyManagedOverrides(false, "Added gradient stop");
+      schedulePersistGradients();
+      return;
+    }
+
+    if (action === "set-gradient-stop-mode") {
+      updateGradientStop(
+        target.dataset.areaKey,
+        Number(target.dataset.stopIndex),
+        { source: target.dataset.stopMode, token: COLOR_PRESETS[0].token, color: panelState.tagCustomColorDraft }
+      );
+      void applyManagedOverrides(false, "Updated gradient stop type");
+      schedulePersistGradients();
+      return;
+    }
+
+    if (action === "set-gradient-stop-preset") {
+      updateGradientStop(
+        target.dataset.areaKey,
+        Number(target.dataset.stopIndex),
+        { source: "preset", token: target.dataset.stopToken }
+      );
+      void applyManagedOverrides(false, "Updated preset gradient color");
       schedulePersistGradients();
       return;
     }
@@ -1860,6 +2671,107 @@ function mountPanel() {
     if (action === "copy") {
       await copyCssToClipboard();
     }
+  });
+
+  app.addEventListener("pointerdown", (event) => {
+    const gradientHandle = event.target.closest("[data-gradient-handle]");
+
+    if (!gradientHandle) {
+      return;
+    }
+
+    if (event.pointerType === "mouse" && event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    beginGradientHandleDrag(
+      gradientHandle.dataset.areaKey,
+      Number(gradientHandle.dataset.stopIndex),
+      event.pointerId
+    );
+  });
+
+  app.addEventListener("contextmenu", (event) => {
+    const gradientHandle = event.target.closest("[data-gradient-handle]");
+
+    if (!gradientHandle) {
+      return;
+    }
+
+    event.preventDefault();
+    setSelectedGradientStop(gradientHandle.dataset.areaKey, Number(gradientHandle.dataset.stopIndex));
+    removeGradientStop(gradientHandle.dataset.areaKey, Number(gradientHandle.dataset.stopIndex));
+    void applyManagedOverrides(false, "Removed gradient stop");
+    schedulePersistGradients();
+  });
+
+  document.addEventListener("pointermove", (event) => {
+    if (!panelState.gradientDrag || event.pointerId !== panelState.gradientDrag.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    updateGradientHandleDrag(event.clientX);
+  });
+
+  document.addEventListener("pointerup", (event) => {
+    if (!panelState.gradientDrag || event.pointerId !== panelState.gradientDrag.pointerId) {
+      return;
+    }
+
+    endGradientHandleDrag();
+  });
+
+  document.addEventListener("pointercancel", (event) => {
+    if (!panelState.gradientDrag || event.pointerId !== panelState.gradientDrag.pointerId) {
+      return;
+    }
+
+    endGradientHandleDrag();
+  });
+
+  app.addEventListener("pointerdown", (event) => {
+    const spectrum = event.target.closest("[data-inline-color-spectrum]");
+
+    if (!spectrum) {
+      return;
+    }
+
+    const editor = spectrum.closest("[data-inline-color-editor]");
+
+    if (!editor || editor.dataset.inlineColorDisabled === "true") {
+      return;
+    }
+
+    event.preventDefault();
+    beginInlineColorDrag(editor, event.pointerId);
+    updateInlineColorSpectrum(editor, event.clientX, event.clientY);
+  });
+
+  document.addEventListener("pointermove", (event) => {
+    if (!panelState.colorDrag || event.pointerId !== panelState.colorDrag.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    updateInlineColorSpectrum(panelState.colorDrag.editor, event.clientX, event.clientY);
+  });
+
+  document.addEventListener("pointerup", (event) => {
+    if (!panelState.colorDrag || event.pointerId !== panelState.colorDrag.pointerId) {
+      return;
+    }
+
+    endInlineColorDrag();
+  });
+
+  document.addEventListener("pointercancel", (event) => {
+    if (!panelState.colorDrag || event.pointerId !== panelState.colorDrag.pointerId) {
+      return;
+    }
+
+    endInlineColorDrag();
   });
 
   app.addEventListener("input", (event) => {
@@ -1877,29 +2789,47 @@ function mountPanel() {
       return;
     }
 
-    const gradientPositionInput = event.target.closest("[data-gradient-stop-position]");
+    const inlineColorHexInput = event.target.closest("[data-inline-color-hex]");
 
-    if (gradientPositionInput) {
-      updateGradientStop(
-        gradientPositionInput.dataset.areaKey,
-        Number(gradientPositionInput.dataset.stopIndex),
-        { position: Number(gradientPositionInput.value) }
-      );
-      void applyManagedOverrides(false, "Adjusted gradient stop", "soft");
-      schedulePersistGradients();
+    if (inlineColorHexInput) {
+      const editor = inlineColorHexInput.closest("[data-inline-color-editor]");
+      const normalized = normalizeHexColor(inlineColorHexInput.value);
+
+      if (!editor || !normalized) {
+        return;
+      }
+
+      applyInlineEditorColor(editor, normalized, "soft");
       return;
     }
 
-    const gradientColorInput = event.target.closest("[data-gradient-stop-color]");
+    const inlineColorHue = event.target.closest("[data-inline-color-hue]");
 
-    if (gradientColorInput) {
-      updateGradientStop(
-        gradientColorInput.dataset.areaKey,
-        Number(gradientColorInput.dataset.stopIndex),
-        { color: gradientColorInput.value, source: "custom" }
-      );
-      void applyManagedOverrides(false, "Updated custom gradient color", "soft");
-      schedulePersistGradients();
+    if (inlineColorHue) {
+      const editor = inlineColorHue.closest("[data-inline-color-editor]");
+
+      if (!editor) {
+        return;
+      }
+
+      const current = hexToRgb(getInlineColorEditorColor(editor)) || { r: 20, g: 184, b: 166, a: 1 };
+      const hsv = rgbToHsv(current);
+      applyInlineEditorColor(editor, rgbToHex(hsvToRgb({ h: Number(inlineColorHue.value), s: hsv.s, v: hsv.v, a: hsv.a })), "soft");
+      return;
+    }
+
+    const inlineColorAlpha = event.target.closest("[data-inline-color-alpha]");
+
+    if (inlineColorAlpha) {
+      const editor = inlineColorAlpha.closest("[data-inline-color-editor]");
+
+      if (!editor) {
+        return;
+      }
+
+      const current = hexToRgb(getInlineColorEditorColor(editor)) || { r: 20, g: 184, b: 166, a: 1 };
+      const hsv = rgbToHsv(current);
+      applyInlineEditorColor(editor, rgbToHex(hsvToRgb({ h: hsv.h, s: hsv.s, v: hsv.v, a: Number(inlineColorAlpha.value) / 100 })), "soft");
       return;
     }
 
@@ -1908,14 +2838,6 @@ function mountPanel() {
     if (tagFilterInput) {
       panelState.tagFilter = tagFilterInput.value || "";
       renderPanel();
-      return;
-    }
-
-    const customTagColorInput = event.target.closest("[data-tag-custom-color]");
-
-    if (customTagColorInput) {
-      panelState.tagCustomColorDraft = customTagColorInput.value || "#14b8a6";
-      renderTagsPane();
       return;
     }
 
@@ -1938,29 +2860,12 @@ function mountPanel() {
   });
 
   app.addEventListener("change", (event) => {
-    const gradientSourceSelect = event.target.closest("[data-gradient-stop-source]");
+    const inlineColorHexInput = event.target.closest("[data-inline-color-hex]");
 
-    if (gradientSourceSelect) {
-      updateGradientStop(
-        gradientSourceSelect.dataset.areaKey,
-        Number(gradientSourceSelect.dataset.stopIndex),
-        { source: gradientSourceSelect.value, token: COLOR_PRESETS[0].token, color: panelState.tagCustomColorDraft }
-      );
-      void applyManagedOverrides(false, "Updated gradient stop type");
-      schedulePersistGradients();
-      return;
-    }
-
-    const gradientPresetSelect = event.target.closest("[data-gradient-stop-preset]");
-
-    if (gradientPresetSelect) {
-      updateGradientStop(
-        gradientPresetSelect.dataset.areaKey,
-        Number(gradientPresetSelect.dataset.stopIndex),
-        { source: "preset", token: gradientPresetSelect.value }
-      );
-      void applyManagedOverrides(false, "Updated preset gradient color");
-      schedulePersistGradients();
+    if (inlineColorHexInput) {
+      const editor = inlineColorHexInput.closest("[data-inline-color-editor]");
+      const nextColor = getInlineColorEditorColor(editor);
+      syncInlineColorEditor(editor, nextColor);
       return;
     }
 
@@ -2061,7 +2966,7 @@ async function copyCssToClipboard() {
     renderPanel("Copied effective CSS to clipboard");
     await logseq.UI.showMsg("Copied effective CSS to clipboard.", "success");
   } catch (error) {
-    console.error("[Local Custom Theme Loader] Clipboard copy failed", error);
+    console.error("[Degrande Colors for Logseq DB] Clipboard copy failed", error);
     renderPanel("Clipboard copy failed");
     await logseq.UI.showMsg("Unable to copy CSS from the plugin window.", "warning");
   }
@@ -2079,16 +2984,16 @@ async function main() {
   setThemeMode(userConfigs?.preferredThemeMode);
   logseq.App.onThemeModeChanged(({ mode }) => {
     setThemeMode(mode);
-    renderPanel();
+    renderPanel(`Logseq theme: ${mode}`);
   });
 
   logseq.setMainUIInlineStyle({
     position: "fixed",
     zIndex: 999,
-    top: "5vh",
+    top: "6vh",
     left: "50%",
-    width: "min(1280px, 92vw)",
-    height: "88vh",
+    width: "min(1180px, 90vw)",
+    height: "84vh",
     transform: "translateX(-50%)",
   });
 
@@ -2106,7 +3011,7 @@ async function main() {
   });
 
   await logseq.UI.showMsg(
-    "Local Custom Theme Loader is active.",
+    "Degrande Colors for Logseq DB is active.",
     "success",
     { timeout: 2500 }
   );
@@ -2114,7 +3019,7 @@ async function main() {
   logseq.App.registerUIItem("toolbar", {
     key: "custom-theme-loader-open",
     template: `
-      <a class="button" data-on-click="toggleThemeLoader" title="Open Custom Theme Loader">
+      <a class="button" data-on-click="toggleThemeLoader" title="Open Degrande Colors for Logseq DB">
         <i class="ti ti-palette" aria-hidden="true"></i>
       </a>
     `,
@@ -2123,7 +3028,7 @@ async function main() {
   logseq.App.registerCommandPalette(
     {
       key: "custom-theme-loader-open-panel",
-      label: "Custom Theme Loader: open panel",
+      label: "Degrande Colors for Logseq DB: open panel",
     },
     openThemeLoader
   );
@@ -2131,11 +3036,11 @@ async function main() {
   logseq.App.registerCommandPalette(
     {
       key: "custom-theme-loader-status",
-      label: "Custom Theme Loader: show status",
+      label: "Degrande Colors for Logseq DB: show status",
     },
     async () => {
       await logseq.UI.showMsg(
-        "Workspace custom.css is active through the Custom Theme Loader plugin.",
+        "Workspace custom.css is active through the Degrande Colors for Logseq DB plugin.",
         "success"
       );
       openThemeLoader();
@@ -2145,7 +3050,7 @@ async function main() {
   logseq.App.registerCommandPalette(
     {
       key: "custom-theme-loader-reload-css",
-      label: "Custom Theme Loader: reload CSS",
+      label: "Degrande Colors for Logseq DB: reload CSS",
     },
     () => reloadThemeCss(true)
   );
@@ -2153,14 +3058,22 @@ async function main() {
   logseq.App.registerCommandPalette(
     {
       key: "custom-theme-loader-refresh-tags",
-      label: "Custom Theme Loader: refresh tags",
+      label: "Degrande Colors for Logseq DB: refresh tags",
     },
     () => refreshTags(true)
   );
 
-  console.info("[Local Custom Theme Loader] Loaded workspace custom.css and controls");
+  logseq.App.registerCommandPalette(
+    {
+      key: "custom-theme-loader-toggle-logseq-theme",
+      label: "Degrande Colors for Logseq DB: toggle Logseq theme",
+    },
+    toggleLogseqTheme
+  );
+
+  console.info("[Degrande Colors for Logseq DB] Loaded workspace custom.css and controls");
 }
 
 logseq.ready(main).catch((error) => {
-  console.error("[Local Custom Theme Loader] Failed to start", error);
+  console.error("[Degrande Colors for Logseq DB] Failed to start", error);
 });

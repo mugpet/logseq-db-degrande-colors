@@ -1,7 +1,7 @@
 {
-  "name": "logseq-db-degrande-colors",
+  "name": "degrande-colors-for-logseq-db",
   "version": "0.1.0",
-  "description": "Logseq DB graph theme plugin with live gradient and tag color controls.",
+  "description": "Degrande Colors for Logseq DB with live gradient and tag color controls.",
   "author": "GitHub Copilot",
   "license": "MIT",
   "main": "index.html",

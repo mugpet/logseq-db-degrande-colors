@@ -16,8 +16,10 @@ This workspace is used to investigate Logseq DB graphs and the local Logseq HTTP
 - For DB graphs, do not assume a graph-local `logseq/custom.css` file exists.
 - This workspace now contains an unpacked Logseq plugin under `logseq-db-degrande-colors/` (`package.json`, `index.html`, `plugin.js`, `custom.css`) that loads `custom.css` with `logseq.provideStyle`.
 - The plugin exposes a main UI panel with preview, tags, and CSS tabs, live gradient editing, preset/custom tag colors, and reload controls.
+- Known unresolved issue: page title gradients in live Logseq do not yet reliably use the same gradient shape as the plugin preview. Custom tag colors now propagate to tag-driven elements, but the actual title-row DOM in Logseq still needs exact selector targeting before more title-gradient fixes are attempted.
 
 ## Execution Notes
 - On Windows, avoid fragile shell one-liners with embedded JSON when calling Logseq. Prefer a script file or browser `fetch` execution so the JSON body stays intact.
 - When the user asks for tags, use `logseq.Editor.getAllTags()` first.
 - For UI customization work in this workspace, prefer editing `logseq-db-degrande-colors/custom.css` and loading the unpacked plugin from `logseq-db-degrande-colors/` rather than relying on the HTTP bridge for style injection.
+- For the current page-title gradient bug, do not assume CSS order alone is the problem; start by inspecting the exact title-row wrapper that Logseq renders in the live app.

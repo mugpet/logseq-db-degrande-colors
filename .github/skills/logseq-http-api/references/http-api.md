@@ -37,6 +37,12 @@
 - This is the preferred route for persistent UI changes discovered during this investigation.
 - The plugin now includes preview, tags, and CSS tabs, live gradient editing, tag color assignment, and in-panel reload controls.
 
+## Known UI Issue
+
+- Custom tag colors now propagate to tag-driven blocks and other gradient consumers through plugin-generated CSS.
+- The remaining unresolved bug is page title gradients in the live Logseq UI: the plugin preview can show the correct title gradient while the real page title still renders with the wrong gradient shape.
+- Reordering CSS rules was not sufficient. The next investigation should inspect the exact page-title wrapper rendered by Logseq and target that concrete DOM shape instead of relying on generic `h1.title`, `.journal-title`, or broad `div:has(...)` fallbacks.
+
 ## Current Tag Set From The Investigated Graph
 
 - Access

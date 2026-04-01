@@ -28,6 +28,7 @@ Use this skill when working against a running local Logseq desktop instance that
 - Verified workspace customization path:
   - a local unpacked plugin under `logseq-db-degrande-colors/` can load `custom.css` through `logseq.provideStyle` at plugin runtime
   - the plugin panel now includes preview, tags, and CSS tabs plus live gradient and tag-color controls
+  - custom tag colors now propagate to tag-driven elements through plugin-generated CSS, but page title gradients remain partially unresolved in live Logseq because the title-row selector still needs exact DOM targeting
 
 ## Procedure
 
@@ -37,6 +38,7 @@ Use this skill when working against a running local Logseq desktop instance that
 4. Only reach for `logseq.DB.datascriptQuery` when the editor/app methods are insufficient.
 5. Record whether a method is working, failing, or ambiguous when investigating bridge coverage.
 6. For persistent appearance changes in this workspace, edit `logseq-db-degrande-colors/custom.css` and load `logseq-db-degrande-colors/` as an unpacked plugin in Logseq.
+7. For the current title-gradient bug, inspect the live title-row DOM first; do not assume preview correctness means the runtime selectors are correct.
 
 ## Examples
 

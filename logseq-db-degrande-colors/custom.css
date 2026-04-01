@@ -251,6 +251,26 @@ a.tag[data-ref="Login" i]        { background-color: var(--bg-red) !important; b
   background-color: transparent !important;
 }
 
+:is(
+  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref]),
+  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref]),
+  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref]),
+  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref])
+) {
+  background-image: linear-gradient(90deg, transparent 0%, var(--node-color) 30%, transparent 60%) !important;
+  background-color: transparent !important;
+}
+
+.dark-theme :is(
+  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref]),
+  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref]),
+  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref]),
+  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref])
+) {
+  background-image: linear-gradient(90deg, transparent 0%, var(--node-color) 3%, transparent 35%) !important;
+  background-color: transparent !important;
+}
+
 /* ========================================= */
 /* --- 5. SELECTION & OVERFLOW FIXES     --- */
 /* ========================================= */
