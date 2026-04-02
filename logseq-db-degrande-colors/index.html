@@ -34,20 +34,26 @@
       html,
       body {
         margin: 0;
+        min-height: 100%;
+      }
+
+      body.degrande-panel-host {
         height: 100%;
         width: 100%;
         overflow: hidden;
         font-family: Aptos, "Segoe UI", sans-serif;
         background: transparent;
-      }
-
-      body {
         color: var(--ctl-text);
       }
 
       #app {
+        display: none;
+      }
+
+      body.degrande-panel-host #app {
         height: 100%;
         width: 100%;
+        display: block;
       }
 
       .ctl-shell {

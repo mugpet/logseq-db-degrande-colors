@@ -3,6 +3,20 @@ const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const BASE_STYLE_ELEMENT_ID = "degrande-colors-base-style";
 const MANAGED_STYLE_ELEMENT_ID = "degrande-colors-managed-style";
+const TOOLBAR_STYLE_ELEMENT_ID = "degrande-colors-toolbar-style";
+const TOOLBAR_BUTTON_ID = "degrande-colors-toolbar-button";
+const TOOLBAR_OBSERVER_KEY = "__degrandeColorsToolbarObserver";
+const TOOLBAR_RENDER_TIMER_KEY = "__degrandeColorsToolbarRenderTimer";
+const PANEL_HOST_CLASS = "degrande-panel-host";
+const MAIN_UI_INLINE_STYLE = {
+  position: "fixed",
+  zIndex: 999,
+  top: "6vh",
+  left: "50%",
+  width: "min(1000px, 90vw)",
+  height: "84vh",
+  transform: "translateX(-50%)",
+};
 
 const COLOR_PRESETS = [
   { token: "red", label: "Red", lightBg: "#fce7e7", lightBorder: "#ef4444", darkBg: "#7f1d1d", darkBorder: "#f87171", lightText: "#991b1b", darkText: "#fee2e2" },
@@ -264,52 +278,232 @@ function cleanupLegacyManagedStyles() {
   });
 }
 
-function getToolbarStyle(pluginId) {
+function getToolbarStyle() {
   return `
-div[data-injected-ui="custom-theme-loader-open-${pluginId}"] {
+.ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] {
+  display: inline-flex;
+  align-items: center;
+}
+
+.ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] a,
+.ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] a.button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ls-primary-text-color, currentColor);
+  opacity: 0.82;
 }
 
-div[data-injected-ui="custom-theme-loader-open-${pluginId}"] a,
-div[data-injected-ui="custom-theme-loader-open-${pluginId}"] a.button {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  min-width: 0 !important;
-  min-height: 0 !important;
-  width: 24px !important;
-  height: 24px !important;
-  font-size: inherit !important;
-  line-height: 1 !important;
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
-  opacity: 1 !important;
-  vertical-align: middle !important;
+.ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] a:hover,
+.ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] a.button:hover {
+  opacity: 1;
 }
 
-div[data-injected-ui="custom-theme-loader-open-${pluginId}"] a i,
-div[data-injected-ui="custom-theme-loader-open-${pluginId}"] a.button i {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 18px !important;
-  height: 18px !important;
-  font-size: 18px !important;
-  line-height: 1 !important;
-  color: var(--ls-primary-text-color, currentColor) !important;
-  opacity: 0.82 !important;
-}
-
-div[data-injected-ui="custom-theme-loader-open-${pluginId}"] a:hover i,
-div[data-injected-ui="custom-theme-loader-open-${pluginId}"] a.button:hover i {
-  opacity: 1 !important;
+.ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] :is(.ti, .tie) {
+  font-size: 18px;
+  line-height: 1;
 }
 `;
+}
+
+function getToolbarHost() {
+  const hostDocument = getHostDocument();
+  const selectors = [
+    '.ui-items-container[data-type="toolbar"]',
+    '.ui-items-container[data-type="toolbar"] > .list-wrap',
+    '.cp__header .r',
+    '#head .r',
+    '.cp__header-right-menu',
+    'header .r',
+  ];
+
+  for (const selector of selectors) {
+    const match = hostDocument.querySelector(selector);
+
+    if (match) {
+      return match;
+    }
+  }
+
+  return null;
+}
+
+function createToolbarButton(hostDocument) {
+  const wrapper = hostDocument.createElement("div");
+  wrapper.className = "injected-ui-item-toolbar";
+  wrapper.setAttribute("data-injected-ui", "custom-theme-loader-open");
+  wrapper.setAttribute("data-toolbar-fallback", "false");
+
+  const button = hostDocument.createElement("button");
+  button.type = "button";
+  button.id = TOOLBAR_BUTTON_ID;
+  button.setAttribute("aria-label", "Open Degrande Colors");
+  button.setAttribute("title", "Open Degrande Colors");
+  button.innerHTML = buildLauncherIconMarkup();
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleThemeLoader();
+  });
+
+  wrapper.appendChild(button);
+  return wrapper;
+}
+
+function ensureFloatingLauncherButton() {
+  const hostDocument = getHostDocument();
+  setHostStyleText(TOOLBAR_STYLE_ELEMENT_ID, getToolbarStyle());
+
+  let button = hostDocument.getElementById(TOOLBAR_BUTTON_ID);
+
+  if (!button) {
+    button = hostDocument.createElement("button");
+    button.type = "button";
+    button.id = TOOLBAR_BUTTON_ID;
+    button.setAttribute("data-floating-launcher", "true");
+    button.setAttribute("aria-label", "Open Degrande Colors");
+    button.setAttribute("title", "Open Degrande Colors");
+    button.innerHTML = buildLauncherIconMarkup();
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleThemeLoader();
+    });
+  }
+
+  button.setAttribute("data-floating-launcher", "true");
+
+  if (button.parentElement !== hostDocument.body) {
+    hostDocument.body.appendChild(button);
+  }
+}
+
+function ensureToolbarButton() {
+  const hostDocument = getHostDocument();
+  setHostStyleText(TOOLBAR_STYLE_ELEMENT_ID, getToolbarStyle());
+
+  const toolbarHost = getToolbarHost();
+
+  if (!toolbarHost) {
+    let fallback = hostDocument.getElementById(TOOLBAR_BUTTON_ID)?.parentElement;
+
+    if (!fallback) {
+      fallback = createToolbarButton(hostDocument);
+    }
+
+    fallback.setAttribute("data-toolbar-fallback", "true");
+
+    if (fallback.parentElement !== hostDocument.body) {
+      hostDocument.body.appendChild(fallback);
+    }
+
+    return false;
+  }
+
+  let button = hostDocument.getElementById(TOOLBAR_BUTTON_ID)?.parentElement;
+
+  if (!button) {
+    button = createToolbarButton(hostDocument);
+  }
+
+  button.setAttribute("data-toolbar-fallback", "false");
+
+  if (button.parentElement !== toolbarHost) {
+    const toolbarContainer = toolbarHost.matches('.ui-items-container[data-type="toolbar"]')
+      ? toolbarHost
+      : toolbarHost.closest('.ui-items-container[data-type="toolbar"]');
+    const anchor = toolbarContainer?.querySelector(".toolbar-dots-btn")?.closest("button, a, div");
+
+    if (anchor?.parentElement === toolbarHost) {
+      toolbarHost.insertBefore(button, anchor);
+    } else if (toolbarHost.matches('.ui-items-container[data-type="toolbar"]')) {
+      const listWrap = toolbarHost.querySelector(':scope > .list-wrap');
+
+      if (listWrap) {
+        toolbarHost.insertBefore(button, listWrap);
+      } else {
+        toolbarHost.appendChild(button);
+      }
+    } else {
+      toolbarHost.appendChild(button);
+    }
+  }
+
+  return true;
+}
+
+function scheduleToolbarButtonRender() {
+  const hostDocument = getHostDocument();
+  const hostWindow = hostDocument.defaultView || window;
+
+  if (hostWindow[TOOLBAR_RENDER_TIMER_KEY]) {
+    return;
+  }
+
+  hostWindow[TOOLBAR_RENDER_TIMER_KEY] = hostWindow.setTimeout(() => {
+    hostWindow[TOOLBAR_RENDER_TIMER_KEY] = null;
+    ensureToolbarButton();
+  }, 40);
+}
+
+function observeToolbarHost() {
+  const hostDocument = getHostDocument();
+  const hostWindow = hostDocument.defaultView || window;
+  const HostMutationObserver = hostWindow.MutationObserver || MutationObserver;
+
+  hostWindow[TOOLBAR_OBSERVER_KEY]?.disconnect?.();
+
+  const observer = new HostMutationObserver(() => {
+    scheduleToolbarButtonRender();
+  });
+
+  observer.observe(hostDocument.body || hostDocument.documentElement, {
+    childList: true,
+    subtree: true,
+  });
+
+  hostWindow[TOOLBAR_OBSERVER_KEY] = observer;
+  ensureToolbarButton();
+}
+
+function isDuplicateRegistrationError(error) {
+  return /already exist/i.test(String(error?.message || error || ""));
+}
+
+function registerCommandPaletteSafely(config, handler) {
+  try {
+    logseq.App.registerCommandPalette(config, handler);
+  } catch (error) {
+    if (isDuplicateRegistrationError(error)) {
+      console.info(`[Degrande Colors] Skipping duplicate command registration: ${config.key}`);
+      return false;
+    }
+
+    throw error;
+  }
+
+  return true;
+}
+
+function registerToolbarItemSafely(config) {
+  try {
+    logseq.App.registerUIItem("toolbar", config);
+  } catch (error) {
+    if (isDuplicateRegistrationError(error)) {
+      console.info(`[Degrande Colors] Skipping duplicate toolbar registration: ${config.key}`);
+      return false;
+    }
+
+    throw error;
+  }
+
+  return true;
 }
 
 async function loadWorkspaceCss() {
@@ -1178,9 +1372,25 @@ function isBenignGetAllTagsError(error) {
   return message.includes("indexaccess._datoms") || message.includes("defined for type null");
 }
 
+async function loadStoredItemWithLegacyFallback(storageKey) {
+  try {
+    const saved = await logseq.FileStorage.getItem(storageKey);
+
+    if (saved) {
+      return saved;
+    }
+  } catch (error) {
+    if (!isMissingStorageError(error)) {
+      console.error(`[Degrande Colors] Failed to load stored item: ${storageKey}`, error);
+    }
+  }
+
+  return null;
+}
+
 async function loadStoredControls() {
   try {
-    const saved = await logseq.FileStorage.getItem(CONTROL_STORAGE_KEY);
+    const saved = await loadStoredItemWithLegacyFallback(CONTROL_STORAGE_KEY);
 
     if (!saved) {
       return;
@@ -1199,7 +1409,7 @@ async function loadStoredControls() {
 
 async function loadStoredTagColors() {
   try {
-    const saved = await logseq.FileStorage.getItem(TAG_COLOR_STORAGE_KEY);
+    const saved = await loadStoredItemWithLegacyFallback(TAG_COLOR_STORAGE_KEY);
 
     if (!saved) {
       return;
@@ -1218,7 +1428,7 @@ async function loadStoredTagColors() {
 
 async function loadStoredGradients() {
   try {
-    const saved = await logseq.FileStorage.getItem(GRADIENT_STORAGE_KEY);
+    const saved = await loadStoredItemWithLegacyFallback(GRADIENT_STORAGE_KEY);
 
     if (!saved) {
       return;
@@ -2860,7 +3070,23 @@ ${backgroundRules}
 }
 
 function renderPanel(statusMessage) {
+  if (!panelState.mounted) {
+    return;
+  }
+
   refreshPanel(statusMessage, { rerenderPreview: true, rerenderTags: true });
+}
+
+function setPanelRootVisibility(isVisible) {
+  document.body?.classList.toggle(PANEL_HOST_CLASS, isVisible);
+
+  const app = document.getElementById("app");
+
+  if (!app) {
+    return;
+  }
+
+  app.style.display = isVisible ? "block" : "none";
 }
 
 function bindHostTagContextMenu() {
@@ -3322,6 +3548,7 @@ function mountPanel() {
   });
 
   panelState.mounted = true;
+  setPanelRootVisibility(false);
   syncControlInputs();
   syncPreviewStyles();
   syncTabState();
@@ -3335,10 +3562,12 @@ async function applyManagedOverrides(showToast = false, statusMessage = "Updated
   cleanupLegacyManagedStyles();
   setHostStyleText(MANAGED_STYLE_ELEMENT_ID, managedOverrides);
 
-  if (renderMode === "soft") {
-    refreshPanel(statusMessage);
-  } else {
-    renderPanel(statusMessage);
+  if (panelState.mounted) {
+    if (renderMode === "soft") {
+      refreshPanel(statusMessage);
+    } else {
+      renderPanel(statusMessage);
+    }
   }
 
   if (showToast) {
@@ -3347,6 +3576,12 @@ async function applyManagedOverrides(showToast = false, statusMessage = "Updated
 }
 
 function openThemeLoader() {
+  if (!panelState.mounted) {
+    mountPanel();
+  }
+
+  setPanelRootVisibility(true);
+  logseq.setMainUIInlineStyle(MAIN_UI_INLINE_STYLE);
   renderPanel();
   logseq.showMainUI({ autoFocus: true });
 
@@ -3358,6 +3593,7 @@ function openThemeLoader() {
 }
 
 function closeThemeLoader() {
+  setPanelRootVisibility(false);
   logseq.hideMainUI({ restoreEditingCursor: true });
 }
 
@@ -3369,12 +3605,15 @@ function toggleThemeLoader() {
   }
 }
 
-async function reloadThemeCss(showToast = false) {
+async function reloadThemeCss(showToast = false, reopenUI = !!logseq.isMainUIVisible) {
   panelState.baseCssText = await loadWorkspaceCss();
   panelState.baseTagColorMap = parseBaseTagColorMap(panelState.baseCssText);
   setHostStyleText(BASE_STYLE_ELEMENT_ID, panelState.baseCssText);
   await applyManagedOverrides(showToast, "Reloaded base styles and re-applied controls");
-  openThemeLoader();
+
+  if (reopenUI) {
+    openThemeLoader();
+  }
 }
 
 async function resetControls() {
@@ -3438,11 +3677,11 @@ async function resetTagColors() {
 
 async function main() {
   const pluginId = logseq.baseInfo.id;
+  const commandKey = (suffix) => `${pluginId}/${suffix}`;
 
   await loadStoredControls();
   await loadStoredTagColors();
   await loadStoredGradients();
-  mountPanel();
   bindHostTagContextMenu();
 
   const userConfigs = await logseq.App.getUserConfigs();
@@ -3452,26 +3691,26 @@ async function main() {
     renderPanel(`Logseq theme: ${mode}`);
   });
 
-  logseq.setMainUIInlineStyle({
-    position: "fixed",
-    zIndex: 999,
-    top: "6vh",
-    left: "50%",
-    width: "min(1000px, 90vw)",
-    height: "84vh",
-    transform: "translateX(-50%)",
-  });
-
-  await reloadThemeCss(false);
+  await reloadThemeCss(false, false);
   setTimeout(() => {
     void applyManagedOverrides(false, "Reapplied saved theme controls");
   }, 900);
-  logseq.provideStyle(getToolbarStyle(pluginId));
 
   logseq.provideModel({
     openThemeLoader,
     closeThemeLoader,
     toggleThemeLoader,
+  });
+
+  logseq.provideStyle(getToolbarStyle());
+
+  registerToolbarItemSafely({
+    key: "custom-theme-loader-open",
+    template: `
+      <a class="button" data-on-click="toggleThemeLoader" title="Open Degrande Colors" aria-label="Open Degrande Colors">
+        <i class="ti ti-palette" aria-hidden="true"></i>
+      </a>
+    `,
   });
 
   await logseq.UI.showMsg(
@@ -3480,26 +3719,17 @@ async function main() {
     { timeout: 2500 }
   );
 
-  logseq.App.registerUIItem("toolbar", {
-    key: "custom-theme-loader-open",
-    template: `
-      <a class="button" data-on-click="toggleThemeLoader" title="Open Degrande Colors">
-        <i class="ti ti-palette" aria-hidden="true"></i>
-      </a>
-    `,
-  });
-
-  logseq.App.registerCommandPalette(
+  registerCommandPaletteSafely(
     {
-      key: "custom-theme-loader-open-panel",
+      key: commandKey("open-panel"),
       label: "Degrande Colors: open panel",
     },
     openThemeLoader
   );
 
-  logseq.App.registerCommandPalette(
+  registerCommandPaletteSafely(
     {
-      key: "custom-theme-loader-status",
+      key: commandKey("status"),
       label: "Degrande Colors: show status",
     },
     async () => {
@@ -3511,25 +3741,25 @@ async function main() {
     }
   );
 
-  logseq.App.registerCommandPalette(
+  registerCommandPaletteSafely(
     {
-      key: "custom-theme-loader-reload-css",
+      key: commandKey("reload-css"),
       label: "Degrande Colors: reload styles",
     },
     () => reloadThemeCss(true)
   );
 
-  logseq.App.registerCommandPalette(
+  registerCommandPaletteSafely(
     {
-      key: "custom-theme-loader-refresh-tags",
+      key: commandKey("refresh-tags"),
       label: "Degrande Colors: refresh tags",
     },
     () => refreshTags(true)
   );
 
-  logseq.App.registerCommandPalette(
+  registerCommandPaletteSafely(
     {
-      key: "custom-theme-loader-toggle-logseq-theme",
+      key: commandKey("toggle-logseq-theme"),
       label: "Degrande Colors: toggle Logseq theme",
     },
     toggleLogseqTheme
