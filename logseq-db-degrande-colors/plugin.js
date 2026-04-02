@@ -10,12 +10,17 @@ const TOOLBAR_RENDER_TIMER_KEY = "__degrandeColorsToolbarRenderTimer";
 const PANEL_HOST_CLASS = "degrande-panel-host";
 const MAIN_UI_INLINE_STYLE = {
   position: "fixed",
+  top: "0",
+  right: "0",
+  bottom: "0",
+  left: "0",
   zIndex: 999,
-  top: "6vh",
-  left: "50%",
-  width: "min(1000px, 90vw)",
-  height: "84vh",
-  transform: "translateX(-50%)",
+  width: "100vw",
+  height: "100vh",
+  maxWidth: "100vw",
+  maxHeight: "100vh",
+  overflow: "hidden",
+  background: "transparent",
 };
 
 const COLOR_PRESETS = [
@@ -205,6 +210,7 @@ const panelState = {
   tagColorAssignments: {},
   baseTagColorMap: {},
   tags: [],
+  tagSourceMap: {},
   selectedTag: "",
   tagCustomColorDraft: "#14b8a6",
   tagCustomForegroundDraft: "#0f172a",
@@ -214,6 +220,10 @@ const panelState = {
   },
   tagSortMode: "name",
   tagFilter: "",
+  tagSourceFilters: {
+    tags: true,
+    pages: true,
+  },
   activeTab: "tags",
   lastAppliedAt: null,
   mounted: false,
@@ -644,6 +654,83 @@ function isTagCandidatePage(page) {
   return !page.journalDay && page["journal?"] !== true;
 }
 
+function collectTagCatalogEntry(tagMap, rawTag, sourceKey) {
+  const tagName = normalizeTagName(rawTag);
+
+  if (!tagName || tagName.toLowerCase() === "tags") {
+    return;
+  }
+
+  const normalizedKey = tagName.toLowerCase();
+  const currentEntry = tagMap.get(normalizedKey) || {
+    name: "",
+    tags: false,
+    pages: false,
+  };
+
+  currentEntry.name = choosePreferredTagName(currentEntry.name, tagName);
+  currentEntry[sourceKey] = true;
+  tagMap.set(normalizedKey, currentEntry);
+}
+
+async function collectTagCatalog() {
+  const tagMap = new Map();
+  const sourceCounts = {};
+
+  if (typeof logseq.Editor.getAllTags === "function") {
+    try {
+      const tags = await logseq.Editor.getAllTags();
+      (tags || []).forEach((tag) => collectTagCatalogEntry(tagMap, tag, "tags"));
+      sourceCounts.getAllTags = tags?.length || 0;
+    } catch (error) {
+      if (isBenignGetAllTagsError(error)) {
+        sourceCounts.getAllTags = 0;
+      } else {
+        console.warn("[Local Custom Theme Loader] Failed to load tags from logseq.Editor.getAllTags", error);
+      }
+    }
+  }
+
+  if (typeof logseq.DB?.datascriptQuery === "function") {
+    try {
+      const tagRows = await logseq.DB.datascriptQuery(TAGS_DATASCRIPT_QUERY);
+      (tagRows || []).forEach((tag) => collectTagCatalogEntry(tagMap, tag, "tags"));
+      sourceCounts.datascriptTags = tagRows?.length || 0;
+    } catch (error) {
+      console.warn("[Local Custom Theme Loader] Failed to load tags from datascript tag query", error);
+    }
+
+    try {
+      const refRows = await logseq.DB.datascriptQuery(REFS_DATASCRIPT_QUERY);
+      (refRows || []).forEach((tag) => collectTagCatalogEntry(tagMap, tag, "tags"));
+      sourceCounts.datascriptRefs = refRows?.length || 0;
+    } catch (error) {
+      console.warn("[Local Custom Theme Loader] Failed to load tags from datascript refs query", error);
+    }
+  }
+
+  if (typeof logseq.Editor.getAllPages === "function") {
+    try {
+      const pages = await logseq.Editor.getAllPages();
+      const candidatePages = (pages || []).filter(isTagCandidatePage);
+      candidatePages.forEach((page) => collectTagCatalogEntry(tagMap, page, "pages"));
+      sourceCounts.allPages = candidatePages.length;
+    } catch (error) {
+      console.warn("[Local Custom Theme Loader] Failed to load pages from logseq.Editor.getAllPages", error);
+    }
+  }
+
+  console.info("[Local Custom Theme Loader] Loaded tag candidates", sourceCounts);
+
+  const sortedEntries = Array.from(tagMap.entries())
+    .sort((left, right) => left[1].name.localeCompare(right[1].name));
+
+  return {
+    tags: sortedEntries.map(([, entry]) => entry.name),
+    tagSourceMap: Object.fromEntries(sortedEntries.map(([key, entry]) => [key, { tags: entry.tags, pages: entry.pages }])),
+  };
+}
+
 function normalizeGraphIdentityPart(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -704,6 +791,7 @@ async function syncCurrentGraphInfo() {
 
 function clearGraphTagState() {
   panelState.tags = [];
+  panelState.tagSourceMap = {};
   panelState.selectedTag = "";
 }
 
@@ -1135,10 +1223,10 @@ function clearTagColorAssignment(tagName, statusMessage = null) {
 }
 
 function addRandomColorsToUncoloredTags() {
-  const uncoloredTags = panelState.tags.filter((tagName) => !getTagColorToken(tagName));
+  const uncoloredTags = getVisibleTags().filter((tagName) => !getTagColorToken(tagName));
 
   if (!uncoloredTags.length) {
-    renderPanel("All tags already have colors");
+    renderPanel("All filtered tags already have colors");
     return 0;
   }
 
@@ -1155,10 +1243,37 @@ function addRandomColorsToUncoloredTags() {
     };
   });
 
-  void applyManagedOverrides(false, `Added random colors to ${uncoloredTags.length} tags`);
-  renderPanel(`Added random colors to ${uncoloredTags.length} tags`);
+  void applyManagedOverrides(false, `Added random colors to ${uncoloredTags.length} filtered tags`);
+  renderPanel(`Added random colors to ${uncoloredTags.length} filtered tags`);
   schedulePersistTagColors();
   return uncoloredTags.length;
+}
+
+function getTagSourceFlags(tagName) {
+  return panelState.tagSourceMap[String(tagName).toLowerCase()] || { tags: false, pages: false };
+}
+
+function matchesTagSourceFilters(tagName) {
+  const sourceFlags = getTagSourceFlags(tagName);
+  const { tags, pages } = panelState.tagSourceFilters;
+
+  if (!tags && !pages) {
+    return false;
+  }
+
+  return (tags && sourceFlags.tags) || (pages && sourceFlags.pages);
+}
+
+function getSourceCount(sourceKey) {
+  return panelState.tags.filter((tagName) => getTagSourceFlags(tagName)[sourceKey]).length;
+}
+
+function getVisibleAssignedTagCount() {
+  return getVisibleTags().filter((tagName) => Boolean(panelState.tagColorAssignments[tagName.toLowerCase()])).length;
+}
+
+function getVisibleAssignedTags() {
+  return getVisibleTags().filter((tagName) => Boolean(panelState.tagColorAssignments[tagName.toLowerCase()]));
 }
 
 function getTagChipThemeStyle(assignmentOrToken) {
@@ -1764,7 +1879,7 @@ function getVisibleTags() {
   const filter = panelState.tagFilter.trim().toLowerCase();
 
   const filtered = panelState.tags.filter((tagName) => {
-    return !filter || tagName.toLowerCase().includes(filter);
+    return matchesTagSourceFilters(tagName) && (!filter || tagName.toLowerCase().includes(filter));
   });
 
   return filtered.sort((left, right) => {
@@ -1816,7 +1931,7 @@ function buildTagListMarkup() {
   const tags = getVisibleTags();
 
   if (!tags.length) {
-    return '<div class="ctl-tag-empty">No tags matched the current filter.</div>';
+    return '<div class="ctl-tag-empty">No entries matched the current filters.</div>';
   }
 
   return tags.map((tagName) => {
@@ -1946,7 +2061,7 @@ function buildTagsPaneMarkup() {
   const selectedAssignment = selectedTag ? getTagColorAssignment(selectedTag) : null;
   const hasCustomAssignment = selectedAssignment?.type === "custom";
   const hasTagAssignments = Object.keys(panelState.tagColorAssignments).length > 0;
-  const hasUncoloredTags = panelState.tags.some((tagName) => !getTagColorToken(tagName));
+  const hasUncoloredTags = tags.some((tagName) => !getTagColorToken(tagName));
 
   return `
     ${buildPaneIntroMarkup(
@@ -1969,8 +2084,18 @@ function buildTagsPaneMarkup() {
             </select>
           </label>
         </div>
-        <div class="ctl-tags-summary">${tags.length} visible tags · ${Object.keys(panelState.tagColorAssignments).length} custom assignments</div>
-        <div class="ctl-tag-grid">${buildTagListMarkup()}</div>
+        <div class="ctl-filter-toggle-grid" role="group" aria-label="Tag source filters">
+          <button class="ctl-button ctl-button-secondary ctl-button-small ctl-filter-toggle${panelState.tagSourceFilters.tags ? " is-active" : ""}" type="button" data-action="toggle-tag-source-filter" data-role="tag-source-filter-tags" data-source-filter="tags" aria-pressed="${panelState.tagSourceFilters.tags ? "true" : "false"}">
+            <span>Tags</span>
+            <span class="ctl-filter-toggle-count">${getSourceCount("tags")}</span>
+          </button>
+          <button class="ctl-button ctl-button-secondary ctl-button-small ctl-filter-toggle${panelState.tagSourceFilters.pages ? " is-active" : ""}" type="button" data-action="toggle-tag-source-filter" data-role="tag-source-filter-pages" data-source-filter="pages" aria-pressed="${panelState.tagSourceFilters.pages ? "true" : "false"}">
+            <span>Pages</span>
+            <span class="ctl-filter-toggle-count">${getSourceCount("pages")}</span>
+          </button>
+        </div>
+        <div class="ctl-tags-summary" data-role="tags-summary">${tags.length} visible entries · ${getVisibleAssignedTagCount()} custom assignments</div>
+        <div class="ctl-tag-grid" data-role="tag-grid">${buildTagListMarkup()}</div>
       </section>
       <section class="ctl-tags-detail">
         <div class="ctl-tags-detail-head">
@@ -1980,13 +2105,15 @@ function buildTagsPaneMarkup() {
         <div class="ctl-selected-tag-preview-wrap">
           ${selectedTag ? `<span class="ctl-selected-tag-preview" data-role="selected-tag-preview" style="${buildTagChipStyleAttribute(selectedTag)}">#${escapeHtml(selectedTag)}</span>` : ""}
         </div>
-        <div class="ctl-color-grid">${buildColorPaletteMarkup()}</div>
-        ${buildCustomTagColorMarkup()}
-        <div class="ctl-tags-actions">
-          <button class="ctl-button ctl-button-secondary" type="button" data-action="add-random-tag-colors"${hasUncoloredTags ? "" : " disabled"}>Add Colors To Tags</button>
-          <button class="ctl-button ctl-button-secondary" type="button" data-action="copy-tag-colors-from-other-mode"${selectedTag && hasCustomAssignment ? "" : " disabled"}>${getCopyTagColorsButtonLabel()}</button>
-          <button class="ctl-button ctl-button-secondary" type="button" data-action="clear-tag-color"${selectedTag && hasCustomAssignment ? "" : " disabled"}>Clear Custom Color</button>
-          <button class="ctl-button ctl-button-secondary" type="button" data-action="reset-tag-colors"${hasTagAssignments ? "" : " disabled"}>Reset All Tag Colors</button>
+        <div class="ctl-tags-detail-scroll" data-role="tags-detail-scroll">
+          <div class="ctl-color-grid">${buildColorPaletteMarkup()}</div>
+          ${buildCustomTagColorMarkup()}
+          <div class="ctl-tags-actions">
+            <button class="ctl-button ctl-button-secondary" type="button" data-action="add-random-tag-colors" data-role="add-random-tag-colors-button"${hasUncoloredTags ? "" : " disabled"}>Add Colors To Tags</button>
+            <button class="ctl-button ctl-button-secondary" type="button" data-action="copy-tag-colors-from-other-mode"${selectedTag && hasCustomAssignment ? "" : " disabled"}>${getCopyTagColorsButtonLabel()}</button>
+            <button class="ctl-button ctl-button-secondary" type="button" data-action="clear-tag-color"${selectedTag && hasCustomAssignment ? "" : " disabled"}>Clear Custom Color</button>
+            <button class="ctl-button ctl-button-secondary" type="button" data-action="reset-tag-colors" data-role="reset-tag-colors-button"${getVisibleAssignedTagCount() ? "" : " disabled"}>Reset Filtered Tag Colors</button>
+          </div>
         </div>
       </section>
     </div>
@@ -2197,20 +2324,23 @@ async function refreshTags(showToastOrOptions = false) {
     const { showToast, fallbackToPrevious } = normalizeRefreshTagsOptions(showToastOrOptions);
     const previousSelectedKey = panelState.selectedTag.toLowerCase();
     const previousTags = panelState.tags.slice();
-    let rawTags = await collectRawTags();
-    let normalizedTags = normalizeCollectedTags(rawTags);
+    const previousTagSourceMap = { ...panelState.tagSourceMap };
+    let tagCatalog = await collectTagCatalog();
+    let normalizedTags = tagCatalog.tags;
 
     for (let attempt = 0; attempt < 2 && !normalizedTags.length; attempt += 1) {
       await new Promise((resolve) => window.setTimeout(resolve, 350 * (attempt + 1)));
-      rawTags = await collectRawTags();
-      normalizedTags = normalizeCollectedTags(rawTags);
+      tagCatalog = await collectTagCatalog();
+      normalizedTags = tagCatalog.tags;
     }
 
     if (!normalizedTags.length && fallbackToPrevious && previousTags.length) {
       normalizedTags = previousTags;
+      tagCatalog.tagSourceMap = previousTagSourceMap;
     }
 
     panelState.tags = normalizedTags;
+    panelState.tagSourceMap = tagCatalog.tagSourceMap || {};
 
     const matchingSelectedTag = normalizedTags.find((tagName) => tagName.toLowerCase() === previousSelectedKey);
 
@@ -2427,64 +2557,66 @@ function buildPreviewMarkup() {
       "Appearance",
       "Use this page to tune chip sizing and gradients. Click a gradient strip to add a stop, and right-click a stop handle to remove it."
     )}
-    <div class="ctl-preview-grid">
-      <article class="ctl-preview-card">
-        <div class="ctl-preview-card-head">
-          <strong>Tags</strong>
-          <span>Inline chips</span>
-        </div>
-        <div class="ctl-preview-card-body">
-          <div class="ctl-preview-stage ctl-preview-stage-tags">
-            <span class="ctl-preview-tag" data-role="preview-tag-primary">#Gradient</span>
-            <span class="ctl-preview-tag ctl-preview-tag-hover" data-role="preview-tag-hover">#Hover</span>
+    <div class="ctl-preview-scroll" data-role="preview-scroll">
+      <div class="ctl-preview-grid">
+        <article class="ctl-preview-card">
+          <div class="ctl-preview-card-head">
+            <strong>Tags</strong>
+            <span>Inline chips</span>
           </div>
-          <section class="ctl-section ctl-section-inline">
-            <div class="ctl-section-head">
-              <div>
-                <h2>Chip Controls</h2>
-                <p>Shape, spacing, and hover.</p>
-              </div>
+          <div class="ctl-preview-card-body">
+            <div class="ctl-preview-stage ctl-preview-stage-tags">
+              <span class="ctl-preview-tag" data-role="preview-tag-primary">#Gradient</span>
+              <span class="ctl-preview-tag ctl-preview-tag-hover" data-role="preview-tag-hover">#Hover</span>
             </div>
-            ${buildNumericControlsMarkup(["tagRadius", "tagFontSize", "tagHeight", "tagPaddingX", "tagBorderWidth", "tagHoverLift"])}
-          </section>
-        </div>
-      </article>
-      <article class="ctl-preview-card">
-        <div class="ctl-preview-card-head">
-          <strong>Linked Blocks</strong>
-          <span>Tag-based fill</span>
-        </div>
-        <div class="ctl-preview-card-body">
-          ${nodePreview}
-        </div>
-      </article>
-      <article class="ctl-preview-card">
-        <div class="ctl-preview-card-head">
-          <strong>Page Titles</strong>
-          <span>Title accent</span>
-        </div>
-        <div class="ctl-preview-card-body">
-          ${titlePreview}
-        </div>
-      </article>
-      <article class="ctl-preview-card">
-        <div class="ctl-preview-card-head">
-          <strong>Quotes</strong>
-          <span>Edge glow</span>
-        </div>
-        <div class="ctl-preview-card-body">
-          ${quotePreview}
-        </div>
-      </article>
-      <article class="ctl-preview-card">
-        <div class="ctl-preview-card-head">
-          <strong>Background Block</strong>
-          <span>Standalone fill</span>
-        </div>
-        <div class="ctl-preview-card-body">
-          ${backgroundPreview}
-        </div>
-      </article>
+            <section class="ctl-section ctl-section-inline">
+              <div class="ctl-section-head">
+                <div>
+                  <h2>Chip Controls</h2>
+                  <p>Shape, spacing, and hover.</p>
+                </div>
+              </div>
+              ${buildNumericControlsMarkup(["tagRadius", "tagFontSize", "tagHeight", "tagPaddingX", "tagBorderWidth", "tagHoverLift"])}
+            </section>
+          </div>
+        </article>
+        <article class="ctl-preview-card">
+          <div class="ctl-preview-card-head">
+            <strong>Linked Blocks</strong>
+            <span>Tag-based fill</span>
+          </div>
+          <div class="ctl-preview-card-body">
+            ${nodePreview}
+          </div>
+        </article>
+        <article class="ctl-preview-card">
+          <div class="ctl-preview-card-head">
+            <strong>Page Titles</strong>
+            <span>Title accent</span>
+          </div>
+          <div class="ctl-preview-card-body">
+            ${titlePreview}
+          </div>
+        </article>
+        <article class="ctl-preview-card">
+          <div class="ctl-preview-card-head">
+            <strong>Quotes</strong>
+            <span>Edge glow</span>
+          </div>
+          <div class="ctl-preview-card-body">
+            ${quotePreview}
+          </div>
+        </article>
+        <article class="ctl-preview-card">
+          <div class="ctl-preview-card-head">
+            <strong>Background Block</strong>
+            <span>Standalone fill</span>
+          </div>
+          <div class="ctl-preview-card-body">
+            ${backgroundPreview}
+          </div>
+        </article>
+      </div>
     </div>
   `;
 }
@@ -2751,6 +2883,45 @@ function syncTagsPaneState() {
   syncInlineColorEditor(document.querySelector('[data-inline-color-editor][data-color-scope="tag-custom-foreground"]'), foregroundColor);
 }
 
+function syncTagBrowserState() {
+  const visibleTags = getVisibleTags();
+  const summary = document.querySelector('[data-role="tags-summary"]');
+  const grid = document.querySelector('[data-role="tag-grid"]');
+  const addColorsButton = document.querySelector('[data-role="add-random-tag-colors-button"]');
+  const resetColorsButton = document.querySelector('[data-role="reset-tag-colors-button"]');
+  const sourceButtons = {
+    tags: document.querySelector('[data-role="tag-source-filter-tags"]'),
+    pages: document.querySelector('[data-role="tag-source-filter-pages"]'),
+  };
+
+  if (summary) {
+    summary.textContent = `${visibleTags.length} visible entries · ${getVisibleAssignedTagCount()} custom assignments`;
+  }
+
+  if (grid) {
+    grid.innerHTML = buildTagListMarkup();
+  }
+
+  if (addColorsButton) {
+    addColorsButton.disabled = !visibleTags.some((tagName) => !getTagColorToken(tagName));
+  }
+
+  if (resetColorsButton) {
+    resetColorsButton.disabled = !getVisibleAssignedTagCount();
+    resetColorsButton.textContent = "Reset Filtered Tag Colors";
+  }
+
+  Object.entries(sourceButtons).forEach(([sourceKey, button]) => {
+    if (!button) {
+      return;
+    }
+
+    button.classList.toggle("is-active", Boolean(panelState.tagSourceFilters[sourceKey]));
+    button.setAttribute("aria-pressed", panelState.tagSourceFilters[sourceKey] ? "true" : "false");
+    button.querySelector('.ctl-filter-toggle-count')?.replaceChildren(String(getSourceCount(sourceKey)));
+  });
+}
+
 function applyInlineEditorColor(editor, color, renderMode = "soft") {
   const normalized = normalizeHexColor(color);
 
@@ -2914,6 +3085,9 @@ function rerenderTagsPanePreservingFocus(statusMessage) {
   const activeElement = document.activeElement;
   const shouldRestoreFilter = activeElement?.matches?.("[data-tag-filter]");
   const shouldRestoreSort = activeElement?.matches?.("[data-tag-sort]");
+  const restoreSourceFilter = activeElement?.matches?.("[data-source-filter]")
+    ? activeElement.getAttribute("data-source-filter")
+    : "";
   const selectionStart = shouldRestoreFilter && typeof activeElement.selectionStart === "number"
     ? activeElement.selectionStart
     : null;
@@ -2939,6 +3113,11 @@ function rerenderTagsPanePreservingFocus(statusMessage) {
 
   if (shouldRestoreSort) {
     document.querySelector("[data-tag-sort]")?.focus();
+    return;
+  }
+
+  if (restoreSourceFilter) {
+    document.querySelector(`[data-source-filter="${escapeAttributeValue(restoreSourceFilter)}"]`)?.focus();
   }
 }
 
@@ -3274,7 +3453,7 @@ function mountPanel() {
         <div class="ctl-main">
           <section class="ctl-viewer">
             <div class="ctl-pane ctl-pane-tags" data-pane="tags">
-              <div data-role="tags-pane"></div>
+              <div class="ctl-pane-stack" data-role="tags-pane"></div>
             </div>
             <div class="ctl-pane ctl-pane-preview" data-pane="preview" hidden>
               ${buildPreviewMarkup()}
@@ -3377,6 +3556,18 @@ function mountPanel() {
 
     if (action === "add-random-tag-colors") {
       addRandomColorsToUncoloredTags();
+      return;
+    }
+
+    if (action === "toggle-tag-source-filter") {
+      const sourceKey = target.dataset.sourceFilter;
+
+      if (sourceKey === "tags" || sourceKey === "pages") {
+        panelState.tagSourceFilters[sourceKey] = !panelState.tagSourceFilters[sourceKey];
+        syncTagBrowserState();
+        syncTagsPaneState();
+      }
+
       return;
     }
 
@@ -3612,7 +3803,8 @@ function mountPanel() {
 
     if (tagFilterInput) {
       panelState.tagFilter = tagFilterInput.value || "";
-      rerenderTagsPanePreservingFocus();
+      syncTagBrowserState();
+      syncTagsPaneState();
       return;
     }
 
@@ -3651,7 +3843,8 @@ function mountPanel() {
     }
 
     panelState.tagSortMode = sortSelect.value || "name";
-    rerenderTagsPanePreservingFocus();
+    syncTagBrowserState();
+    syncTagsPaneState();
   });
 
   document.addEventListener("keydown", (event) => {
@@ -3757,15 +3950,15 @@ async function resetControls() {
 }
 
 async function resetTagColors() {
-  const hasTagAssignments = Object.keys(panelState.tagColorAssignments).length > 0;
+  const visibleAssignedTags = getVisibleAssignedTags();
 
-  if (!hasTagAssignments) {
-    renderPanel("No tag colors to reset");
+  if (!visibleAssignedTags.length) {
+    renderPanel("No filtered tag colors to reset");
     return;
   }
 
   const confirmed = typeof window?.confirm === "function"
-    ? window.confirm("Reset all custom and assigned tag colors back to their defaults?")
+    ? window.confirm(`Reset ${visibleAssignedTags.length} filtered tag color${visibleAssignedTags.length === 1 ? "" : "s"} back to their defaults?`)
     : true;
 
   if (!confirmed) {
@@ -3773,7 +3966,10 @@ async function resetTagColors() {
     return;
   }
 
-  panelState.tagColorAssignments = {};
+  visibleAssignedTags.forEach((tagName) => {
+    delete panelState.tagColorAssignments[tagName.toLowerCase()];
+  });
+
   clearPendingTagSelection();
 
   if (panelState.tagPersistTimer) {
@@ -3781,9 +3977,14 @@ async function resetTagColors() {
     panelState.tagPersistTimer = null;
   }
 
-  await logseq.FileStorage.removeItem(TAG_COLOR_STORAGE_KEY);
-  renderPanel("Reset all tag colors to defaults");
-  void applyManagedOverrides(false, "Reset all tag colors to defaults");
+  if (Object.keys(panelState.tagColorAssignments).length) {
+    await logseq.FileStorage.setItem(TAG_COLOR_STORAGE_KEY, JSON.stringify(panelState.tagColorAssignments));
+  } else {
+    await logseq.FileStorage.removeItem(TAG_COLOR_STORAGE_KEY);
+  }
+
+  renderPanel(`Reset ${visibleAssignedTags.length} filtered tag color${visibleAssignedTags.length === 1 ? "" : "s"} to defaults`);
+  void applyManagedOverrides(false, `Reset ${visibleAssignedTags.length} filtered tag color${visibleAssignedTags.length === 1 ? "" : "s"} to defaults`);
 }
 
 async function main() {

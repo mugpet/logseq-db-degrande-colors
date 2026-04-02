@@ -12,6 +12,9 @@ description: "Use for files and docs related to Logseq DB graph investigation, t
 - Document whether a method was verified working, inferred from docs, or verified failing through the HTTP bridge.
 - When discussing UI customization for DB graphs, note that a file-backed `custom.css` was not found in the investigated graph and runtime style injection was not exposed through the HTTP bridge in this environment.
 - In this workspace, `logseq-db-degrande-colors/` contains the unpacked plugin that loads `custom.css`; prefer evolving that plugin for persistent UI changes.
+- For the Degrande plugin panel, keep the panel on Logseq's normal main UI handler. Do not add blur/tint backdrops or root-level pointer blocking unless the user explicitly asks for a modal overlay.
+- In the Degrande panel CSS, do not assign a global `order` to `.ctl-section-inline`; that class is shared by the tab intro blocks and the preview-card inline sections.
+- For Degrande panel scroll fixes, prefer grid rows with `minmax(0, 1fr)` and `min-height: 0`. Do not force `height: 100%` on `.ctl-tags-layout`, `.ctl-tags-detail-scroll`, or `.ctl-preview-scroll`.
 - If page title gradients are involved, use the resolved DOM shape from the live app: the page title row is `.block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container)`, which lets the gradient span the full bar and page icon, while the tags are rendered separately in `.ls-block-right .block-tags`.
 - Do not use broad `.block-title-wrap` or generic linked-block selectors for page titles. Keep page-title rules isolated to `.block-main-content:has(.ls-page-title-container)` so linked blocks retain their own gradient behavior.
 - If linked-block gradients are involved at the same time, explicitly exclude page-title containers from the linked-block selector with `:not(:has(.block-content-or-editor-wrap.ls-page-title-container))` to prevent node settings from overriding page-title gradients.

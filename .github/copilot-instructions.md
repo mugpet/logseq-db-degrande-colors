@@ -16,6 +16,8 @@ This workspace is used to investigate Logseq DB graphs and the local Logseq HTTP
 - For DB graphs, do not assume a graph-local `logseq/custom.css` file exists.
 - This workspace now contains an unpacked Logseq plugin under `logseq-db-degrande-colors/` (`package.json`, `index.html`, `plugin.js`, `custom.css`) that loads `custom.css` with `logseq.provideStyle`.
 - The plugin exposes a main UI panel with preview, tags, and CSS tabs, live gradient editing, preset/custom tag colors, and reload controls.
+- Verified panel-host interaction rule for the unpacked plugin: keep the panel inside Logseq's standard main UI handler. Do not use a blur/tint backdrop or root-level pointer blocking that hijacks interaction outside the window.
+- Verified panel-layout rule for the unpacked plugin: `.ctl-section-inline` is shared by tab intro sections and preview-card internals. Do not assign a global `order` to that class, or tab intro content such as `Start With Tags` and `Appearance` will render at the bottom.
 - Verified title-gradient targeting for the current Logseq UI: page titles should be matched through `.block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container)` so the gradient spans the full title bar, including the page icon. The related tags live separately in the sibling `.ls-block-right .block-tags` area.
 - Verified selector separation rule: linked-block gradients must exclude containers that include `.block-content-or-editor-wrap.ls-page-title-container`, or node gradient updates will bleed through and override the page-title gradient.
 
@@ -23,5 +25,7 @@ This workspace is used to investigate Logseq DB graphs and the local Logseq HTTP
 - On Windows, avoid fragile shell one-liners with embedded JSON when calling Logseq. Prefer a script file or browser `fetch` execution so the JSON body stays intact.
 - When the user asks for tags, use `logseq.Editor.getAllTags()` first.
 - For UI customization work in this workspace, prefer editing `logseq-db-degrande-colors/custom.css` and loading the unpacked plugin from `logseq-db-degrande-colors/` rather than relying on the HTTP bridge for style injection.
+- For the Degrande panel layout in `index.html`, prefer grid row constraints such as `minmax(0, 1fr)` and `min-height: 0` for inner scroll regions. Do not force `height: 100%` on `.ctl-tags-layout`, `.ctl-tags-detail-scroll`, or `.ctl-preview-scroll`, or the intro sections will be pushed out of view.
+- Keep the Degrande panel backdrop transparent and non-interactive unless the user explicitly asks for a modal overlay effect.
 - For page title gradients, do not reuse generic linked-block selectors or broad `.block-title-wrap` matches. Keep linked-block gradients on their existing `.ls-block > div:first-child` path and target page titles specifically through `.block-main-content:has(.ls-page-title-container)`.
 - When editing linked-block gradients, keep `.ls-block > div:first-child` scoped with `:not(:has(.block-content-or-editor-wrap.ls-page-title-container))` so node changes cannot override the page-title styling.
