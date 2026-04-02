@@ -1,0 +1,348 @@
+/* ========================================= */
+/* --- 1. THE PAINTBOX (COLOR VARIABLES) --- */
+/* ========================================= */
+
+:root {
+  /* LIGHT MODE TAG COLORS (Pastels) */
+  --bg-red: #fee2e2;       --bd-red: #fca5a5;
+  --bg-orange: #ffedd5;    --bd-orange: #fdba74;
+  --bg-yellow: #fef9c3;    --bd-yellow: #fde047;
+  --bg-green: #dcfce7;     --bd-green: #86efac;
+  --bg-teal: #ccfbf1;      --bd-teal: #5eead4;
+  --bg-blue: #dbeafe;      --bd-blue: #93c5fd;
+  --bg-indigo: #e0e7ff;    --bd-indigo: #a5b4fc;
+  --bg-purple: #f3e8ff;    --bd-purple: #d8b4fe;
+  --bg-pink: #fce7f3;      --bd-pink: #f9a8d4;
+  --bg-grey: #f3f4f6;      --bd-grey: #d1d5db;
+
+  --bg-mint: #f0fdf4;      --bd-mint: #bbf7d0;
+  --bg-rose: #fff1f2;      --bd-rose: #fecdd3;
+  --bg-amber: #fffbeb;     --bd-amber: #fef3c7;
+  --bg-sky: #f0f9ff;       --bd-sky: #bae6fd;
+  --bg-lime: #f7fee7;      --bd-lime: #d9f99d;
+  --bg-slate: #f8fafc;     --bd-slate: #e2e8f0;
+
+  /* LIGHT MODE GRADIENTS (Matches Tag Colors) */
+  --grad-red: var(--bg-red);
+  --grad-orange: var(--bg-orange);
+  --grad-yellow: var(--bg-yellow);
+  --grad-green: var(--bg-green);
+  --grad-teal: var(--bg-teal);
+  --grad-blue: var(--bg-blue);
+  --grad-indigo: var(--bg-indigo);
+  --grad-purple: var(--bg-purple);
+  --grad-pink: var(--bg-pink);
+  --grad-grey: var(--bg-grey);
+  --grad-mint: var(--bg-mint);
+  --grad-rose: var(--bg-rose);
+  --grad-amber: var(--bg-amber);
+  --grad-sky: var(--bg-sky);
+  --grad-lime: var(--bg-lime);
+  --grad-slate: var(--bg-slate);
+}
+
+.dark-theme {
+  /* DARK MODE TAG COLORS (Deep backgrounds, bright borders for readability) */
+  --bg-red: #7f1d1d;       --bd-red: #dc2626;
+  --bg-orange: #7c2d12;    --bd-orange: #ea580c;
+  --bg-yellow: #713f12;    --bd-yellow: #ca8a04;
+  --bg-green: #14532d;     --bd-green: #16a34a;
+  --bg-teal: #134e4a;      --bd-teal: #0d9488;
+  --bg-blue: #1e3a8a;      --bd-blue: #2563eb;
+  --bg-indigo: #312e81;    --bd-indigo: #4f46e5;
+  --bg-purple: #4c1d95;    --bd-purple: #9333ea;
+  --bg-pink: #831843;      --bd-pink: #db2777;
+  --bg-grey: #374151;      --bd-grey: #6b7280;
+  --bg-mint: #064e3b;      --bd-mint: #059669;
+  --bg-rose: #881337;      --bd-rose: #e11d48;
+  --bg-amber: #78350f;     --bd-amber: #d97706;
+  --bg-sky: #0c4a6e;       --bd-sky: #0284c7;
+  --bg-lime: #3f6212;      --bd-lime: #65a30d;
+  --bg-slate: #1e293b;     --bd-slate: #475569;
+
+  /* DARK MODE GRADIENTS (Soft, transparent neon glows) */
+  --grad-red: rgba(252, 165, 165, 0.25);
+  --grad-orange: rgba(253, 186, 116, 0.25);
+  --grad-yellow: rgba(253, 224, 71, 0.25);
+  --grad-green: rgba(134, 239, 172, 0.25);
+  --grad-teal: rgba(94, 234, 212, 0.25);
+  --grad-blue: rgba(147, 197, 253, 0.25);
+  --grad-indigo: rgba(165, 180, 252, 0.25);
+  --grad-purple: rgba(216, 180, 254, 0.25);
+  --grad-pink: rgba(249, 168, 212, 0.25);
+  --grad-grey: rgba(209, 213, 219, 0.25);
+  --grad-mint: rgba(187, 247, 208, 0.25);
+  --grad-rose: rgba(254, 205, 211, 0.25);
+  --grad-amber: rgba(252, 211, 77, 0.25);
+  --grad-sky: rgba(186, 230, 253, 0.25);
+  --grad-lime: rgba(217, 249, 157, 0.25);
+  --grad-slate: rgba(226, 232, 240, 0.25);
+}
+
+/* ========================================= */
+/* --- 2. THE ENGINE (SET ONCE & FORGET) --- */
+/* ========================================= */
+
+a.tag, a.tag:hover, h1 a.tag, h2 a.tag, h3 a.tag, h4 a.tag {
+  background-color: var(--bg-grey); 
+  color: #111 !important;    
+  border: 1px solid var(--bd-grey); 
+  border-radius: 6px; 
+  text-decoration: none !important; 
+  font-size: 11px !important; 
+  line-height: 1.2 !important;
+  font-weight: 500 !important;          
+  padding: 1px 6px !important;
+  height: 18px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  vertical-align: middle !important;
+  margin-bottom: 2px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 1px 2px rgba(15, 23, 42, 0.08);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+}
+
+.dark-theme a.tag { background-color: #374151; color: #f3f4f6 !important; border-color: #4b5563; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 1px 2px rgba(2, 6, 23, 0.28); }
+a.tag:hover { opacity: 0.96 !important; transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 2px 4px rgba(15, 23, 42, 0.12); }
+a.tag::before, a.tag * { color: inherit !important; font-size: inherit !important; }
+
+*:has(+ a.tag) svg, *:has(+ a.tag):hover svg { width: 12px !important; height: 12px !important; margin: 0 !important; }
+*:has(+ a.tag), *:has(+ a.tag):hover {
+  position: relative; z-index: 10; display: inline-flex !important; align-items: center !important;
+  justify-content: center !important; width: 14px !important; padding: 0 0px 0 4px !important; overflow: hidden !important; 
+}
+
+/* ========================================= */
+/* --- 3. TAG COLORS ARE MANAGED IN-APP   --- */
+/* ========================================= */
+
+/* Tag-specific colors are injected by the plugin so reset can return to a neutral base stylesheet. */
+
+/* ========================================= */
+/* --- 4. UNIVERSAL TANA NODE COLORING   --- */
+/* ========================================= */
+
+.ls-block > div:first-child { border-radius: 4px; }
+
+/* 4a. Variable assignment is injected by the plugin when colors are enabled. */
+
+
+/* 4b. GRADIENT SHAPE LOGIC */
+
+/* TARGET 1: Standard Nodes (All bullet points) */
+.ls-block > div:first-child:not(.selected):not(.selected-block):not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(a.tag[data-ref]) {
+/*  background-image: linear-gradient(90deg, var(--node-color) 0%, transparent 10%) !important;
+*/
+  background-image: linear-gradient(90deg, transparent 0%, var(--node-color) 50%, transparent 80%) !important;
+  background-color: transparent !important;
+}
+
+.dark-theme .ls-block > div:first-child:not(.selected):not(.selected-block):not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(a.tag[data-ref]) {
+  background-image: linear-gradient(90deg, transparent 0%, var(--node-color) 50%, transparent 80%) !important;
+/*  background-image: linear-gradient(90deg, var(--node-color) 0%, transparent 25%) !important;
+ */
+  background-color: transparent !important;
+}
+
+/* TARGET 2: Page and Journal Titles ONLY */
+/* The "Fade In & Out" effect applies exclusively to the main page header text */
+.ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
+  --node-color: inherit;
+}
+
+:is(
+  h1.title,
+  .journal-title,
+  .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref])
+):has(a.tag[data-ref]),
+.ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
+  background-image: linear-gradient(90deg, transparent 0%, var(--node-color) 30%, transparent 60%) !important;
+  background-color: transparent !important;
+}
+
+.dark-theme .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
+  --node-color: inherit;
+}
+
+.dark-theme :is(
+  h1.title,
+  .journal-title,
+  .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref])
+):has(a.tag[data-ref]),
+.dark-theme .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
+  background-image: linear-gradient(90deg, transparent 0%, var(--node-color) 3%, transparent 35%) !important;
+  background-color: transparent !important;
+}
+
+:is(
+  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref]),
+  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref]),
+  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref]),
+  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref])
+) {
+  background-image: linear-gradient(90deg, transparent 0%, var(--node-color) 30%, transparent 60%) !important;
+  background-color: transparent !important;
+}
+
+.dark-theme :is(
+  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref]),
+  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref]),
+  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref]),
+  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref])
+) {
+  background-image: linear-gradient(90deg, transparent 0%, var(--node-color) 3%, transparent 35%) !important;
+  background-color: transparent !important;
+}
+
+/* ========================================= */
+/* --- 5. SELECTION & OVERFLOW FIXES     --- */
+/* ========================================= */
+
+.ls-block.selected, .ls-block.selected-block { background-image: none !important; background-color: rgba(59, 130, 246, 0.15) !important; }
+.dark-theme .ls-block.selected, .dark-theme .ls-block.selected-block { background-color: rgba(59, 130, 246, 0.3) !important; }
+
+.ls-block *:has(> a.tag) { flex-wrap: wrap !important; max-width: none !important; width: auto !important; overflow: visible !important; }
+.ls-block a.tag { display: inline-flex !important; visibility: visible !important; }
+.ls-block *:has(> a.tag) > button { display: none !important; }
+
+
+/* ========================================= */
+/* --- 6. PAGE REFERENCE STYLING ([[ ]]) --- */
+/* ========================================= */
+
+/* Target all normal [[references]], but ignore #tags */
+a.page-ref:not(.tag) {
+  text-decoration: none !important;
+  font-weight: 500 !important;
+  color: inherit !important;
+  border-bottom: 2px solid #a5b4fc; /* Subtle indigo underline */
+  border-radius: 2px;
+  padding: 0 2px;
+  transition: all 0.2s ease-in-out;
+}
+
+.dark-theme a.page-ref:not(.tag) {
+  border-bottom: 2px solid #4f46e5; /* Deeper indigo for dark mode */
+}
+
+/* Hover effect: The underline grows into a soft background highlight */
+a.page-ref:not(.tag):hover {
+  background-color: #e0e7ff; 
+  border-bottom-color: transparent;
+  color: #312e81 !important;
+}
+
+.dark-theme a.page-ref:not(.tag):hover {
+  background-color: #312e81;
+  border-bottom-color: transparent;
+  color: #e0e7ff !important;
+}
+
+
+/* ========================================= */
+/* --- 7. MODERN QUOTES & CALLOUTS       --- */
+/* ========================================= */
+
+/* 1. Base Style (Default Indigo if no color is picked) */
+div[data-node-type="quote"] {
+  border-left: 4px solid #6366f1 !important; 
+  /* Dual-corner glow using your custom gradient */
+  background-image: linear-gradient(130deg, rgba(99, 102, 241, 0.1) 0%, transparent 40%, transparent 70%, rgba(99, 102, 241, 0.1) 100%) !important;
+  background-color: transparent !important; /* Clears Logseq's harsh default color */
+  border-radius: 0 8px 8px 0 !important; 
+  padding: 10px 16px !important;
+  margin: 4px 0 !important;
+}
+
+.dark-theme div[data-node-type="quote"] {
+  border-left-color: #818cf8 !important;
+  background-image: linear-gradient(130deg, rgba(99, 102, 241, 0.15) 0%, transparent 40%, transparent 70%, rgba(99, 102, 241, 0.15) 100%) !important;
+}
+
+/* 2. Color Picker Integration (Maps native colors to our custom palette!) */
+div[data-node-type="quote"][style*="red"] {
+  border-left-color: var(--bd-red) !important;
+  background-image: linear-gradient(130deg, var(--grad-red) 0%, transparent 40%, transparent 70%, var(--grad-red) 100%) !important;
+}
+
+div[data-node-type="quote"][style*="yellow"] {
+  border-left-color: var(--bd-yellow) !important;
+  background-image: linear-gradient(130deg, var(--grad-yellow) 0%, transparent 40%, transparent 70%, var(--grad-yellow) 100%) !important;
+}
+
+div[data-node-type="quote"][style*="green"] {
+  border-left-color: var(--bd-green) !important;
+  background-image: linear-gradient(130deg, var(--grad-green) 0%, transparent 40%, transparent 70%, var(--grad-green) 100%) !important;
+}
+
+div[data-node-type="quote"][style*="blue"] {
+  border-left-color: var(--bd-blue) !important;
+  background-image: linear-gradient(130deg, var(--grad-blue) 0%, transparent 40%, transparent 70%, var(--grad-blue) 100%) !important;
+}
+
+div[data-node-type="quote"][style*="purple"] {
+  border-left-color: var(--bd-purple) !important;
+  background-image: linear-gradient(130deg, var(--grad-purple) 0%, transparent 40%, transparent 70%, var(--grad-purple) 100%) !important;
+}
+
+div[data-node-type="quote"][style*="pink"] {
+  border-left-color: var(--bd-pink) !important;
+  background-image: linear-gradient(130deg, var(--grad-pink) 0%, transparent 40%, transparent 70%, var(--grad-pink) 100%) !important;
+}
+
+div[data-node-type="quote"][style*="gray"],
+div[data-node-type="quote"][style*="grey"] {
+  border-left-color: var(--bd-grey) !important;
+  background-image: linear-gradient(130deg, var(--grad-grey) 0%, transparent 40%, transparent 70%, var(--grad-grey) 100%) !important;
+}
+
+/* 3. Typography Cleanup */
+div[data-node-type="quote"] .block-content-inner {
+  font-style: normal !important; /* Removes default italics */
+  color: #334155 !important;
+}
+
+.dark-theme div[data-node-type="quote"] .block-content-inner {
+  color: #e2e8f0 !important;
+}
+
+/* ========================================= */
+/* --- 8. STANDARD BLOCK BACKGROUNDS     --- */
+/* ========================================= */
+
+/* 1. Base Setup */
+.with-bg-color:not([data-node-type="quote"]) {
+  background-color: transparent !important; 
+  border-radius: 6px !important; 
+  padding: 2px 4px !important; 
+}
+
+/* 2. Color Picker Integration (170deg, 30% transparent stop) */
+.with-bg-color:not([data-node-type="quote"])[style*="red"] {
+  background-image: linear-gradient(170deg, var(--grad-red) 0%, transparent 30%, transparent 80%, var(--grad-red) 100%) !important;
+}
+
+.with-bg-color:not([data-node-type="quote"])[style*="yellow"] {
+  background-image: linear-gradient(170deg, var(--grad-yellow) 0%, transparent 30%, transparent 80%, var(--grad-yellow) 100%) !important;
+}
+
+.with-bg-color:not([data-node-type="quote"])[style*="green"] {
+  background-image: linear-gradient(170deg, var(--grad-green) 0%, transparent 30%, transparent 80%, var(--grad-green) 100%) !important;
+}
+
+.with-bg-color:not([data-node-type="quote"])[style*="blue"] {
+  background-image: linear-gradient(170deg, var(--grad-blue) 0%, transparent 30%, transparent 80%, var(--grad-blue) 100%) !important;
+}
+
+.with-bg-color:not([data-node-type="quote"])[style*="purple"] {
+  background-image: linear-gradient(170deg, var(--grad-purple) 0%, transparent 30%, transparent 80%, var(--grad-purple) 100%) !important;
+}
+
+.with-bg-color:not([data-node-type="quote"])[style*="pink"] {
+  background-image: linear-gradient(170deg, var(--grad-pink) 0%, transparent 30%, transparent 80%, var(--grad-pink) 100%) !important;
+}
+
+.with-bg-color:not([data-node-type="quote"])[style*="gray"],
+.with-bg-color:not([data-node-type="quote"])[style*="grey"] {
+  background-image: linear-gradient(170deg, var(--grad-grey) 0%, transparent 30%, transparent 80%, var(--grad-grey) 100%) !important;
+}
