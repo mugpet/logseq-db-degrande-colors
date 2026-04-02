@@ -432,6 +432,14 @@ function dedupeTagNames(tagNames) {
   return Array.from(tagMap.values());
 }
 
+function normalizeCollectedTags(rawTags) {
+  return dedupeTagNames((rawTags || [])
+    .map(normalizeTagName)
+    .filter(Boolean)
+    .filter((tagName) => tagName.toLowerCase() !== "tags"))
+    .sort((left, right) => left.localeCompare(right));
+}
+
 function isTagCandidatePage(page) {
   if (!page || typeof page !== "object") {
     return false;
@@ -1896,14 +1904,20 @@ function buildGradientEditorMarkup(areaKey, previewMarkup, controlKeys = []) {
 
 async function refreshTags(showToast = false) {
   try {
-    const rawTags = await collectRawTags();
     const previousSelectedKey = panelState.selectedTag.toLowerCase();
+    const previousTags = panelState.tags.slice();
+    let rawTags = await collectRawTags();
+    let normalizedTags = normalizeCollectedTags(rawTags);
 
-    const normalizedTags = dedupeTagNames((rawTags || [])
-      .map(normalizeTagName)
-      .filter(Boolean)
-      .filter((tagName) => tagName.toLowerCase() !== "tags"))
-      .sort((left, right) => left.localeCompare(right));
+    for (let attempt = 0; attempt < 2 && !normalizedTags.length; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 350 * (attempt + 1)));
+      rawTags = await collectRawTags();
+      normalizedTags = normalizeCollectedTags(rawTags);
+    }
+
+    if (!normalizedTags.length && previousTags.length) {
+      normalizedTags = previousTags;
+    }
 
     panelState.tags = normalizedTags;
 
