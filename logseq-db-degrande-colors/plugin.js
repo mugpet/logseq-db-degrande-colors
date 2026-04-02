@@ -3044,7 +3044,7 @@ function endGradientHandleDrag() {
 
   if (drag.moved) {
     panelState.suppressGradientClick = true;
-    renderPanel("Adjusted gradient stop");
+    rerenderPreviewPanePreservingScroll("Adjusted gradient stop");
   }
 }
 
@@ -3079,6 +3079,21 @@ function refreshPanel(statusMessage, { rerenderPreview = false, rerenderTags = f
   syncGradientEditorState();
   syncTagsPaneState();
   syncTabState();
+}
+
+function rerenderPreviewPanePreservingScroll(statusMessage) {
+  const previewScroll = document.querySelector('[data-role="preview-scroll"]');
+  const scrollTop = previewScroll?.scrollTop ?? 0;
+  const scrollLeft = previewScroll?.scrollLeft ?? 0;
+
+  refreshPanel(statusMessage, { rerenderPreview: true });
+
+  const nextPreviewScroll = document.querySelector('[data-role="preview-scroll"]');
+
+  if (nextPreviewScroll) {
+    nextPreviewScroll.scrollTop = scrollTop;
+    nextPreviewScroll.scrollLeft = scrollLeft;
+  }
 }
 
 function rerenderTagsPanePreservingFocus(statusMessage) {
@@ -3510,7 +3525,7 @@ function mountPanel() {
       const relativeX = event.clientX - rect.left;
       const position = Math.round((relativeX / Math.max(rect.width, 1)) * 100);
       addGradientStop(gradientStrip.dataset.areaKey, position);
-      void applyManagedOverrides(false, "Added gradient stop");
+      void applyManagedOverrides(false, "Added gradient stop", "preview");
       schedulePersistGradients();
       return;
     }
@@ -3530,7 +3545,7 @@ function mountPanel() {
       }
 
       setSelectedGradientStop(target.dataset.areaKey, Number(target.dataset.stopIndex));
-      renderPanel();
+      rerenderPreviewPanePreservingScroll();
       return;
     }
 
@@ -3606,7 +3621,7 @@ function mountPanel() {
         Number(target.dataset.stopIndex),
         { source: target.dataset.stopMode, token: COLOR_PRESETS[0].token, color: panelState.tagCustomColorDraft }
       );
-      void applyManagedOverrides(false, "Updated gradient stop type");
+      void applyManagedOverrides(false, "Updated gradient stop type", "preview");
       schedulePersistGradients();
       return;
     }
@@ -3617,14 +3632,14 @@ function mountPanel() {
         Number(target.dataset.stopIndex),
         { source: "preset", token: target.dataset.stopToken }
       );
-      void applyManagedOverrides(false, "Updated preset gradient color");
+      void applyManagedOverrides(false, "Updated preset gradient color", "preview");
       schedulePersistGradients();
       return;
     }
 
     if (action === "remove-gradient-stop") {
       removeGradientStop(target.dataset.areaKey, Number(target.dataset.stopIndex));
-      void applyManagedOverrides(false, "Removed gradient stop");
+      void applyManagedOverrides(false, "Removed gradient stop", "preview");
       schedulePersistGradients();
       return;
     }
@@ -3668,7 +3683,7 @@ function mountPanel() {
     event.preventDefault();
     setSelectedGradientStop(gradientHandle.dataset.areaKey, Number(gradientHandle.dataset.stopIndex));
     removeGradientStop(gradientHandle.dataset.areaKey, Number(gradientHandle.dataset.stopIndex));
-    void applyManagedOverrides(false, "Removed gradient stop");
+    void applyManagedOverrides(false, "Removed gradient stop", "preview");
     schedulePersistGradients();
   });
 
@@ -3871,6 +3886,8 @@ async function applyManagedOverrides(showToast = false, statusMessage = "Updated
   if (panelState.mounted) {
     if (renderMode === "soft") {
       refreshPanel(statusMessage);
+    } else if (renderMode === "preview") {
+      rerenderPreviewPanePreservingScroll(statusMessage);
     } else {
       renderPanel(statusMessage);
     }
