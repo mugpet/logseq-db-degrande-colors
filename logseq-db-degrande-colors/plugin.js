@@ -217,6 +217,8 @@ const panelState = {
   activeTab: "tags",
   lastAppliedAt: null,
   mounted: false,
+  currentGraphKey: "",
+  currentGraphInfo: null,
   persistTimer: null,
   gradientPersistTimer: null,
   tagPersistTimer: null,
@@ -640,6 +642,84 @@ function isTagCandidatePage(page) {
   }
 
   return !page.journalDay && page["journal?"] !== true;
+}
+
+function normalizeGraphIdentityPart(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function getGraphIdentity(graphInfo) {
+  if (!graphInfo || typeof graphInfo !== "object") {
+    return "";
+  }
+
+  return normalizeGraphIdentityPart(graphInfo.path || graphInfo.url || graphInfo.name);
+}
+
+function doesRepoMatchGraph(repo, graphInfo = panelState.currentGraphInfo) {
+  const repoKey = normalizeGraphIdentityPart(repo);
+
+  if (!repoKey || !graphInfo || typeof graphInfo !== "object") {
+    return false;
+  }
+
+  const candidates = [graphInfo.path, graphInfo.url, graphInfo.name]
+    .map(normalizeGraphIdentityPart)
+    .filter(Boolean);
+
+  return candidates.some((candidate) => candidate === repoKey || candidate.endsWith(repoKey) || repoKey.endsWith(candidate));
+}
+
+async function syncCurrentGraphInfo() {
+  if (typeof logseq.App?.getCurrentGraph !== "function") {
+    return {
+      changed: false,
+      graphKey: panelState.currentGraphKey,
+      graphInfo: panelState.currentGraphInfo,
+    };
+  }
+
+  try {
+    const graphInfo = await logseq.App.getCurrentGraph();
+    const graphKey = getGraphIdentity(graphInfo);
+    const changed = Boolean(graphKey && graphKey !== panelState.currentGraphKey);
+
+    panelState.currentGraphInfo = graphInfo || null;
+
+    if (graphKey) {
+      panelState.currentGraphKey = graphKey;
+    }
+
+    return { changed, graphKey, graphInfo };
+  } catch (error) {
+    console.warn("[Degrande Colors] Failed to resolve current graph", error);
+
+    return {
+      changed: false,
+      graphKey: panelState.currentGraphKey,
+      graphInfo: panelState.currentGraphInfo,
+    };
+  }
+}
+
+function clearGraphTagState() {
+  panelState.tags = [];
+  panelState.selectedTag = "";
+}
+
+function normalizeRefreshTagsOptions(showToastOrOptions) {
+  if (showToastOrOptions && typeof showToastOrOptions === "object") {
+    return {
+      showToast: false,
+      fallbackToPrevious: true,
+      ...showToastOrOptions,
+    };
+  }
+
+  return {
+    showToast: Boolean(showToastOrOptions),
+    fallbackToPrevious: true,
+  };
 }
 
 async function collectRawTags() {
@@ -2112,8 +2192,9 @@ function buildGradientEditorMarkup(areaKey, previewMarkup, controlKeys = []) {
   `;
 }
 
-async function refreshTags(showToast = false) {
+async function refreshTags(showToastOrOptions = false) {
   try {
+    const { showToast, fallbackToPrevious } = normalizeRefreshTagsOptions(showToastOrOptions);
     const previousSelectedKey = panelState.selectedTag.toLowerCase();
     const previousTags = panelState.tags.slice();
     let rawTags = await collectRawTags();
@@ -2125,7 +2206,7 @@ async function refreshTags(showToast = false) {
       normalizedTags = normalizeCollectedTags(rawTags);
     }
 
-    if (!normalizedTags.length && previousTags.length) {
+    if (!normalizedTags.length && fallbackToPrevious && previousTags.length) {
       normalizedTags = previousTags;
     }
 
@@ -2151,6 +2232,38 @@ async function refreshTags(showToast = false) {
       await logseq.UI.showMsg("Unable to load tags from Logseq.", "warning");
     }
   }
+}
+
+async function ensureTagsForCurrentGraph(options = {}) {
+  const { changed } = await syncCurrentGraphInfo();
+  const force = Boolean(options.force);
+
+  if (changed) {
+    clearGraphTagState();
+  }
+
+  if (!force && !changed && panelState.tags.length) {
+    return false;
+  }
+
+  await refreshTags({
+    showToast: Boolean(options.showToast),
+    fallbackToPrevious: changed ? false : options.fallbackToPrevious ?? true,
+  });
+
+  return true;
+}
+
+async function handleCurrentGraphChanged() {
+  const { changed, graphInfo } = await syncCurrentGraphInfo();
+
+  if (!changed) {
+    return;
+  }
+
+  clearGraphTagState();
+  renderPanel(`Graph changed to ${graphInfo?.name || "current graph"}. Refreshing tags...`);
+  await refreshTags({ showToast: false, fallbackToPrevious: false });
 }
 
 function buildControlsMarkup() {
@@ -3585,9 +3698,7 @@ function openThemeLoader() {
   renderPanel();
   logseq.showMainUI({ autoFocus: true });
 
-  if (!panelState.tags.length) {
-    void refreshTags(false);
-  }
+  void ensureTagsForCurrentGraph();
 
   void applyManagedOverrides(false, "Reapplied saved theme controls");
 }
@@ -3685,11 +3796,28 @@ async function main() {
   bindHostTagContextMenu();
 
   const userConfigs = await logseq.App.getUserConfigs();
+  await syncCurrentGraphInfo();
   setThemeMode(userConfigs?.preferredThemeMode);
   logseq.App.onThemeModeChanged(({ mode }) => {
     setThemeMode(mode);
     renderPanel(`Logseq theme: ${mode}`);
   });
+
+  if (typeof logseq.App.onCurrentGraphChanged === "function") {
+    logseq.App.onCurrentGraphChanged(() => {
+      void handleCurrentGraphChanged();
+    });
+  }
+
+  if (typeof logseq.App.onGraphAfterIndexed === "function") {
+    logseq.App.onGraphAfterIndexed(({ repo }) => {
+      if (!doesRepoMatchGraph(repo)) {
+        return;
+      }
+
+      void refreshTags({ showToast: false, fallbackToPrevious: false });
+    });
+  }
 
   await reloadThemeCss(false, false);
   setTimeout(() => {
@@ -3754,7 +3882,7 @@ async function main() {
       key: commandKey("refresh-tags"),
       label: "Degrande Colors: refresh tags",
     },
-    () => refreshTags(true)
+    () => ensureTagsForCurrentGraph({ force: true, showToast: true, fallbackToPrevious: false })
   );
 
   registerCommandPaletteSafely(
