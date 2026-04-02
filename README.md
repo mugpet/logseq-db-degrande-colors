@@ -4,9 +4,15 @@ Degrande Colors is a styling panel for Logseq DB graphs. It makes it easier to a
 
 > This plugin has currently been tested on Logseq DB only.
 
-## Screenshot
+## Screenshots
 
-![Degrande Colors tag styling panel](docs/degrande-colors-preview.png)
+### Tags
+
+![Degrande Colors tags panel](docs/degrande-colors-tags.png)
+
+### Appearance
+
+![Degrande Colors appearance panel](docs/degrande-colors-appearance.png)
 
 ## Highlights
 
@@ -34,4 +40,4 @@ Degrande Colors is built for Logseq DB graphs and has only been verified there s
 2. Enable Developer mode.
 3. Open the Plugins dashboard.
 4. Choose `Load unpacked plugin`.
-5. Select `logseq-db-degrande-colors/`.
+5. Select the repository root.
