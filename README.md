@@ -1,8 +1,8 @@
-# Degrane Colors
+# Degrande Colors
 
-![Degrane Colors preview](./docs/degrane-colors-preview.png)
+![Degrande Colors preview](./docs/degrande-colors-preview.png)
 
-Degrane Colors is a Logseq plugin for DB graphs. It lets you assign tag colors, tune inline tag chip styling, and adjust live gradients for tagged blocks, page titles, quotes, and colored background blocks.
+Degrande Colors is a Logseq plugin for DB graphs. It lets you assign tag colors, tune inline tag chip styling, and adjust live gradients for tagged blocks, page titles, quotes, and colored background blocks.
 
 ## What It Does
 

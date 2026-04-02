@@ -2865,17 +2865,17 @@ function mountPanel() {
   const app = document.getElementById("app");
 
   if (!app) {
-    throw new Error("Missing #app root for Degrane Colors panel");
+    throw new Error("Missing #app root for Degrande Colors panel");
   }
 
   app.innerHTML = `
     <div class="ctl-shell">
       <div class="ctl-backdrop" data-action="close"></div>
-      <section class="ctl-window" aria-label="Degrane Colors panel">
+      <section class="ctl-window" aria-label="Degrande Colors panel">
         <header class="ctl-header">
           <div>
             <p class="ctl-eyebrow">Logseq DB Styling</p>
-            <h1>Degrane Colors</h1>
+            <h1>Degrande Colors</h1>
             <p class="ctl-subtitle">Assign tag colors and tune gradients for blocks, page titles, quotes, and backgrounds. Built for Logseq DB graphs.</p>
           </div>
         </header>
@@ -3436,7 +3436,7 @@ async function main() {
   });
 
   await logseq.UI.showMsg(
-    "Degrane Colors is active for this Logseq DB graph.",
+    "Degrande Colors is active for this Logseq DB graph.",
     "success",
     { timeout: 2500 }
   );
@@ -3444,7 +3444,7 @@ async function main() {
   logseq.App.registerUIItem("toolbar", {
     key: "custom-theme-loader-open",
     template: `
-      <a class="button" data-on-click="toggleThemeLoader" title="Open Degrane Colors">
+      <a class="button" data-on-click="toggleThemeLoader" title="Open Degrande Colors">
         <i class="ti ti-palette" aria-hidden="true"></i>
       </a>
     `,
@@ -3453,7 +3453,7 @@ async function main() {
   logseq.App.registerCommandPalette(
     {
       key: "custom-theme-loader-open-panel",
-      label: "Degrane Colors: open panel",
+      label: "Degrande Colors: open panel",
     },
     openThemeLoader
   );
@@ -3461,11 +3461,11 @@ async function main() {
   logseq.App.registerCommandPalette(
     {
       key: "custom-theme-loader-status",
-      label: "Degrane Colors: show status",
+      label: "Degrande Colors: show status",
     },
     async () => {
       await logseq.UI.showMsg(
-        "Degrane Colors is active for this Logseq DB graph.",
+        "Degrande Colors is active for this Logseq DB graph.",
         "success"
       );
       openThemeLoader();
@@ -3475,7 +3475,7 @@ async function main() {
   logseq.App.registerCommandPalette(
     {
       key: "custom-theme-loader-reload-css",
-      label: "Degrane Colors: reload styles",
+      label: "Degrande Colors: reload styles",
     },
     () => reloadThemeCss(true)
   );
@@ -3483,7 +3483,7 @@ async function main() {
   logseq.App.registerCommandPalette(
     {
       key: "custom-theme-loader-refresh-tags",
-      label: "Degrane Colors: refresh tags",
+      label: "Degrande Colors: refresh tags",
     },
     () => refreshTags(true)
   );
@@ -3491,14 +3491,14 @@ async function main() {
   logseq.App.registerCommandPalette(
     {
       key: "custom-theme-loader-toggle-logseq-theme",
-      label: "Degrane Colors: toggle Logseq theme",
+      label: "Degrande Colors: toggle Logseq theme",
     },
     toggleLogseqTheme
   );
 
-  console.info("[Degrane Colors] Loaded base styles and controls");
+  console.info("[Degrande Colors] Loaded base styles and controls");
 }
 
 logseq.ready(main).catch((error) => {
-  console.error("[Degrane Colors] Failed to start", error);
+  console.error("[Degrande Colors] Failed to start", error);
 });

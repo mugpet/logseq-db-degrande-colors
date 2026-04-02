@@ -24,7 +24,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME:-manual}"
           mkdir -p dist
           cd logseq-db-degrande-colors
-          zip -r "../dist/degrane-colors-${VERSION}.zip" \
+          zip -r "../dist/degrande-colors-${VERSION}.zip" \
             package.json \
             index.html \
             plugin.js \
