@@ -450,7 +450,11 @@ async function collectRawTags() {
       rawTags.push(...(tags || []));
       sourceCounts.getAllTags = tags?.length || 0;
     } catch (error) {
-      console.warn("[Local Custom Theme Loader] Failed to load tags from logseq.Editor.getAllTags", error);
+      if (isBenignGetAllTagsError(error)) {
+        sourceCounts.getAllTags = 0;
+      } else {
+        console.warn("[Local Custom Theme Loader] Failed to load tags from logseq.Editor.getAllTags", error);
+      }
     }
   }
 
@@ -1156,6 +1160,16 @@ function mergeStoredGradients(saved) {
   return merged;
 }
 
+function isMissingStorageError(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+  return message.includes("file not existed") || message.includes("enoent") || message.includes("not exist");
+}
+
+function isBenignGetAllTagsError(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+  return message.includes("indexaccess._datoms") || message.includes("defined for type null");
+}
+
 async function loadStoredControls() {
   try {
     const saved = await logseq.FileStorage.getItem(CONTROL_STORAGE_KEY);
@@ -1167,6 +1181,10 @@ async function loadStoredControls() {
     const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
     panelState.controlState = mergeStoredControls(parsed);
   } catch (error) {
+    if (isMissingStorageError(error)) {
+      return;
+    }
+
     console.error("[Local Custom Theme Loader] Failed to load stored controls", error);
   }
 }
@@ -1182,6 +1200,10 @@ async function loadStoredTagColors() {
     const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
     panelState.tagColorAssignments = mergeStoredTagColors(parsed);
   } catch (error) {
+    if (isMissingStorageError(error)) {
+      return;
+    }
+
     console.error("[Local Custom Theme Loader] Failed to load stored tag colors", error);
   }
 }
@@ -1197,6 +1219,10 @@ async function loadStoredGradients() {
     const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
     panelState.gradientState = mergeStoredGradients(parsed);
   } catch (error) {
+    if (isMissingStorageError(error)) {
+      return;
+    }
+
     console.error("[Local Custom Theme Loader] Failed to load stored gradients", error);
   }
 }
@@ -3423,7 +3449,6 @@ async function main() {
   });
 
   await reloadThemeCss(false);
-  await refreshTags(false);
   setTimeout(() => {
     void applyManagedOverrides(false, "Reapplied saved theme controls");
   }, 900);
