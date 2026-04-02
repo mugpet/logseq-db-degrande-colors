@@ -1,8 +1,8 @@
 {
-  "name": "degrande-colors-for-logseq-db",
+  "name": "degrane-colors",
   "version": "0.1.0",
-  "description": "Degrande Colors for Logseq DB with live gradient and tag color controls.",
-  "author": "GitHub Copilot",
+  "description": "Degrane Colors adds tag colors and live gradient controls for Logseq DB graphs.",
+  "author": "mugpet",
   "license": "MIT",
   "main": "index.html",
   "scripts": {
@@ -15,7 +15,7 @@
     "chrome 80"
   ],
   "logseq": {
-    "id": "local-custom-theme-loader",
+    "id": "mugpet.degrane-colors",
     "icon": "./icon.svg"
   }
 }

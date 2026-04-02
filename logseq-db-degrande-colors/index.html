@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors for Logseq DB</title>
+    <title>Degrane Colors</title>
     <style>
       :root {
         color-scheme: light;
@@ -75,7 +75,7 @@
         height: 100%;
         margin: 0 auto;
         display: grid;
-        grid-template-rows: auto auto auto 1fr auto;
+        grid-template-rows: auto auto auto 1fr;
         background: var(--ctl-bg);
         border: 2px solid var(--ctl-border);
         border-radius: 0;
@@ -113,33 +113,6 @@
         font-size: 13px;
         line-height: 1.45;
         color: var(--ctl-text-muted);
-      }
-
-      .ctl-header-meta {
-        min-width: 188px;
-        align-self: center;
-        padding: 10px 14px;
-        border: 1px solid var(--ctl-border);
-        border-radius: 14px;
-        background: var(--ctl-bg-muted);
-      }
-
-      .ctl-header-meta strong,
-      .ctl-header-meta span {
-        display: block;
-      }
-
-      .ctl-header-meta strong {
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
-        color: var(--ctl-text-muted);
-        margin-bottom: 6px;
-      }
-
-      .ctl-header-meta span {
-        font-size: 13px;
-        line-height: 1.35;
       }
 
       .ctl-toolbar {
@@ -333,11 +306,6 @@
       .ctl-pane-tags {
         display: grid;
         overflow: auto;
-      }
-
-      .ctl-pane-css {
-        display: grid;
-        overflow: hidden;
       }
 
       .ctl-preview-grid {
@@ -1143,37 +1111,9 @@
         flex-wrap: wrap;
       }
 
-      .ctl-code {
-        width: 100%;
-        height: 100%;
-        min-height: 320px;
-        resize: none;
-        border: 1px solid var(--ctl-border);
-        border-radius: 20px;
-        background: var(--ctl-code-bg);
-        color: var(--ctl-text);
-        padding: 20px 22px;
-        box-sizing: border-box;
-        font-family: "Cascadia Code", Consolas, monospace;
-        font-size: 13px;
-        line-height: 1.6;
-        outline: none;
-      }
-
-      .ctl-footer {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        align-items: center;
-        padding: 10px 22px 16px;
-        color: var(--ctl-text-muted);
-        font-size: 12px;
-      }
-
       @media (max-width: 760px) {
         .ctl-header,
-        .ctl-toolbar,
-        .ctl-footer {
+        .ctl-toolbar {
           padding-left: 14px;
           padding-right: 14px;
         }
@@ -1182,10 +1122,6 @@
           display: block;
           padding-top: 14px;
           padding-bottom: 12px;
-        }
-
-        .ctl-header-meta {
-          margin-top: 12px;
         }
 
         .ctl-tabbar,
@@ -1261,15 +1197,6 @@
 
         .ctl-tag-grid {
           max-height: none;
-        }
-
-        .ctl-code {
-          min-height: 240px;
-          padding: 16px;
-        }
-
-        .ctl-footer {
-          display: block;
         }
       }
     </style>

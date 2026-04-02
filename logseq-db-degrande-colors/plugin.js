@@ -200,7 +200,7 @@ const panelState = {
   },
   tagSortMode: "name",
   tagFilter: "",
-  activeTab: "preview",
+  activeTab: "tags",
   lastAppliedAt: null,
   mounted: false,
   persistTimer: null,
@@ -345,22 +345,6 @@ async function toggleLogseqTheme() {
     renderPanel("Unable to toggle the Logseq theme");
     await logseq.UI.showMsg("Unable to toggle the Logseq theme.", "warning");
   }
-}
-
-function lineCount(text) {
-  return text ? text.split(/\r?\n/).length : 0;
-}
-
-function formatAppliedAt(value) {
-  if (!value) {
-    return "Not applied yet";
-  }
-
-  return value.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
 }
 
 function formatControlValue(control, value) {
@@ -1618,6 +1602,19 @@ function buildInlineColorEditorMarkup({ color, scope, areaKey = "", stopIndex = 
   `;
 }
 
+function buildPaneIntroMarkup(title, description) {
+  return `
+    <section class="ctl-section ctl-section-inline">
+      <div class="ctl-section-head">
+        <div>
+          <h2>${escapeHtml(title)}</h2>
+          <p>${escapeHtml(description)}</p>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function buildTagsPaneMarkup() {
   const tags = getVisibleTags();
   const selectedTag = panelState.selectedTag;
@@ -1628,6 +1625,10 @@ function buildTagsPaneMarkup() {
   const hasUncoloredTags = panelState.tags.some((tagName) => !getTagColorToken(tagName));
 
   return `
+    ${buildPaneIntroMarkup(
+      "Start With Tags",
+      "Assign tag colors here first. Then switch to Appearance to tune chip spacing and graph-wide gradients for your Logseq DB graph."
+    )}
     <div class="ctl-tags-layout">
       <section class="ctl-tags-browser">
         <div class="ctl-tags-toolbar">
@@ -1659,7 +1660,6 @@ function buildTagsPaneMarkup() {
         ${buildCustomTagColorMarkup()}
         <div class="ctl-tags-actions">
           <button class="ctl-button ctl-button-secondary" type="button" data-action="add-random-tag-colors"${hasUncoloredTags ? "" : " disabled"}>Add Colors To Tags</button>
-          <button class="ctl-button ctl-button-secondary" type="button" data-action="refresh-tags">Refresh Tags</button>
           <button class="ctl-button ctl-button-secondary" type="button" data-action="copy-tag-colors-from-other-mode"${selectedTag && hasCustomAssignment ? "" : " disabled"}>${getCopyTagColorsButtonLabel()}</button>
           <button class="ctl-button ctl-button-secondary" type="button" data-action="clear-tag-color"${selectedTag && hasCustomAssignment ? "" : " disabled"}>Clear Custom Color</button>
           <button class="ctl-button ctl-button-secondary" type="button" data-action="reset-tag-colors"${hasTagAssignments ? "" : " disabled"}>Reset All Tag Colors</button>
@@ -1834,7 +1834,6 @@ function buildGradientEditorMarkup(areaKey, previewMarkup, controlKeys = []) {
             </div>
             <input class="ctl-range" id="gradient-angle-${areaKey}" type="range" min="0" max="360" step="1" value="${area.angle}" data-gradient-angle="${areaKey}">
           </label>
-          <button class="ctl-button ctl-button-secondary ctl-button-small" type="button" data-action="add-gradient-stop" data-area-key="${areaKey}">Add Stop</button>
         </div>
         ${controlKeys.length ? `<div class="ctl-gradient-extra">${buildNumericControlsMarkup(controlKeys)}</div>` : ""}
       </div>
@@ -2061,6 +2060,10 @@ function buildPreviewMarkup() {
   );
 
   return `
+    ${buildPaneIntroMarkup(
+      "Appearance",
+      "Use this page to tune chip sizing and gradients. Click a gradient strip to add a stop, and right-click a stop handle to remove it."
+    )}
     <div class="ctl-preview-grid">
       <article class="ctl-preview-card">
         <div class="ctl-preview-card-head">
@@ -2512,17 +2515,13 @@ function endGradientHandleDrag() {
 }
 
 function syncPanelMeta(statusMessage) {
-  const content = document.querySelector('[data-role="css-content"]');
-  const meta = document.querySelector('[data-role="meta"]');
   const status = document.querySelector('[data-role="status"]');
   const themeToggleButton = document.querySelector('[data-action="toggle-logseq-theme"]');
 
-  if (!content || !meta || !status) {
+  if (!status) {
     return;
   }
 
-  content.value = panelState.cssText;
-  meta.textContent = `${lineCount(panelState.cssText)} lines | ${panelState.cssText.length} chars | Base file plus live overrides | Applied ${formatAppliedAt(panelState.lastAppliedAt)}`;
   status.textContent = statusMessage ?? `Theme mode: ${panelState.themeMode} | Controls are stored in plugin state`;
 
   if (themeToggleButton) {
@@ -2581,7 +2580,7 @@ function rerenderTagsPanePreservingFocus(statusMessage) {
 }
 
 function setActiveTab(tab) {
-  panelState.activeTab = ["preview", "css", "tags"].includes(tab) ? tab : "preview";
+  panelState.activeTab = ["preview", "tags"].includes(tab) ? tab : "tags";
   syncTabState();
 
   if (panelState.activeTab === "tags" && !panelState.tags.length) {
@@ -2866,57 +2865,43 @@ function mountPanel() {
   const app = document.getElementById("app");
 
   if (!app) {
-    throw new Error("Missing #app root for Degrande Colors for Logseq DB panel");
+    throw new Error("Missing #app root for Degrane Colors panel");
   }
 
   app.innerHTML = `
     <div class="ctl-shell">
       <div class="ctl-backdrop" data-action="close"></div>
-      <section class="ctl-window" aria-label="Degrande Colors for Logseq DB panel">
+      <section class="ctl-window" aria-label="Degrane Colors panel">
         <header class="ctl-header">
           <div>
-            <p class="ctl-eyebrow">Live Theme Controls</p>
-            <h1>Degrande Colors for Logseq DB</h1>
-            <p class="ctl-subtitle">Tune gradients for tags, background blocks, and quotes. The live stylesheet preview updates as you move the controls.</p>
+            <p class="ctl-eyebrow">Logseq DB Styling</p>
+            <h1>Degrane Colors</h1>
+            <p class="ctl-subtitle">Assign tag colors and tune gradients for blocks, page titles, quotes, and backgrounds. Built for Logseq DB graphs.</p>
           </div>
-          <aside class="ctl-header-meta">
-            <strong>Source Layer</strong>
-            <span>./custom.css + plugin overrides</span>
-          </aside>
         </header>
         <div class="ctl-toolbar">
           <div class="ctl-toolbar-actions">
-            <button class="ctl-button ctl-button-primary" data-action="reload-file">Reload File</button>
+            <button class="ctl-button ctl-button-primary" data-action="reload-file">Reload Styles</button>
             <button class="ctl-button ctl-button-secondary" data-action="toggle-logseq-theme">${getThemeToggleLabel()}</button>
-            <button class="ctl-button ctl-button-secondary" data-action="refresh-tags">Refresh Tags</button>
             <button class="ctl-button ctl-button-secondary" data-action="reset-controls">Reset Controls</button>
-            <button class="ctl-button ctl-button-secondary" data-action="copy">Copy CSS</button>
             <button class="ctl-button ctl-button-secondary" data-action="close">Close</button>
           </div>
           <div class="ctl-status" data-role="status"></div>
         </div>
         <div class="ctl-tabbar" role="tablist" aria-label="Theme panel views">
-          <button class="ctl-tab" type="button" data-tab="preview" role="tab" aria-selected="true">Preview</button>
-          <button class="ctl-tab" type="button" data-tab="tags" role="tab" aria-selected="false">Tags</button>
-          <button class="ctl-tab" type="button" data-tab="css" role="tab" aria-selected="false">CSS</button>
+          <button class="ctl-tab" type="button" data-tab="tags" role="tab" aria-selected="true">Tags</button>
+          <button class="ctl-tab" type="button" data-tab="preview" role="tab" aria-selected="false">Appearance</button>
         </div>
         <div class="ctl-main">
           <section class="ctl-viewer">
-            <div class="ctl-pane ctl-pane-preview" data-pane="preview">
-              ${buildPreviewMarkup()}
-            </div>
-            <div class="ctl-pane ctl-pane-tags" data-pane="tags" hidden>
+            <div class="ctl-pane ctl-pane-tags" data-pane="tags">
               <div data-role="tags-pane"></div>
             </div>
-            <div class="ctl-pane ctl-pane-css" data-pane="css" hidden>
-              <textarea class="ctl-code" data-role="css-content" readonly spellcheck="false"></textarea>
+            <div class="ctl-pane ctl-pane-preview" data-pane="preview" hidden>
+              ${buildPreviewMarkup()}
             </div>
           </section>
         </div>
-        <footer class="ctl-footer">
-          <div data-role="meta"></div>
-          <div>Preview is the default view. The raw effective CSS is available in the CSS tab.</div>
-        </footer>
       </section>
     </div>
   `;
@@ -3045,13 +3030,6 @@ function mountPanel() {
       return;
     }
 
-    if (action === "add-gradient-stop") {
-      addGradientStop(target.dataset.areaKey);
-      void applyManagedOverrides(false, "Added gradient stop");
-      schedulePersistGradients();
-      return;
-    }
-
     if (action === "set-gradient-stop-mode") {
       updateGradientStop(
         target.dataset.areaKey,
@@ -3079,10 +3057,6 @@ function mountPanel() {
       void applyManagedOverrides(false, "Removed gradient stop");
       schedulePersistGradients();
       return;
-    }
-
-    if (action === "copy") {
-      await copyCssToClipboard();
     }
   });
 
@@ -3359,13 +3333,13 @@ async function reloadThemeCss(showToast = false) {
   panelState.baseCssText = await loadWorkspaceCss();
   panelState.baseTagColorMap = parseBaseTagColorMap(panelState.baseCssText);
   setHostStyleText(BASE_STYLE_ELEMENT_ID, panelState.baseCssText);
-  await applyManagedOverrides(showToast, "Reloaded workspace custom.css and re-applied controls");
+  await applyManagedOverrides(showToast, "Reloaded base styles and re-applied controls");
   openThemeLoader();
 }
 
 async function resetControls() {
   const confirmed = typeof window?.confirm === "function"
-    ? window.confirm("Reset all live controls and gradients back to the custom.css defaults?")
+    ? window.confirm("Reset all live controls and gradients back to the base defaults?")
     : true;
 
   if (!confirmed) {
@@ -3389,7 +3363,7 @@ async function resetControls() {
 
   await logseq.FileStorage.removeItem(CONTROL_STORAGE_KEY);
   await logseq.FileStorage.removeItem(GRADIENT_STORAGE_KEY);
-  await applyManagedOverrides(true, "Reset live controls to the custom.css defaults");
+  await applyManagedOverrides(true, "Reset live controls to the base defaults");
 }
 
 async function resetTagColors() {
@@ -3420,18 +3394,6 @@ async function resetTagColors() {
   await logseq.FileStorage.removeItem(TAG_COLOR_STORAGE_KEY);
   renderPanel("Reset all tag colors to defaults");
   void applyManagedOverrides(false, "Reset all tag colors to defaults");
-}
-
-async function copyCssToClipboard() {
-  try {
-    await navigator.clipboard.writeText(panelState.cssText);
-    renderPanel("Copied effective CSS to clipboard");
-    await logseq.UI.showMsg("Copied effective CSS to clipboard.", "success");
-  } catch (error) {
-    console.error("[Degrande Colors for Logseq DB] Clipboard copy failed", error);
-    renderPanel("Clipboard copy failed");
-    await logseq.UI.showMsg("Unable to copy CSS from the plugin window.", "warning");
-  }
 }
 
 async function main() {
@@ -3474,7 +3436,7 @@ async function main() {
   });
 
   await logseq.UI.showMsg(
-    "Degrande Colors for Logseq DB is active.",
+    "Degrane Colors is active for this Logseq DB graph.",
     "success",
     { timeout: 2500 }
   );
@@ -3482,7 +3444,7 @@ async function main() {
   logseq.App.registerUIItem("toolbar", {
     key: "custom-theme-loader-open",
     template: `
-      <a class="button" data-on-click="toggleThemeLoader" title="Open Degrande Colors for Logseq DB">
+      <a class="button" data-on-click="toggleThemeLoader" title="Open Degrane Colors">
         <i class="ti ti-palette" aria-hidden="true"></i>
       </a>
     `,
@@ -3491,7 +3453,7 @@ async function main() {
   logseq.App.registerCommandPalette(
     {
       key: "custom-theme-loader-open-panel",
-      label: "Degrande Colors for Logseq DB: open panel",
+      label: "Degrane Colors: open panel",
     },
     openThemeLoader
   );
@@ -3499,11 +3461,11 @@ async function main() {
   logseq.App.registerCommandPalette(
     {
       key: "custom-theme-loader-status",
-      label: "Degrande Colors for Logseq DB: show status",
+      label: "Degrane Colors: show status",
     },
     async () => {
       await logseq.UI.showMsg(
-        "Workspace custom.css is active through the Degrande Colors for Logseq DB plugin.",
+        "Degrane Colors is active for this Logseq DB graph.",
         "success"
       );
       openThemeLoader();
@@ -3513,7 +3475,7 @@ async function main() {
   logseq.App.registerCommandPalette(
     {
       key: "custom-theme-loader-reload-css",
-      label: "Degrande Colors for Logseq DB: reload CSS",
+      label: "Degrane Colors: reload styles",
     },
     () => reloadThemeCss(true)
   );
@@ -3521,7 +3483,7 @@ async function main() {
   logseq.App.registerCommandPalette(
     {
       key: "custom-theme-loader-refresh-tags",
-      label: "Degrande Colors for Logseq DB: refresh tags",
+      label: "Degrane Colors: refresh tags",
     },
     () => refreshTags(true)
   );
@@ -3529,14 +3491,14 @@ async function main() {
   logseq.App.registerCommandPalette(
     {
       key: "custom-theme-loader-toggle-logseq-theme",
-      label: "Degrande Colors for Logseq DB: toggle Logseq theme",
+      label: "Degrane Colors: toggle Logseq theme",
     },
     toggleLogseqTheme
   );
 
-  console.info("[Degrande Colors for Logseq DB] Loaded workspace custom.css and controls");
+  console.info("[Degrane Colors] Loaded base styles and controls");
 }
 
 logseq.ready(main).catch((error) => {
-  console.error("[Degrande Colors for Logseq DB] Failed to start", error);
+  console.error("[Degrane Colors] Failed to start", error);
 });

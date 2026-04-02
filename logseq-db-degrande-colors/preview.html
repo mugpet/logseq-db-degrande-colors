@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Degrane Colors Preview</title>
+    <style>
+      :root {
+        --ctl-bg: rgba(248, 250, 252, 0.96);
+        --ctl-bg-muted: rgba(255, 255, 255, 0.82);
+        --ctl-border: rgba(148, 163, 184, 0.34);
+        --ctl-text: #0f172a;
+        --ctl-text-muted: #475569;
+        --ctl-accent: #0f766e;
+        --ctl-shadow: 0 30px 80px rgba(15, 23, 42, 0.18);
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Aptos, "Segoe UI", sans-serif;
+        background: linear-gradient(180deg, #dbeafe 0%, #f8fafc 40%, #ecfeff 100%);
+        color: var(--ctl-text);
+      }
+
+      body {
+        padding: 32px;
+        box-sizing: border-box;
+      }
+
+      #app {
+        max-width: 1240px;
+        margin: 0 auto;
+      }
+
+      .ctl-shell {
+        position: relative;
+      }
+
+      .ctl-backdrop {
+        display: none;
+      }
+
+      .ctl-window {
+        border: 2px solid var(--ctl-border);
+        background: var(--ctl-bg);
+        box-shadow: var(--ctl-shadow);
+        overflow: hidden;
+      }
+
+      .ctl-header {
+        padding: 22px 26px 16px;
+        background: linear-gradient(135deg, rgba(15, 118, 110, 0.16), transparent 55%);
+      }
+
+      .ctl-eyebrow {
+        margin: 0 0 8px;
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--ctl-accent);
+        font-weight: 700;
+      }
+
+      .ctl-header h1 {
+        margin: 0;
+        font-size: 52px;
+        line-height: 1;
+        letter-spacing: -0.05em;
+      }
+
+      .ctl-subtitle {
+        margin: 10px 0 0;
+        max-width: 900px;
+        font-size: 18px;
+        line-height: 1.45;
+        color: var(--ctl-text-muted);
+      }
+
+      .ctl-toolbar,
+      .ctl-tabbar {
+        padding-left: 26px;
+        padding-right: 26px;
+      }
+
+      .ctl-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding-top: 14px;
+        padding-bottom: 14px;
+        border-top: 1px solid var(--ctl-border);
+        border-bottom: 1px solid var(--ctl-border);
+        background: var(--ctl-bg-muted);
+      }
+
+      .ctl-toolbar-actions,
+      .ctl-tags-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .ctl-button {
+        appearance: none;
+        border: 1px solid var(--ctl-border);
+        background: white;
+        color: var(--ctl-text);
+        padding: 10px 14px;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .ctl-button-primary {
+        background: var(--ctl-accent);
+        border-color: var(--ctl-accent);
+        color: white;
+      }
+
+      .ctl-status {
+        color: var(--ctl-text-muted);
+        font-size: 14px;
+      }
+
+      .ctl-tabbar {
+        display: flex;
+        gap: 6px;
+        padding-top: 14px;
+        border-bottom: 1px solid var(--ctl-border);
+        background: linear-gradient(180deg, rgba(15, 118, 110, 0.03), transparent 90%);
+      }
+
+      .ctl-tab {
+        border: 1px solid transparent;
+        border-bottom: none;
+        background: transparent;
+        color: var(--ctl-text-muted);
+        padding: 12px 16px 11px;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .ctl-tab.is-active {
+        background: var(--ctl-bg);
+        color: var(--ctl-accent);
+        border-color: var(--ctl-border);
+      }
+
+      .ctl-pane {
+        padding: 18px 26px 26px;
+      }
+
+      .ctl-section,
+      .ctl-tags-browser,
+      .ctl-tags-detail,
+      .ctl-preview-card {
+        border: 1px solid var(--ctl-border);
+        background: rgba(255, 255, 255, 0.68);
+      }
+
+      .ctl-section {
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+
+      .ctl-section-head h2 {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      .ctl-section-head p {
+        margin: 6px 0 0;
+        font-size: 14px;
+        line-height: 1.45;
+        color: var(--ctl-text-muted);
+      }
+
+      .ctl-tags-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+        gap: 18px;
+      }
+
+      .ctl-tags-browser,
+      .ctl-tags-detail {
+        padding: 16px;
+      }
+
+      .ctl-tags-toolbar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 180px;
+        gap: 12px;
+        align-items: end;
+      }
+
+      .ctl-field {
+        display: grid;
+        gap: 6px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .ctl-input,
+      .ctl-select {
+        height: 40px;
+        border: 1px solid var(--ctl-border);
+        background: white;
+        padding: 0 12px;
+        font: inherit;
+      }
+
+      .ctl-tags-summary,
+      [data-role="selected-tag-color-label"] {
+        margin-top: 12px;
+        color: var(--ctl-text-muted);
+        font-size: 13px;
+      }
+
+      .ctl-tag-grid,
+      .ctl-color-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .ctl-tag-grid button,
+      .ctl-color-grid button,
+      .ctl-selected-tag-preview {
+        border: 1px solid var(--ctl-border);
+        padding: 8px 12px;
+        background: white;
+        font: inherit;
+      }
+
+      .ctl-tags-detail-head {
+        display: grid;
+        gap: 4px;
+      }
+
+      .ctl-tags-detail-head strong {
+        font-size: 18px;
+      }
+
+      .ctl-selected-tag-preview-wrap {
+        margin-top: 14px;
+      }
+
+      .ctl-selected-tag-preview {
+        display: inline-flex;
+        align-items: center;
+      }
+
+      .ctl-inline-color-editor,
+      .ctl-gradient-custom-card {
+        margin-top: 14px;
+      }
+
+      @media (max-width: 1000px) {
+        body {
+          padding: 16px;
+        }
+
+        .ctl-tags-layout,
+        .ctl-tags-toolbar {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script>
+      (() => {
+        const memory = new Map();
+        const listeners = [];
+
+        window.logseq = {
+          baseInfo: { id: "mugpet.degrane-colors.preview" },
+          isMainUIVisible: false,
+          settings: {},
+          ready(callback) {
+            return Promise.resolve().then(callback);
+          },
+          provideModel(model) {
+            this._model = model;
+          },
+          provideStyle() {},
+          showMainUI() {
+            this.isMainUIVisible = true;
+          },
+          hideMainUI() {
+            this.isMainUIVisible = false;
+          },
+          setMainUIInlineStyle() {},
+          on() {},
+          App: {
+            async getUserConfigs() {
+              return { preferredThemeMode: "light" };
+            },
+            onThemeModeChanged(handler) {
+              listeners.push(handler);
+              return () => {};
+            },
+            registerUIItem() {},
+            registerCommandPalette() {},
+          },
+          UI: {
+            async showMsg() {},
+          },
+          Editor: {
+            async getAllTags() {
+              return ["Project", "Research", "Design", "Writing", "Journal", "Focus"];
+            },
+            async getAllPages() {
+              return [];
+            },
+          },
+          DB: {
+            async datascriptQuery() {
+              return [];
+            },
+          },
+          FileStorage: {
+            async getItem(key) {
+              return memory.has(key) ? memory.get(key) : null;
+            },
+            async setItem(key, value) {
+              memory.set(key, value);
+            },
+            async removeItem(key) {
+              memory.delete(key);
+            },
+          },
+        };
+
+        window.dispatchPreviewTheme = (mode) => {
+          listeners.forEach((listener) => listener({ mode }));
+        };
+      })();
+    </script>
+    <script src="./plugin.js"></script>
+  </body>
+</html>
