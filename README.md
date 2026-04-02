@@ -8,11 +8,11 @@ Degrande Colors is a styling panel for Logseq DB graphs. It makes it easier to a
 
 ### Tags
 
-![Degrande Colors tags panel](docs/image-1775135232315.png)
+![Degrande Colors tags panel](docs/tags.png)
 
 ### Appearance
 
-![Degrande Colors appearance panel](docs/image-1775135219096.png)
+![Degrande Colors appearance panel](docs/appearance.png)
 
 ## Highlights
 
