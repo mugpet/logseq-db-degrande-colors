@@ -3908,7 +3908,8 @@ function openThemeLoader() {
   renderPanel();
   logseq.showMainUI({ autoFocus: true });
 
-  void ensureTagsForCurrentGraph();
+  // Always recheck the current graph tags when the settings panel opens.
+  void ensureTagsForCurrentGraph({ force: true, fallbackToPrevious: true });
 
   void applyManagedOverrides(false, "Reapplied saved theme controls");
 }

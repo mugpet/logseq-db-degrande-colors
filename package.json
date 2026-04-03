@@ -6,7 +6,8 @@
   "license": "MIT",
   "main": "index.html",
   "scripts": {
-    "check": "node -e \"JSON.parse(require('fs').readFileSync('package.json', 'utf8')); console.log('package.json ok')\""
+    "check": "node -e \"JSON.parse(require('fs').readFileSync('package.json', 'utf8')); console.log('package.json ok')\"",
+    "prepare:bundle": "node -e \"const fs = require('fs'); fs.copyFileSync('node_modules/@logseq/libs/dist/lsplugin.user.js', 'lsplugin.user.js'); fs.copyFileSync('node_modules/@logseq/libs/dist/lsplugin.user.js.LICENSE.txt', 'lsplugin.user.js.LICENSE.txt'); console.log('Copied lsplugin.user.js and license')\""
   },
   "dependencies": {
     "@logseq/libs": "latest"
