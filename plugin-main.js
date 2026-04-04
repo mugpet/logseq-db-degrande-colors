@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.13";
+const FALLBACK_PLUGIN_VERSION = "0.1.14";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const GRAPH_SYNC_CONFIG_KEY = "mugpet-degrande-colors";
@@ -227,6 +227,7 @@ const panelState = {
   tagColorAssignments: {},
   baseTagColorMap: {},
   tags: [],
+  tagEntityMap: {},
   tagSourceMap: {},
   selectedTag: "",
   tagCustomColorDraft: "#14b8a6",
@@ -249,6 +250,7 @@ const panelState = {
   persistTimer: null,
   gradientPersistTimer: null,
   tagPersistTimer: null,
+  pendingTagPersistKeys: [],
   tagClickTimer: null,
   hostTagContextMenuBound: false,
 };
@@ -754,10 +756,23 @@ function collectTagCatalogEntry(tagMap, rawTag, sourceKey) {
     name: "",
     tags: false,
     pages: false,
+    uuid: "",
+    id: null,
   };
 
   currentEntry.name = choosePreferredTagName(currentEntry.name, tagName);
   currentEntry[sourceKey] = true;
+
+  if (rawTag && typeof rawTag === "object") {
+    if (!currentEntry.uuid && typeof rawTag.uuid === "string") {
+      currentEntry.uuid = rawTag.uuid;
+    }
+
+    if (currentEntry.id == null && rawTag.id != null) {
+      currentEntry.id = rawTag.id;
+    }
+  }
+
   tagMap.set(normalizedKey, currentEntry);
 }
 
@@ -815,6 +830,7 @@ async function collectTagCatalog() {
 
   return {
     tags: sortedEntries.map(([, entry]) => entry.name),
+    tagEntityMap: Object.fromEntries(sortedEntries.map(([key, entry]) => [key, { uuid: entry.uuid || "", id: entry.id ?? null }])),
     tagSourceMap: Object.fromEntries(sortedEntries.map(([key, entry]) => [key, { tags: entry.tags, pages: entry.pages }])),
   };
 }
@@ -879,6 +895,7 @@ async function syncCurrentGraphInfo() {
 
 function clearGraphTagState() {
   panelState.tags = [];
+  panelState.tagEntityMap = {};
   panelState.tagSourceMap = {};
   panelState.selectedTag = "";
 }
@@ -1324,6 +1341,11 @@ function getTagColorAssignment(tagName) {
     || normalizeTagColorAssignment(panelState.baseTagColorMap[normalized]);
 }
 
+function getCanonicalTagName(tagName) {
+  const normalized = String(tagName || "").toLowerCase();
+  return panelState.tags.find((entry) => entry.toLowerCase() === normalized) || String(tagName || "");
+}
+
 function getTagColorToken(tagName) {
   const assignment = getTagColorAssignment(tagName);
 
@@ -1373,7 +1395,7 @@ function setTagPresetColor(tagName, token, statusMessage = null) {
   };
   void applyManagedOverrides(false, `Updated ${tagName} color`);
   renderPanel(statusMessage || `Set ${tagName} to ${token}`);
-  schedulePersistTagColors();
+  schedulePersistTagColors([tagName]);
   return true;
 }
 
@@ -1392,7 +1414,7 @@ function clearTagColorAssignment(tagName, statusMessage = null) {
   delete panelState.tagColorAssignments[tagName.toLowerCase()];
   renderPanel(statusMessage || `Reset ${tagName} to the default color`);
   void applyManagedOverrides(false, `Cleared custom color for ${tagName}`);
-  schedulePersistTagColors();
+  schedulePersistTagColors([tagName]);
   return true;
 }
 
@@ -1419,7 +1441,7 @@ function addRandomColorsToUncoloredTags() {
 
   void applyManagedOverrides(false, `Added random colors to ${uncoloredTags.length} filtered tags`);
   renderPanel(`Added random colors to ${uncoloredTags.length} filtered tags`);
-  schedulePersistTagColors();
+  schedulePersistTagColors(uncoloredTags);
   return uncoloredTags.length;
 }
 
@@ -1619,7 +1641,7 @@ function copyTagColorsFromOtherMode() {
     darkForegroundColor: currentMode === "dark" ? sourceColors.foregroundColor : getTagCustomColors(selectedAssignment, "dark").foregroundColor,
   };
 
-  schedulePersistTagColors();
+  schedulePersistTagColors([panelState.selectedTag]);
   return true;
 }
 
@@ -1749,20 +1771,64 @@ function isBenignGetAllTagsError(error) {
   return message.includes("indexaccess._datoms") || message.includes("defined for type null");
 }
 
-async function loadStoredItemWithLegacyFallback(storageKey) {
+function getLocalPersistenceBackend() {
   try {
-    const saved = await logseq.FileStorage.getItem(storageKey);
-
-    if (saved) {
-      return saved;
-    }
+    return window.localStorage || null;
   } catch (error) {
-    if (!isMissingStorageError(error)) {
-      console.error(`[Degrande Colors] Failed to load stored item: ${storageKey}`, error);
-    }
+    return null;
+  }
+}
+
+function getLocalPersistenceKey(storageKey) {
+  const pluginId = normalizeGraphIdentityPart(logseq?.baseInfo?.id || "degrande-colors") || "degrande-colors";
+  return `${pluginId}/${storageKey}`;
+}
+
+function readLocalPersistedItem(storageKey) {
+  const storage = getLocalPersistenceBackend();
+
+  if (!storage) {
+    return null;
   }
 
-  return null;
+  try {
+    return storage.getItem(getLocalPersistenceKey(storageKey));
+  } catch (error) {
+    console.warn(`[Degrande Colors] Failed to read local persisted item: ${storageKey}`, error);
+    return null;
+  }
+}
+
+function writeLocalPersistedItem(storageKey, value) {
+  const storage = getLocalPersistenceBackend();
+
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.setItem(getLocalPersistenceKey(storageKey), value);
+  } catch (error) {
+    console.warn(`[Degrande Colors] Failed to write local persisted item: ${storageKey}`, error);
+  }
+}
+
+function removeLocalPersistedItem(storageKey) {
+  const storage = getLocalPersistenceBackend();
+
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.removeItem(getLocalPersistenceKey(storageKey));
+  } catch (error) {
+    console.warn(`[Degrande Colors] Failed to remove local persisted item: ${storageKey}`, error);
+  }
+}
+
+async function loadStoredItemWithLegacyFallback(storageKey) {
+  return readLocalPersistedItem(storageKey);
 }
 
 async function getGraphSyncStoragePage(createIfMissing = false) {
@@ -1838,6 +1904,85 @@ async function loadPageBackedTagColorState() {
   }
 }
 
+async function resolveTagStorageTarget(tagName, tagCatalog = null) {
+  const canonicalTagName = getCanonicalTagName(tagName);
+  const normalizedKey = canonicalTagName.toLowerCase();
+  const entityMap = tagCatalog?.tagEntityMap || panelState.tagEntityMap;
+  const existing = entityMap?.[normalizedKey];
+
+  if (existing?.uuid || existing?.id != null) {
+    return existing.uuid || existing.id;
+  }
+
+  let target = null;
+
+  if (typeof logseq.Editor?.getPage === "function") {
+    target = await logseq.Editor.getPage(canonicalTagName);
+  }
+
+  if (!target && typeof logseq.Editor?.getTag === "function") {
+    target = await logseq.Editor.getTag(canonicalTagName);
+  }
+
+  if (!target && typeof logseq.Editor?.getTagsByName === "function") {
+    const matches = await logseq.Editor.getTagsByName(canonicalTagName);
+    target = matches?.[0] || null;
+  }
+
+  if (!target) {
+    return null;
+  }
+
+  panelState.tagEntityMap[normalizedKey] = {
+    uuid: typeof target.uuid === "string" ? target.uuid : "",
+    id: target.id ?? null,
+  };
+
+  return panelState.tagEntityMap[normalizedKey].uuid || panelState.tagEntityMap[normalizedKey].id;
+}
+
+async function loadEntityBackedTagColorState(tagCatalog = null) {
+  if (typeof logseq.Editor?.getBlockProperty !== "function") {
+    return { exists: false, tagColors: {}, tagCatalog };
+  }
+
+  const resolvedTagCatalog = tagCatalog || await collectTagCatalog();
+  const tagColors = {};
+
+  for (const tagName of resolvedTagCatalog.tags || []) {
+    const target = await resolveTagStorageTarget(tagName, resolvedTagCatalog);
+
+    if (!target) {
+      continue;
+    }
+
+    try {
+      const saved = await logseq.Editor.getBlockProperty(target, GRAPH_SYNC_TAG_COLOR_PROPERTY);
+
+      if (saved == null) {
+        continue;
+      }
+
+      const resolved = typeof saved === "object" && saved !== null && "value" in saved
+        ? saved.value
+        : saved;
+      const assignment = normalizeTagColorAssignment(typeof resolved === "string" ? JSON.parse(resolved) : resolved);
+
+      if (assignment) {
+        tagColors[tagName.toLowerCase()] = assignment;
+      }
+    } catch (error) {
+      console.warn(`[Degrande Colors] Failed to load tag color for ${tagName}`, error);
+    }
+  }
+
+  return {
+    exists: Object.keys(tagColors).length > 0,
+    tagColors,
+    tagCatalog: resolvedTagCatalog,
+  };
+}
+
 async function loadLegacyGraphConfigTagColorState() {
   if (typeof logseq.App?.getCurrentGraphConfigs !== "function") {
     return { exists: false, tagColors: {} };
@@ -1860,53 +2005,49 @@ async function loadLegacyGraphConfigTagColorState() {
   }
 }
 
-async function saveGraphSyncedTagColors() {
+async function saveGraphSyncedTagColors(tagNames = null) {
   const normalizedTagColors = mergeStoredTagColors(panelState.tagColorAssignments);
-  const serializedTagColors = JSON.stringify(normalizedTagColors);
 
   if (typeof logseq.Editor?.upsertBlockProperty !== "function") {
-    await logseq.FileStorage.setItem(TAG_COLOR_STORAGE_KEY, serializedTagColors);
+    writeLocalPersistedItem(TAG_COLOR_STORAGE_KEY, JSON.stringify(normalizedTagColors));
+    return;
+  }
+
+  const namesToPersist = (Array.isArray(tagNames) && tagNames.length ? tagNames : Object.keys(normalizedTagColors))
+    .map(getCanonicalTagName)
+    .filter(Boolean);
+
+  if (!namesToPersist.length) {
     return;
   }
 
   try {
-    const page = await getGraphSyncStoragePage(true);
-
-    if (!page?.uuid) {
-      throw new Error("Unable to resolve graph sync storage page");
-    }
-
     await ensureGraphSyncTagColorProperty();
 
-    await logseq.Editor.upsertBlockProperty(
-      page.uuid,
-      GRAPH_SYNC_TAG_COLOR_PROPERTY,
-      normalizedTagColors,
-      { reset: true }
-    );
+    for (const tagName of namesToPersist) {
+      const target = await resolveTagStorageTarget(tagName);
 
-    try {
-      await logseq.FileStorage.removeItem(TAG_COLOR_STORAGE_KEY);
-    } catch (error) {
-      if (!isMissingStorageError(error)) {
-        console.warn("[Degrande Colors] Failed to remove legacy local tag colors", error);
+      if (!target) {
+        continue;
+      }
+
+      const assignment = normalizeTagColorAssignment(normalizedTagColors[tagName.toLowerCase()]);
+
+      if (assignment) {
+        await logseq.Editor.upsertBlockProperty(
+          target,
+          GRAPH_SYNC_TAG_COLOR_PROPERTY,
+          assignment,
+          { reset: true }
+        );
+      } else if (typeof logseq.Editor.removeBlockProperty === "function") {
+        await logseq.Editor.removeBlockProperty(target, GRAPH_SYNC_TAG_COLOR_PROPERTY);
       }
     }
 
-    if (typeof logseq.App?.setCurrentGraphConfigs === "function") {
-      try {
-        await logseq.App.setCurrentGraphConfigs({
-          [GRAPH_SYNC_CONFIG_KEY]: {
-            version: GRAPH_SYNC_TAG_COLOR_VERSION,
-            migratedToPageStorageAt: new Date().toISOString(),
-          },
-        });
-      } catch (error) {
-        console.warn("[Degrande Colors] Failed to mark graph-config migration", error);
-      }
-    }
+    removeLocalPersistedItem(TAG_COLOR_STORAGE_KEY);
   } catch (error) {
-    console.error("[Degrande Colors] Failed to persist graph-synced tag colors", error);
+    console.error("[Degrande Colors] Failed to persist graph-backed tag colors", error);
   }
 }
 
@@ -1931,10 +2072,25 @@ async function loadStoredControls() {
 
 async function loadStoredTagColors() {
   try {
+    const tagCatalog = await collectTagCatalog();
+    panelState.tagEntityMap = tagCatalog.tagEntityMap || {};
+
+    const entityBackedState = await loadEntityBackedTagColorState(tagCatalog);
+
+    if (entityBackedState.exists) {
+      panelState.tagColorAssignments = entityBackedState.tagColors;
+      return;
+    }
+
     const pageBackedState = await loadPageBackedTagColorState();
 
     if (pageBackedState.exists) {
       panelState.tagColorAssignments = pageBackedState.tagColors;
+
+      if (Object.keys(panelState.tagColorAssignments).length) {
+        await saveGraphSyncedTagColors(Object.keys(panelState.tagColorAssignments));
+      }
+
       return;
     }
 
@@ -1944,7 +2100,7 @@ async function loadStoredTagColors() {
       panelState.tagColorAssignments = legacyGraphConfigState.tagColors;
 
       if (Object.keys(panelState.tagColorAssignments).length) {
-        await saveGraphSyncedTagColors();
+        await saveGraphSyncedTagColors(Object.keys(panelState.tagColorAssignments));
       }
 
       return;
@@ -1961,7 +2117,7 @@ async function loadStoredTagColors() {
     panelState.tagColorAssignments = mergeStoredTagColors(parsed);
 
     if (Object.keys(panelState.tagColorAssignments).length) {
-      await saveGraphSyncedTagColors();
+      await saveGraphSyncedTagColors(Object.keys(panelState.tagColorAssignments));
     }
   } catch (error) {
     if (isMissingStorageError(error)) {
@@ -2000,7 +2156,7 @@ function schedulePersistControls() {
 
   panelState.persistTimer = setTimeout(async () => {
     try {
-      await logseq.FileStorage.setItem(CONTROL_STORAGE_KEY, serializedControls);
+      writeLocalPersistedItem(CONTROL_STORAGE_KEY, serializedControls);
     } catch (error) {
       console.error("[Local Custom Theme Loader] Failed to persist controls", error);
     } finally {
@@ -2009,14 +2165,28 @@ function schedulePersistControls() {
   }, 120);
 }
 
-function schedulePersistTagColors() {
+function schedulePersistTagColors(tagNames = []) {
+  const names = (Array.isArray(tagNames) ? tagNames : [tagNames])
+    .map((tagName) => getCanonicalTagName(tagName))
+    .filter(Boolean);
+
+  if (names.length) {
+    panelState.pendingTagPersistKeys = Array.from(new Set([
+      ...panelState.pendingTagPersistKeys,
+      ...names,
+    ]));
+  }
+
   if (panelState.tagPersistTimer) {
     clearTimeout(panelState.tagPersistTimer);
   }
 
   panelState.tagPersistTimer = setTimeout(async () => {
+    const pendingTagNames = panelState.pendingTagPersistKeys.slice();
+    panelState.pendingTagPersistKeys = [];
+
     try {
-      await saveGraphSyncedTagColors();
+      await saveGraphSyncedTagColors(pendingTagNames);
     } catch (error) {
       console.error("[Local Custom Theme Loader] Failed to persist tag colors", error);
     } finally {
@@ -2034,7 +2204,7 @@ function schedulePersistGradients() {
 
   panelState.gradientPersistTimer = setTimeout(async () => {
     try {
-      await logseq.FileStorage.setItem(GRADIENT_STORAGE_KEY, serializedGradients);
+      writeLocalPersistedItem(GRADIENT_STORAGE_KEY, serializedGradients);
     } catch (error) {
       console.error("[Local Custom Theme Loader] Failed to persist gradients", error);
     } finally {
@@ -2689,6 +2859,7 @@ async function refreshTags(showToastOrOptions = false) {
     }
 
     panelState.tags = normalizedTags;
+    panelState.tagEntityMap = tagCatalog.tagEntityMap || {};
     panelState.tagSourceMap = tagCatalog.tagSourceMap || {};
 
     const matchingSelectedTag = normalizedTags.find((tagName) => tagName.toLowerCase() === previousSelectedKey);
@@ -2741,9 +2912,9 @@ async function handleCurrentGraphChanged() {
   }
 
   clearGraphTagState();
-  await loadStoredTagColors();
   renderPanel(`Graph changed to ${graphInfo?.name || "current graph"}. Refreshing synced tags...`);
   await refreshTags({ showToast: false, fallbackToPrevious: false });
+  await loadStoredTagColors();
   await applyManagedOverrides(false, `Loaded synced tag colors for ${graphInfo?.name || "current graph"}`, "soft");
 }
 
@@ -3321,7 +3492,7 @@ function applyInlineEditorColor(editor, color, renderMode = "soft") {
     darkForegroundColor: currentMode === "dark" ? (isForegroundEditor ? normalized : currentColors.foregroundColor) : otherModeColors.foregroundColor,
   };
   void applyManagedOverrides(false, `Updated ${panelState.selectedTag} custom color`, renderMode);
-  schedulePersistTagColors();
+  schedulePersistTagColors([panelState.selectedTag]);
 }
 
 function beginInlineColorDrag(editor, pointerId) {
@@ -4401,8 +4572,8 @@ async function resetControls() {
     panelState.gradientPersistTimer = null;
   }
 
-  await logseq.FileStorage.removeItem(CONTROL_STORAGE_KEY);
-  await logseq.FileStorage.removeItem(GRADIENT_STORAGE_KEY);
+  removeLocalPersistedItem(CONTROL_STORAGE_KEY);
+  removeLocalPersistedItem(GRADIENT_STORAGE_KEY);
   await applyManagedOverrides(true, "Reset live controls to the base defaults");
 }
 
@@ -4434,7 +4605,7 @@ async function resetTagColors() {
     panelState.tagPersistTimer = null;
   }
 
-  await saveGraphSyncedTagColors();
+  await saveGraphSyncedTagColors(visibleAssignedTags);
 
   renderPanel(`Reset ${visibleAssignedTags.length} filtered tag color${visibleAssignedTags.length === 1 ? "" : "s"} to defaults`);
   void applyManagedOverrides(false, `Reset ${visibleAssignedTags.length} filtered tag color${visibleAssignedTags.length === 1 ? "" : "s"} to defaults`);
