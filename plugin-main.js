@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.17";
+const FALLBACK_PLUGIN_VERSION = "0.1.18";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const GRAPH_SYNC_CONFIG_KEY = "mugpet-degrande-colors";
@@ -2311,18 +2311,18 @@ async function saveGraphSyncedTagColors(tagNames = null) {
 
 async function loadStoredControls() {
   try {
-    const settingsValue = readPluginSettingValue(SETTINGS_CONTROL_STATE_KEY);
-
-    if (settingsValue != null) {
-      panelState.controlState = mergeStoredControls(settingsValue);
-      return;
-    }
-
     const graphBackedState = await loadGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, mergeStoredControls);
 
     if (graphBackedState.exists) {
       panelState.controlState = graphBackedState.value;
-      persistPluginSettingValue(SETTINGS_CONTROL_STATE_KEY, panelState.controlState);
+      return;
+    }
+
+    const settingsValue = readPluginSettingValue(SETTINGS_CONTROL_STATE_KEY);
+
+    if (settingsValue != null) {
+      panelState.controlState = mergeStoredControls(settingsValue);
+      await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState);
       return;
     }
 
@@ -2334,8 +2334,7 @@ async function loadStoredControls() {
 
     const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
     panelState.controlState = mergeStoredControls(parsed);
-
-    persistPluginSettingValue(SETTINGS_CONTROL_STATE_KEY, panelState.controlState);
+    await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState);
   } catch (error) {
     if (isMissingStorageError(error)) {
       return;
@@ -2429,18 +2428,18 @@ async function loadStoredTagColors() {
 
 async function loadStoredGradients() {
   try {
-    const settingsValue = readPluginSettingValue(SETTINGS_GRADIENT_STATE_KEY);
-
-    if (settingsValue != null) {
-      panelState.gradientState = mergeStoredGradients(settingsValue);
-      return;
-    }
-
     const graphBackedState = await loadGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, mergeStoredGradients);
 
     if (graphBackedState.exists) {
       panelState.gradientState = graphBackedState.value;
-      persistPluginSettingValue(SETTINGS_GRADIENT_STATE_KEY, panelState.gradientState);
+      return;
+    }
+
+    const settingsValue = readPluginSettingValue(SETTINGS_GRADIENT_STATE_KEY);
+
+    if (settingsValue != null) {
+      panelState.gradientState = mergeStoredGradients(settingsValue);
+      await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState);
       return;
     }
 
@@ -2452,8 +2451,7 @@ async function loadStoredGradients() {
 
     const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
     panelState.gradientState = mergeStoredGradients(parsed);
-
-    persistPluginSettingValue(SETTINGS_GRADIENT_STATE_KEY, panelState.gradientState);
+    await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState);
   } catch (error) {
     if (isMissingStorageError(error)) {
       return;
@@ -2470,10 +2468,9 @@ function schedulePersistControls() {
 
   panelState.persistTimer = setTimeout(async () => {
     try {
-      const saved = persistPluginSettingValue(SETTINGS_CONTROL_STATE_KEY, panelState.controlState);
+      const saved = await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState);
 
       if (saved) {
-        await removeGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY);
         removeLocalPersistedItem(CONTROL_STORAGE_KEY);
       }
     } catch (error) {
@@ -2521,10 +2518,9 @@ function schedulePersistGradients() {
 
   panelState.gradientPersistTimer = setTimeout(async () => {
     try {
-      const saved = persistPluginSettingValue(SETTINGS_GRADIENT_STATE_KEY, panelState.gradientState);
+      const saved = await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState);
 
       if (saved) {
-        await removeGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY);
         removeLocalPersistedItem(GRADIENT_STORAGE_KEY);
       }
     } catch (error) {
@@ -3258,6 +3254,10 @@ async function handleCurrentGraphChanged() {
 
 function doesTxDataTouchDegrandeState(txData = []) {
   const relevantAttributes = new Set([
+    panelState.propertyIdentMap[GRAPH_SYNC_CONTROL_PROPERTY],
+    getPluginPropertyIdent(GRAPH_SYNC_CONTROL_PROPERTY),
+    panelState.propertyIdentMap[GRAPH_SYNC_GRADIENT_PROPERTY],
+    getPluginPropertyIdent(GRAPH_SYNC_GRADIENT_PROPERTY),
     panelState.propertyIdentMap[GRAPH_SYNC_TAG_COLOR_PROPERTY],
     getPluginPropertyIdent(GRAPH_SYNC_TAG_COLOR_PROPERTY),
     ":block/title",
@@ -4946,10 +4946,8 @@ async function resetControls() {
     panelState.gradientPersistTimer = null;
   }
 
-  persistPluginSettingValue(SETTINGS_CONTROL_STATE_KEY, panelState.controlState);
-  persistPluginSettingValue(SETTINGS_GRADIENT_STATE_KEY, panelState.gradientState);
-  await removeGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY);
-  await removeGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY);
+  await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState);
+  await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState);
   removeLocalPersistedItem(CONTROL_STORAGE_KEY);
   removeLocalPersistedItem(GRADIENT_STORAGE_KEY);
   await applyManagedOverrides(true, "Reset live controls to the base defaults");
