@@ -31,6 +31,8 @@ Use this skill when working against a running local Logseq desktop instance that
   - a local unpacked plugin at the repository root can load `custom.css` through `logseq.provideStyle` at plugin runtime
   - the plugin panel now includes preview, tags, and CSS tabs plus live gradient and tag-color controls
   - for `degrande-colors` publish work, do not open or prepare marketplace PRs unless the user explicitly asks; the normal path is repo update plus version bump and release tag
+  - published installs now keep styling working through a packaged-plugin `logseq.provideStyle` fallback when direct host-document style injection is unavailable; do not remove that fallback when editing publish-facing code
+  - packaged fallback updates must emit neutral per-tag reset rules for known tags so stale published tag styles do not survive after a reset
   - keep the plugin panel on Logseq's standard main UI handler; avoid blur backdrops and root-level pointer blocking that make the page feel hijacked or break panel interaction
   - `.ctl-section-inline` is shared by tab intro sections and preview-card internals, so do not apply a global `order` to that class
   - for the panel scroll layout, prefer `minmax(0, 1fr)` plus `min-height: 0` and avoid forcing `height: 100%` on `.ctl-tags-layout`, `.ctl-tags-detail-scroll`, or `.ctl-preview-scroll`
@@ -48,12 +50,14 @@ Use this skill when working against a running local Logseq desktop instance that
 6. Record whether a method is working, failing, or ambiguous when investigating bridge coverage.
 7. For persistent appearance changes in this workspace, edit `custom.css` and load the repository root as an unpacked plugin in Logseq.
 8. For `degrande-colors` publish updates, treat a repo update plus version bump and release tag as the default publish path. Do not open or prepare marketplace PRs unless the user explicitly asks.
-9. When adjusting the Degrande panel layout, keep the backdrop transparent and non-interactive unless the user explicitly asks for a modal effect.
-10. When adjusting the Degrande panel layout, do not add a shared `order` rule to `.ctl-section-inline`; scope preview-card ordering/layout changes to `.ctl-preview-card .ctl-section-inline` instead.
-11. For Degrande panel scroll fixes, use remaining-space grid rows and `min-height: 0` instead of forcing `height: 100%` on nested scroll wrappers.
-12. For page title gradients, use `.block-main-content:has(.ls-page-title-container)` as the painted page-only row and keep linked-block gradients on their separate `.ls-block > div:first-child` selector path.
-13. Do not broaden page-title rules to `.block-title-wrap` or other shared inner wrappers without a page-only container, or linked blocks will regress.
-14. When node and page-title gradients coexist, exclude page-title containers from the linked-block selector with `:not(:has(.block-content-or-editor-wrap.ls-page-title-container))`.
+9. For Degrande styling changes, keep one managed host `<style>` element when the host document is accessible, but preserve the `logseq.provideStyle` fallback for packaged installs that cannot reach the host document directly.
+10. When packaged fallback styling is involved, generate neutral per-tag reset rules for known tags in addition to active custom rules so stale published colors and gradients are actually cleared.
+11. When adjusting the Degrande panel layout, keep the backdrop transparent and non-interactive unless the user explicitly asks for a modal effect.
+12. When adjusting the Degrande panel layout, do not add a shared `order` rule to `.ctl-section-inline`; scope preview-card ordering/layout changes to `.ctl-preview-card .ctl-section-inline` instead.
+13. For Degrande panel scroll fixes, use remaining-space grid rows and `min-height: 0` instead of forcing `height: 100%` on nested scroll wrappers.
+14. For page title gradients, use `.block-main-content:has(.ls-page-title-container)` as the painted page-only row and keep linked-block gradients on their separate `.ls-block > div:first-child` selector path.
+15. Do not broaden page-title rules to `.block-title-wrap` or other shared inner wrappers without a page-only container, or linked blocks will regress.
+16. When node and page-title gradients coexist, exclude page-title containers from the linked-block selector with `:not(:has(.block-content-or-editor-wrap.ls-page-title-container))`.
 
 ## Examples
 

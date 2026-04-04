@@ -13,6 +13,8 @@ description: "Use for files and docs related to Logseq DB graph investigation, t
 - When discussing UI customization for DB graphs, note that a file-backed `custom.css` was not found in the investigated graph and runtime style injection was not exposed through the HTTP bridge in this environment.
 - In this workspace, the repository root contains the unpacked plugin that loads `custom.css`; prefer evolving that plugin for persistent UI changes.
 - For `degrande-colors` publish work in this repo, do not open or prepare marketplace PRs unless the user explicitly asks. Treat a repo update plus version bump and release tag as the default publish path.
+- For `degrande-colors` styling work, keep the managed host `<style>` path for unpacked/accessible-host contexts, but preserve the `logseq.provideStyle` fallback for packaged installs where direct host-document styling is unavailable.
+- When touching packaged-style fallback logic, emit neutral per-tag reset rules for known tags as well as active custom rules so stale published tag colors and gradients do not survive resets.
 - For the Degrande plugin panel, keep the panel on Logseq's normal main UI handler. Do not add blur/tint backdrops or root-level pointer blocking unless the user explicitly asks for a modal overlay.
 - In the Degrande panel CSS, do not assign a global `order` to `.ctl-section-inline`; that class is shared by the tab intro blocks and the preview-card inline sections.
 - For Degrande panel scroll fixes, prefer grid rows with `minmax(0, 1fr)` and `min-height: 0`. Do not force `height: 100%` on `.ctl-tags-layout`, `.ctl-tags-detail-scroll`, or `.ctl-preview-scroll`.
