@@ -1,5 +1,6 @@
 const STARTUP_ERROR_PREFIX = "[Degrande Colors] Failed to start";
-const FALLBACK_PLUGIN_VERSION = "0.1.9";
+const FALLBACK_PLUGIN_VERSION = "0.1.10";
+const MAIN_SCRIPT_DATA_ATTRIBUTE = "data-degrande-colors-main";
 let pluginStartupPromise = null;
 
 function getPluginVersion() {
@@ -7,6 +8,24 @@ function getPluginVersion() {
     .querySelector('meta[name="degrande-colors-version"]')
     ?.getAttribute("content")
     || FALLBACK_PLUGIN_VERSION;
+}
+
+function loadMainScript(moduleUrl, version) {
+  const existingScript = document.querySelector(`script[${MAIN_SCRIPT_DATA_ATTRIBUTE}="${version}"]`);
+
+  if (existingScript) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = moduleUrl;
+    script.async = true;
+    script.setAttribute(MAIN_SCRIPT_DATA_ATTRIBUTE, version);
+    script.addEventListener("load", () => resolve(), { once: true });
+    script.addEventListener("error", () => reject(new Error(`Unable to load ${moduleUrl}`)), { once: true });
+    document.head.appendChild(script);
+  });
 }
 
 function startDegrandeColors() {
@@ -22,13 +41,14 @@ function startDegrandeColors() {
       const moduleUrl = typeof logseq.resolveResourceFullUrl === "function"
         ? logseq.resolveResourceFullUrl(resourcePath)
         : `./${resourcePath}`;
-      const pluginModule = await import(moduleUrl);
+      await loadMainScript(moduleUrl, version);
+      const pluginMain = window.__degrandeColorsMain;
 
-      if (typeof pluginModule?.main !== "function") {
-        throw new Error("plugin-main.js does not export main()");
+      if (typeof pluginMain !== "function") {
+        throw new Error("plugin-main.js did not register window.__degrandeColorsMain()");
       }
 
-      await pluginModule.main();
+      await pluginMain();
     })
     .catch((error) => {
       pluginStartupPromise = null;

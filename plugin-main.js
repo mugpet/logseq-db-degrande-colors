@@ -1,5 +1,5 @@
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.9";
+const FALLBACK_PLUGIN_VERSION = "0.1.10";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const GRAPH_SYNC_CONFIG_KEY = "mugpet-degrande-colors";
@@ -4427,7 +4427,7 @@ async function resetTagColors() {
   void applyManagedOverrides(false, `Reset ${visibleAssignedTags.length} filtered tag color${visibleAssignedTags.length === 1 ? "" : "s"} to defaults`);
 }
 
-export async function main() {
+async function main() {
   const pluginId = logseq.baseInfo.id;
   const commandKey = (suffix) => `${pluginId}/${suffix}`;
   const activationMessage = `Degrande Colors v${PLUGIN_VERSION} is active for this Logseq DB graph.`;
@@ -4542,4 +4542,6 @@ export async function main() {
 
   console.info(`[Degrande Colors] Loaded base styles and controls (v${PLUGIN_VERSION})`);
 }
+
+window.__degrandeColorsMain = main;
 
