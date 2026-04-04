@@ -1,6 +1,8 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.19";
+const FALLBACK_PLUGIN_VERSION = "0.1.20";
+const AUTO_SYNC_POLL_INTERVAL_MS = 15000;
+const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const GRAPH_SYNC_CONFIG_KEY = "mugpet-degrande-colors";
@@ -257,6 +259,8 @@ const panelState = {
   gradientPersistTimer: null,
   tagPersistTimer: null,
   dbStateRefreshTimer: null,
+  autoSyncIntervalId: null,
+  startupSyncTimerIds: [],
   pendingTagPersistKeys: [],
   tagClickTimer: null,
   hostTagContextMenuBound: false,
@@ -2169,7 +2173,7 @@ async function loadEntityBackedTagColorState(tagCatalog = null) {
   for (const tagName of resolvedTagCatalog.tags || []) {
     const target = await resolveTagStorageTarget(tagName, resolvedTagCatalog);
 
-    if (!target) {
+    if (typeof target !== "string" || !target) {
       continue;
     }
 
@@ -2367,7 +2371,9 @@ async function loadStoredControls() {
   }
 }
 
-async function loadStoredTagColors() {
+async function loadStoredTagColors(options = {}) {
+  const allowEntityFallback = options.allowEntityFallback ?? typeof logseq.DB?.datascriptQuery !== "function";
+
   try {
     const queryBackedState = await loadQueryBackedTagColorState();
 
@@ -2393,14 +2399,16 @@ async function loadStoredTagColors() {
       return;
     }
 
-    const tagCatalog = await collectTagCatalog();
-    panelState.tagEntityMap = tagCatalog.tagEntityMap || {};
+    if (allowEntityFallback) {
+      const tagCatalog = await collectTagCatalog();
+      panelState.tagEntityMap = tagCatalog.tagEntityMap || {};
 
-    const entityBackedState = await loadEntityBackedTagColorState(tagCatalog);
+      const entityBackedState = await loadEntityBackedTagColorState(tagCatalog);
 
-    if (entityBackedState.exists) {
-      panelState.tagColorAssignments = entityBackedState.tagColors;
-      return;
+      if (entityBackedState.exists) {
+        panelState.tagColorAssignments = entityBackedState.tagColors;
+        return;
+      }
     }
 
     const pageBackedState = await loadPageBackedTagColorState();
@@ -3304,25 +3312,108 @@ function doesTxDataTouchDegrandeState(txData = []) {
   });
 }
 
-function scheduleReloadPersistedAppearance(reason = "Reloaded synced Degrande appearance") {
+function buildPersistedAppearanceSnapshot() {
+  return JSON.stringify({
+    controls: panelState.controlState,
+    gradients: panelState.gradientState,
+    tagColors: mergeStoredTagColors(panelState.tagColorAssignments),
+    tags: panelState.tags.map((tagName) => String(tagName || "").toLowerCase()),
+  });
+}
+
+async function syncPersistedAppearance(options = {}) {
+  const {
+    reason = "Reloaded synced Degrande appearance",
+    showToast = false,
+    forceRender = false,
+    fallbackToPrevious = true,
+    renderMode = "soft",
+  } = options;
+  const previousSnapshot = buildPersistedAppearanceSnapshot();
+  const previousSelectedTag = String(panelState.selectedTag || "").toLowerCase();
+
+  await syncCurrentGraphInfo();
+  await loadStoredControls();
+  await loadStoredGradients();
+  await loadStoredTagColors({ allowEntityFallback: false });
+  await refreshTags({ showToast: false, fallbackToPrevious });
+
+  const nextSnapshot = buildPersistedAppearanceSnapshot();
+  const changed = previousSnapshot !== nextSnapshot
+    || previousSelectedTag !== String(panelState.selectedTag || "").toLowerCase();
+
+  if (!changed && !forceRender && !showToast) {
+    return false;
+  }
+
+  await applyManagedOverrides(
+    showToast,
+    changed ? reason : "Synced graph state is already current",
+    renderMode
+  );
+
+  return changed;
+}
+
+function clearStartupSyncRefreshes() {
+  panelState.startupSyncTimerIds.forEach((timerId) => clearTimeout(timerId));
+  panelState.startupSyncTimerIds = [];
+}
+
+function scheduleStartupSyncRefreshes() {
+  clearStartupSyncRefreshes();
+
+  panelState.startupSyncTimerIds = STARTUP_SYNC_RETRY_DELAYS_MS.map((delayMs) => setTimeout(() => {
+    if (panelState.persistTimer || panelState.gradientPersistTimer || panelState.tagPersistTimer) {
+      return;
+    }
+
+    scheduleReloadPersistedAppearance("Checked synced Degrande appearance after startup", {
+      delayMs: 0,
+      fallbackToPrevious: false,
+    });
+  }, delayMs));
+}
+
+function ensureAutoSyncPolling() {
+  if (panelState.autoSyncIntervalId) {
+    return;
+  }
+
+  panelState.autoSyncIntervalId = setInterval(() => {
+    if (panelState.persistTimer || panelState.gradientPersistTimer || panelState.tagPersistTimer || panelState.dbStateRefreshTimer) {
+      return;
+    }
+
+    scheduleReloadPersistedAppearance("Checked synced Degrande appearance", {
+      delayMs: 0,
+      fallbackToPrevious: false,
+    });
+  }, AUTO_SYNC_POLL_INTERVAL_MS);
+}
+
+function scheduleReloadPersistedAppearance(reason = "Reloaded synced Degrande appearance", options = {}) {
+  const { delayMs = 180, ...syncOptions } = options;
+
   if (panelState.dbStateRefreshTimer) {
     clearTimeout(panelState.dbStateRefreshTimer);
   }
 
   panelState.dbStateRefreshTimer = setTimeout(async () => {
     try {
-      await syncCurrentGraphInfo();
-      await loadStoredControls();
-      await loadStoredGradients();
-      await loadStoredTagColors();
-      await refreshTags({ showToast: false, fallbackToPrevious: true });
-      await applyManagedOverrides(false, reason, "soft");
+      await syncPersistedAppearance({
+        reason,
+        fallbackToPrevious: syncOptions.fallbackToPrevious ?? true,
+        showToast: Boolean(syncOptions.showToast),
+        forceRender: Boolean(syncOptions.forceRender),
+        renderMode: syncOptions.renderMode || "soft",
+      });
     } catch (error) {
       console.error("[Degrande Colors] Failed to reload persisted appearance", error);
     } finally {
       panelState.dbStateRefreshTimer = null;
     }
-  }, 180);
+  }, delayMs);
 }
 
 function buildControlsMarkup() {
@@ -3985,7 +4076,7 @@ function syncPanelMeta(statusMessage) {
     return;
   }
 
-  status.textContent = statusMessage ?? `Theme mode: ${panelState.themeMode} | Tag colors sync with this graph | Appearance controls stay local`;
+  status.textContent = statusMessage ?? `Theme mode: ${panelState.themeMode} | Tag colors sync with this graph | Appearance controls sync with this graph`;
 
   if (themeToggleButton) {
     themeToggleButton.textContent = getThemeToggleLabel();
@@ -4461,6 +4552,7 @@ function mountPanel() {
         <div class="ctl-toolbar">
           <div class="ctl-toolbar-actions">
             <button class="ctl-button ctl-button-primary" data-action="reload-file">Reload Styles</button>
+            <button class="ctl-button ctl-button-secondary" data-action="sync-graph-state">Sync Now</button>
             <button class="ctl-button ctl-button-secondary" data-action="toggle-logseq-theme">${getThemeToggleLabel()}</button>
             <button class="ctl-button ctl-button-secondary" data-action="reset-controls">Reset Controls</button>
             <button class="ctl-button ctl-button-secondary" data-action="close">Close</button>
@@ -4562,6 +4654,16 @@ function mountPanel() {
 
     if (action === "reload-file") {
       await reloadThemeCss(true);
+      return;
+    }
+
+    if (action === "sync-graph-state") {
+      await syncPersistedAppearance({
+        reason: "Synced Degrande appearance from this graph",
+        showToast: true,
+        forceRender: true,
+        fallbackToPrevious: false,
+      });
       return;
     }
 
@@ -5068,19 +5170,34 @@ async function main() {
         return;
       }
 
-      scheduleReloadPersistedAppearance("Reloaded saved graph appearance");
+      scheduleReloadPersistedAppearance("Reloaded saved graph appearance", {
+        fallbackToPrevious: false,
+      });
     });
   }
 
   if (typeof logseq.DB?.onChanged === "function") {
     logseq.DB.onChanged(({ txData }) => {
+      if (!Array.isArray(txData) || !txData.length) {
+        scheduleReloadPersistedAppearance("Checked synced Degrande appearance", {
+          delayMs: 0,
+          fallbackToPrevious: false,
+        });
+        return;
+      }
+
       if (!doesTxDataTouchDegrandeState(txData)) {
         return;
       }
 
-      scheduleReloadPersistedAppearance("Updated synced Degrande appearance");
+      scheduleReloadPersistedAppearance("Updated synced Degrande appearance", {
+        fallbackToPrevious: false,
+      });
     });
   }
+
+  scheduleStartupSyncRefreshes();
+  ensureAutoSyncPolling();
 
   await reloadThemeCss(false, false);
   setTimeout(() => {
@@ -5139,6 +5256,19 @@ async function main() {
       label: "Degrande Colors: reload styles",
     },
     () => reloadThemeCss(true)
+  );
+
+  registerCommandPaletteSafely(
+    {
+      key: commandKey("sync-graph-state"),
+      label: "Degrande Colors: sync graph state",
+    },
+    () => syncPersistedAppearance({
+      reason: "Synced Degrande appearance from this graph",
+      showToast: true,
+      forceRender: true,
+      fallbackToPrevious: false,
+    })
   );
 
   registerCommandPaletteSafely(
