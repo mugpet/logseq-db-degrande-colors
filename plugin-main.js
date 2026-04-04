@@ -1,5 +1,5 @@
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.10";
+const FALLBACK_PLUGIN_VERSION = "0.1.11";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const GRAPH_SYNC_CONFIG_KEY = "mugpet-degrande-colors";
@@ -1878,8 +1878,8 @@ async function saveGraphSyncedTagColors() {
     } catch (error) {
       if (!isMissingStorageError(error)) {
         console.warn("[Degrande Colors] Failed to remove legacy local tag colors", error);
+      }
     }
-  }
 
     if (typeof logseq.App?.setCurrentGraphConfigs === "function") {
       try {
@@ -1895,6 +1895,7 @@ async function saveGraphSyncedTagColors() {
     }
   } catch (error) {
     console.error("[Degrande Colors] Failed to persist graph-synced tag colors", error);
+  }
 }
 
 async function loadStoredControls() {
