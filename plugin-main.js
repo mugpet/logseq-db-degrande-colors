@@ -1,11 +1,13 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.14";
+const FALLBACK_PLUGIN_VERSION = "0.1.15";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const GRAPH_SYNC_CONFIG_KEY = "mugpet-degrande-colors";
 const GRAPH_SYNC_TAG_COLOR_VERSION = 1;
 const GRAPH_SYNC_STORAGE_PAGE_NAME = "mugpet-degrande-colors-sync-state";
+const GRAPH_SYNC_CONTROL_PROPERTY = "mugpet_degrande_colors_controls";
+const GRAPH_SYNC_GRADIENT_PROPERTY = "mugpet_degrande_colors_gradients";
 const GRAPH_SYNC_TAG_COLOR_PROPERTY = "mugpet_degrande_colors_tag_colors";
 const BASE_STYLE_ELEMENT_ID = "degrande-colors-base-style";
 const MANAGED_STYLE_ELEMENT_ID = "degrande-colors-managed-style";
@@ -1831,6 +1833,19 @@ async function loadStoredItemWithLegacyFallback(storageKey) {
   return readLocalPersistedItem(storageKey);
 }
 
+function getGraphSyncPropertyDisplayName(propertyKey) {
+  switch (propertyKey) {
+    case GRAPH_SYNC_CONTROL_PROPERTY:
+      return "Degrande Colors Controls";
+    case GRAPH_SYNC_GRADIENT_PROPERTY:
+      return "Degrande Colors Gradients";
+    case GRAPH_SYNC_TAG_COLOR_PROPERTY:
+      return "Degrande Colors Tag Sync";
+    default:
+      return "Degrande Colors State";
+  }
+}
+
 async function getGraphSyncStoragePage(createIfMissing = false) {
   if (typeof logseq.Editor?.getPage !== "function") {
     return null;
@@ -1856,19 +1871,97 @@ async function getGraphSyncStoragePage(createIfMissing = false) {
   return page;
 }
 
-async function ensureGraphSyncTagColorProperty() {
+async function ensureGraphSyncProperty(propertyKey) {
   if (typeof logseq.Editor?.upsertProperty !== "function") {
     return;
   }
 
   try {
     await logseq.Editor.upsertProperty(
-      GRAPH_SYNC_TAG_COLOR_PROPERTY,
+      propertyKey,
       { type: "json", hide: true, public: false },
-      { name: "Degrande Colors Tag Sync" }
+      { name: getGraphSyncPropertyDisplayName(propertyKey) }
     );
   } catch (error) {
-    console.warn("[Degrande Colors] Failed to ensure tag sync property schema", error);
+    console.warn(`[Degrande Colors] Failed to ensure graph sync property schema: ${propertyKey}`, error);
+  }
+}
+
+async function ensureGraphSyncTagColorProperty() {
+  await ensureGraphSyncProperty(GRAPH_SYNC_TAG_COLOR_PROPERTY);
+}
+
+async function loadGraphBackedPageState(propertyKey, mergeValue) {
+  if (typeof logseq.Editor?.getBlockProperty !== "function") {
+    return { exists: false, value: null };
+  }
+
+  try {
+    const page = await getGraphSyncStoragePage(false);
+
+    if (!page) {
+      return { exists: false, value: null };
+    }
+
+    const saved = await logseq.Editor.getBlockProperty(page.uuid, propertyKey);
+
+    if (saved == null) {
+      return { exists: false, value: null };
+    }
+
+    const resolved = typeof saved === "object" && saved !== null && "value" in saved
+      ? saved.value
+      : saved;
+    const parsed = typeof resolved === "string" ? JSON.parse(resolved) : resolved;
+
+    return {
+      exists: true,
+      value: typeof mergeValue === "function" ? mergeValue(parsed) : parsed,
+    };
+  } catch (error) {
+    console.error(`[Degrande Colors] Failed to load graph-backed state: ${propertyKey}`, error);
+    return { exists: false, value: null };
+  }
+}
+
+async function saveGraphBackedPageState(propertyKey, value) {
+  if (typeof logseq.Editor?.upsertBlockProperty !== "function") {
+    return false;
+  }
+
+  try {
+    await ensureGraphSyncProperty(propertyKey);
+    const page = await getGraphSyncStoragePage(true);
+
+    if (!page) {
+      return false;
+    }
+
+    await logseq.Editor.upsertBlockProperty(page.uuid, propertyKey, value, { reset: true });
+    return true;
+  } catch (error) {
+    console.error(`[Degrande Colors] Failed to persist graph-backed state: ${propertyKey}`, error);
+    return false;
+  }
+}
+
+async function removeGraphBackedPageState(propertyKey) {
+  if (typeof logseq.Editor?.removeBlockProperty !== "function") {
+    return false;
+  }
+
+  try {
+    const page = await getGraphSyncStoragePage(false);
+
+    if (!page) {
+      return true;
+    }
+
+    await logseq.Editor.removeBlockProperty(page.uuid, propertyKey);
+    return true;
+  } catch (error) {
+    console.error(`[Degrande Colors] Failed to clear graph-backed state: ${propertyKey}`, error);
+    return false;
   }
 }
 
@@ -2053,6 +2146,13 @@ async function saveGraphSyncedTagColors(tagNames = null) {
 
 async function loadStoredControls() {
   try {
+    const graphBackedState = await loadGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, mergeStoredControls);
+
+    if (graphBackedState.exists) {
+      panelState.controlState = graphBackedState.value;
+      return;
+    }
+
     const saved = await loadStoredItemWithLegacyFallback(CONTROL_STORAGE_KEY);
 
     if (!saved) {
@@ -2061,6 +2161,8 @@ async function loadStoredControls() {
 
     const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
     panelState.controlState = mergeStoredControls(parsed);
+
+    await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState);
   } catch (error) {
     if (isMissingStorageError(error)) {
       return;
@@ -2130,6 +2232,13 @@ async function loadStoredTagColors() {
 
 async function loadStoredGradients() {
   try {
+    const graphBackedState = await loadGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, mergeStoredGradients);
+
+    if (graphBackedState.exists) {
+      panelState.gradientState = graphBackedState.value;
+      return;
+    }
+
     const saved = await loadStoredItemWithLegacyFallback(GRADIENT_STORAGE_KEY);
 
     if (!saved) {
@@ -2138,6 +2247,8 @@ async function loadStoredGradients() {
 
     const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
     panelState.gradientState = mergeStoredGradients(parsed);
+
+    await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState);
   } catch (error) {
     if (isMissingStorageError(error)) {
       return;
@@ -2152,11 +2263,13 @@ function schedulePersistControls() {
     clearTimeout(panelState.persistTimer);
   }
 
-  const serializedControls = JSON.stringify(panelState.controlState);
-
   panelState.persistTimer = setTimeout(async () => {
     try {
-      writeLocalPersistedItem(CONTROL_STORAGE_KEY, serializedControls);
+      const saved = await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState);
+
+      if (saved) {
+        removeLocalPersistedItem(CONTROL_STORAGE_KEY);
+      }
     } catch (error) {
       console.error("[Local Custom Theme Loader] Failed to persist controls", error);
     } finally {
@@ -2200,11 +2313,13 @@ function schedulePersistGradients() {
     clearTimeout(panelState.gradientPersistTimer);
   }
 
-  const serializedGradients = JSON.stringify(panelState.gradientState);
-
   panelState.gradientPersistTimer = setTimeout(async () => {
     try {
-      writeLocalPersistedItem(GRADIENT_STORAGE_KEY, serializedGradients);
+      const saved = await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState);
+
+      if (saved) {
+        removeLocalPersistedItem(GRADIENT_STORAGE_KEY);
+      }
     } catch (error) {
       console.error("[Local Custom Theme Loader] Failed to persist gradients", error);
     } finally {
@@ -2912,7 +3027,12 @@ async function handleCurrentGraphChanged() {
   }
 
   clearGraphTagState();
+  panelState.controlState = { ...DEFAULT_CONTROL_STATE };
+  panelState.gradientState = createDefaultGradientState();
+  panelState.gradientSelections = Object.fromEntries(Object.keys(GRADIENT_AREAS).map((areaKey) => [areaKey, 0]));
   renderPanel(`Graph changed to ${graphInfo?.name || "current graph"}. Refreshing synced tags...`);
+  await loadStoredControls();
+  await loadStoredGradients();
   await refreshTags({ showToast: false, fallbackToPrevious: false });
   await loadStoredTagColors();
   await applyManagedOverrides(false, `Loaded synced tag colors for ${graphInfo?.name || "current graph"}`, "soft");
@@ -4572,6 +4692,8 @@ async function resetControls() {
     panelState.gradientPersistTimer = null;
   }
 
+  await removeGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY);
+  await removeGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY);
   removeLocalPersistedItem(CONTROL_STORAGE_KEY);
   removeLocalPersistedItem(GRADIENT_STORAGE_KEY);
   await applyManagedOverrides(true, "Reset live controls to the base defaults");
@@ -4642,9 +4764,11 @@ async function main() {
       }
 
       void (async () => {
-        await loadStoredTagColors();
+        await loadStoredControls();
+        await loadStoredGradients();
         await refreshTags({ showToast: false, fallbackToPrevious: false });
-        await applyManagedOverrides(false, "Reloaded synced tag colors", "soft");
+        await loadStoredTagColors();
+        await applyManagedOverrides(false, "Reloaded saved graph appearance", "soft");
       })();
     });
   }
