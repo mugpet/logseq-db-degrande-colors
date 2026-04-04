@@ -7,6 +7,8 @@ const TOOLBAR_STYLE_ELEMENT_ID = "degrande-colors-toolbar-style";
 const TOOLBAR_BUTTON_ID = "degrande-colors-toolbar-button";
 const TOOLBAR_OBSERVER_KEY = "__degrandeColorsToolbarObserver";
 const TOOLBAR_RENDER_TIMER_KEY = "__degrandeColorsToolbarRenderTimer";
+const HOST_COLOR_SYNC_OBSERVER_KEY = "__degrandeColorsHostColorObserver";
+const HOST_COLOR_SYNC_TIMER_KEY = "__degrandeColorsHostColorSyncTimer";
 const PANEL_HOST_CLASS = "degrande-panel-host";
 const MAIN_UI_INLINE_STYLE = {
   position: "fixed",
@@ -484,6 +486,42 @@ function observeToolbarHost() {
   ensureToolbarButton();
 }
 
+function scheduleHostColorSync() {
+  const hostDocument = getHostDocument();
+  const hostWindow = hostDocument.defaultView || window;
+
+  if (hostWindow[HOST_COLOR_SYNC_TIMER_KEY]) {
+    return;
+  }
+
+  hostWindow[HOST_COLOR_SYNC_TIMER_KEY] = hostWindow.setTimeout(() => {
+    hostWindow[HOST_COLOR_SYNC_TIMER_KEY] = null;
+    syncHostColorVariables();
+  }, 40);
+}
+
+function observeHostColorTargets() {
+  const hostDocument = getHostDocument();
+  const hostWindow = hostDocument.defaultView || window;
+  const HostMutationObserver = hostWindow.MutationObserver || MutationObserver;
+
+  hostWindow[HOST_COLOR_SYNC_OBSERVER_KEY]?.disconnect?.();
+
+  const observer = new HostMutationObserver(() => {
+    scheduleHostColorSync();
+  });
+
+  observer.observe(hostDocument.body || hostDocument.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["style", "class"],
+  });
+
+  hostWindow[HOST_COLOR_SYNC_OBSERVER_KEY] = observer;
+  scheduleHostColorSync();
+}
+
 function isDuplicateRegistrationError(error) {
   return /already exist/i.test(String(error?.message || error || ""));
 }
@@ -519,7 +557,10 @@ function registerToolbarItemSafely(config) {
 }
 
 async function loadWorkspaceCss() {
-  const response = await fetch("./custom.css", { cache: "no-store" });
+  const cssUrl = typeof logseq.resolveResourceFullUrl === "function"
+    ? logseq.resolveResourceFullUrl("custom.css")
+    : "./custom.css";
+  const response = await fetch(cssUrl, { cache: "no-store" });
 
   if (!response.ok) {
     throw new Error(`Unable to load custom.css (${response.status})`);
@@ -1002,6 +1043,92 @@ function rgbToCss(rgb, alpha = undefined) {
   }
 
   return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${resolvedAlpha})`;
+}
+
+function parseCssColorValue(value) {
+  if (!value || typeof value !== "string") {
+    return null;
+  }
+
+  const normalizedHex = hexToRgb(value.trim());
+
+  if (normalizedHex) {
+    return normalizedHex;
+  }
+
+  const match = value.trim().match(/^rgba?\(([^)]+)\)$/i);
+
+  if (!match) {
+    return null;
+  }
+
+  const parts = match[1].split(",").map((part) => Number.parseFloat(part.trim())).filter(Number.isFinite);
+
+  if (parts.length < 3) {
+    return null;
+  }
+
+  return {
+    r: clamp(parts[0], 0, 255),
+    g: clamp(parts[1], 0, 255),
+    b: clamp(parts[2], 0, 255),
+    a: clamp(parts[3] ?? 1, 0, 1),
+  };
+}
+
+function getDerivedGradientColor(colorValue, alphaMultiplier = 0.65, minAlpha = 0.16, maxAlpha = 0.38) {
+  const rgb = parseCssColorValue(colorValue);
+
+  if (!rgb) {
+    return null;
+  }
+
+  const baseAlpha = Number.isFinite(rgb.a) ? rgb.a : 1;
+  const gradientAlpha = clamp(baseAlpha * alphaMultiplier, minAlpha, maxAlpha);
+  return rgbToCss(rgb, gradientAlpha);
+}
+
+function syncHostColorVariables() {
+  const hostDocument = getHostDocument();
+  const hostWindow = hostDocument.defaultView || window;
+
+  hostDocument.querySelectorAll('.with-bg-color:not([data-node-type="quote"])').forEach((element) => {
+    if (!(element instanceof hostWindow.Element)) {
+      return;
+    }
+
+    const gradientColor = getDerivedGradientColor(
+      element.style.backgroundColor || element.style.background,
+      0.72,
+      0.16,
+      0.34
+    );
+
+    if (gradientColor) {
+      element.style.setProperty("--ctl-bg-sweep-color", gradientColor);
+    } else {
+      element.style.removeProperty("--ctl-bg-sweep-color");
+    }
+  });
+
+  hostDocument.querySelectorAll('div[data-node-type="quote"]').forEach((element) => {
+    if (!(element instanceof hostWindow.Element)) {
+      return;
+    }
+
+    const gradientColor = getDerivedGradientColor(
+      element.style.borderLeftColor || element.style.backgroundColor || element.style.background,
+      0.85,
+      0.14,
+      0.42
+    );
+
+    if (gradientColor) {
+      element.style.setProperty("--ctl-quote-color", gradientColor);
+    } else {
+      element.style.removeProperty("--ctl-quote-color");
+    }
+  });
 }
 
 function getRgbLuminance(rgb) {
@@ -3149,8 +3276,6 @@ function buildManagedOverrides() {
   const controls = panelState.controlState;
   const nodeGradient = buildGradientCss("node", "var(--node-color)");
   const titleGradient = buildGradientCss("title", "var(--node-color)");
-  const quoteDefaultLight = buildGradientCss("quote", `rgba(99, 102, 241, ${controls.quoteLightOpacity})`);
-  const quoteDefaultDark = buildGradientCss("quote", `rgba(99, 102, 241, ${controls.quoteDarkOpacity})`);
   const backgroundGradient = buildGradientCss("background", "var(--ctl-bg-sweep-color)");
 
   const quoteColorRules = QUOTE_COLOR_RULES.map(({ selector, token }) => `
@@ -3207,7 +3332,15 @@ a.tag[data-ref="${escapedTagName}" i]:hover {
   --node-color: ${lightGradient};
 }
 
+.ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref="${escapedTagName}" i]) {
+  --node-color: ${lightGradient};
+}
+
 .dark-theme :is(.ls-block > div:first-child, h1.title, .journal-title):has(a.tag[data-ref="${escapedTagName}" i]) {
+  --node-color: ${darkGradient};
+}
+
+.dark-theme .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref="${escapedTagName}" i]) {
   --node-color: ${darkGradient};
 }
 
@@ -3262,6 +3395,10 @@ a.tag[data-ref="${escapedTagName}" i]:hover {
   --node-color: var(--grad-${token});
 }
 
+.ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref="${escapedTagName}" i]) {
+  --node-color: var(--grad-${token});
+}
+
 :is(
   .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref="${escapedTagName}" i]),
   .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref="${escapedTagName}" i]),
@@ -3311,7 +3448,8 @@ a.tag:hover {
   .journal-title,
   .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref])
 ):has(a.tag[data-ref]),
-.ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
+.ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]),
+.ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref]) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container) {
   background-image: ${titleGradient} !important;
   background-color: transparent !important;
 }
@@ -3325,7 +3463,8 @@ a.tag:hover {
   .journal-title,
   .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref])
 ):has(a.tag[data-ref]),
-.dark-theme .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
+.dark-theme .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]),
+.dark-theme .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref]) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container) {
   background-image: ${titleGradient} !important;
   background-color: transparent !important;
 }
@@ -3355,18 +3494,19 @@ div[data-node-type="quote"] {
   border-left-width: ${controls.quoteBorderWidth}px !important;
   border-radius: 0 ${controls.quoteRadius}px ${controls.quoteRadius}px 0 !important;
   padding: ${controls.quotePaddingY}px ${controls.quotePaddingX}px !important;
-  background-image: ${quoteDefaultLight} !important;
+  background-image: ${buildGradientCss("quote", "var(--ctl-quote-color)")} !important;
 }
 
 .dark-theme div[data-node-type="quote"] {
   --ctl-quote-color: rgba(99, 102, 241, ${controls.quoteDarkOpacity});
-  background-image: ${quoteDefaultDark} !important;
+  background-image: ${buildGradientCss("quote", "var(--ctl-quote-color)")} !important;
 }
 
 ${quoteColorRules}
 
 .with-bg-color:not([data-node-type="quote"]) {
   --ctl-bg-sweep-color: rgba(244, 114, 182, 0.16);
+  background-image: ${backgroundGradient} !important;
   background-color: transparent !important;
   border-radius: ${controls.bgRadius}px !important;
   padding: ${controls.bgPaddingY}px ${controls.bgPaddingX}px !important;
@@ -3882,6 +4022,7 @@ async function applyManagedOverrides(showToast = false, statusMessage = "Updated
   panelState.lastAppliedAt = new Date();
   cleanupLegacyManagedStyles();
   setHostStyleText(MANAGED_STYLE_ELEMENT_ID, managedOverrides);
+  syncHostColorVariables();
 
   if (panelState.mounted) {
     if (renderMode === "soft") {
@@ -4042,6 +4183,7 @@ async function main() {
   setTimeout(() => {
     void applyManagedOverrides(false, "Reapplied saved theme controls");
   }, 900);
+  observeHostColorTargets();
 
   logseq.provideModel({
     openThemeLoader,
