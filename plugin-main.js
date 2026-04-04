@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.29";
+const FALLBACK_PLUGIN_VERSION = "0.1.30";
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
@@ -11,6 +11,7 @@ const GRAPH_SYNC_CONTROL_PROPERTY = "mugpet_degrande_colors_controls";
 const GRAPH_SYNC_GRADIENT_PROPERTY = "mugpet_degrande_colors_gradients";
 const GRAPH_SYNC_TAG_COLOR_PROPERTY = "mugpet_degrande_colors_tag_colors";
 const GRAPH_SYNC_REVISION_PROPERTY = "mugpet_degrande_colors_sync_revision";
+const SYNC_REVISION_EVENT_NAME = "degrande:sync-revision-changed";
 const SETTINGS_CONTROL_STATE_KEY = "degrandeControlState";
 const SETTINGS_GRADIENT_STATE_KEY = "degrandeGradientState";
 const BASE_STYLE_ELEMENT_ID = "degrande-colors-base-style";
@@ -257,6 +258,8 @@ const panelState = {
   currentGraphInfo: null,
   syncState: "pending",
   syncRevision: 0,
+  lastLocalSyncRevision: 0,
+  lastNotifiedSyncRevision: 0,
   persistTimer: null,
   gradientPersistTimer: null,
   tagPersistTimer: null,
@@ -365,16 +368,61 @@ function normalizeGraphSyncRevision(value) {
     : 0;
 }
 
-function getSyncRevisionLabel() {
-  return panelState.syncRevision
-    ? `r${String(panelState.syncRevision).slice(-6)}`
+function formatSyncRevisionLabel(revision) {
+  return revision
+    ? `r${String(revision).slice(-6)}`
     : "r0";
+}
+
+function getSyncRevisionLabel() {
+  return formatSyncRevisionLabel(panelState.syncRevision);
 }
 
 function getSyncRevisionTooltip() {
   return panelState.syncRevision
     ? `Graph revision ${panelState.syncRevision}`
     : "Graph revision not set yet.";
+}
+
+function emitSyncRevisionChangedEvent(detail) {
+  try {
+    const event = new CustomEvent(SYNC_REVISION_EVENT_NAME, { detail });
+    window.dispatchEvent(event);
+    document.dispatchEvent(new CustomEvent(SYNC_REVISION_EVENT_NAME, { detail }));
+  } catch (error) {
+    console.warn("[Degrande Colors] Failed to emit sync revision event", error);
+  }
+}
+
+async function handleObservedSyncRevisionChange(previousRevision, nextRevision) {
+  if (!nextRevision || nextRevision === previousRevision) {
+    return;
+  }
+
+  const origin = nextRevision === panelState.lastLocalSyncRevision
+    ? "local"
+    : previousRevision > 0
+      ? "remote"
+      : "initial";
+  const detail = {
+    previousRevision,
+    revision: nextRevision,
+    label: formatSyncRevisionLabel(nextRevision),
+    origin,
+    graphKey: panelState.currentGraphKey,
+    graphInfo: panelState.currentGraphInfo,
+  };
+
+  panelState.lastNotifiedSyncRevision = nextRevision;
+  emitSyncRevisionChangedEvent(detail);
+
+  if (origin === "remote" && typeof logseq.UI?.showMsg === "function") {
+    await logseq.UI.showMsg(
+      `Degrande detected synced graph revision ${detail.label}.`,
+      "success",
+      { timeout: 2800 }
+    );
+  }
 }
 
 function getSyncIndicatorTooltip() {
@@ -969,6 +1017,8 @@ function clearGraphTagState() {
   panelState.tagSourceMap = {};
   panelState.selectedTag = "";
   panelState.syncRevision = 0;
+  panelState.lastLocalSyncRevision = 0;
+  panelState.lastNotifiedSyncRevision = 0;
 }
 
 function normalizeRefreshTagsOptions(showToastOrOptions) {
@@ -2101,6 +2151,8 @@ async function bumpGraphSyncRevision(reason = "update") {
 
   if (saved) {
     panelState.syncRevision = nextRevision;
+    panelState.lastLocalSyncRevision = nextRevision;
+    panelState.lastNotifiedSyncRevision = nextRevision;
     syncSyncIndicator();
   } else {
     console.warn(`[Degrande Colors] Failed to bump sync revision after ${reason}`);
@@ -3480,6 +3532,7 @@ async function syncPersistedAppearance(options = {}) {
     fallbackToPrevious = true,
     renderMode = "soft",
   } = options;
+  const previousRevision = panelState.syncRevision;
   const previousSnapshot = buildPersistedAppearanceSnapshot();
   const previousSelectedTag = String(panelState.selectedTag || "").toLowerCase();
 
@@ -3507,6 +3560,7 @@ async function syncPersistedAppearance(options = {}) {
     renderMode
   );
 
+  await handleObservedSyncRevisionChange(previousRevision, panelState.syncRevision);
   setSyncState("synced");
 
   return changed;
