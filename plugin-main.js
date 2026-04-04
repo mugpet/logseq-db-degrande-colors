@@ -1,7 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.27";
-const AUTO_SYNC_POLL_INTERVAL_MS = 15000;
+const FALLBACK_PLUGIN_VERSION = "0.1.28";
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
@@ -260,7 +259,6 @@ const panelState = {
   gradientPersistTimer: null,
   tagPersistTimer: null,
   dbStateRefreshTimer: null,
-  autoSyncIntervalId: null,
   startupSyncTimerIds: [],
   pendingTagPersistKeys: [],
   tagClickTimer: null,
@@ -3457,23 +3455,6 @@ function scheduleStartupSyncRefreshes() {
   }, delayMs));
 }
 
-function ensureAutoSyncPolling() {
-  if (panelState.autoSyncIntervalId) {
-    return;
-  }
-
-  panelState.autoSyncIntervalId = setInterval(() => {
-    if (panelState.persistTimer || panelState.gradientPersistTimer || panelState.tagPersistTimer || panelState.dbStateRefreshTimer) {
-      return;
-    }
-
-    scheduleReloadPersistedAppearance("Checked synced Degrande appearance", {
-      delayMs: 0,
-      fallbackToPrevious: false,
-    });
-  }, AUTO_SYNC_POLL_INTERVAL_MS);
-}
-
 function scheduleReloadPersistedAppearance(reason = "Reloaded synced Degrande appearance", options = {}) {
   const { delayMs = 180, ...syncOptions } = options;
 
@@ -5284,7 +5265,6 @@ async function main() {
   }
 
   scheduleStartupSyncRefreshes();
-  ensureAutoSyncPolling();
 
   await reloadThemeCss(false, false);
   setTimeout(() => {

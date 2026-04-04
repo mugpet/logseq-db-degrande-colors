@@ -32,7 +32,7 @@ Use this skill when working against a running local Logseq desktop instance that
   - the plugin panel now includes preview, tags, and CSS tabs plus live gradient and tag-color controls
   - in Logseq DB mode, Degrande state that should follow the graph must be stored in graph-backed DB properties rather than plugin settings; controls and gradients should live in graph-backed DB properties and tag colors should live on the actual tag/page entities
   - for DB tag-color reads in `logseq-db-degrande-colors`, prefer Datascript/property-query loading over per-tag `Editor.getBlockProperty` fallback reads; some DB tag/page entities can throw on the fallback path
-  - keep a manual sync action in the Degrande panel and a lightweight background refresh fallback, because remote sync can sometimes arrive without a useful `txData` payload to filter
+  - keep a manual sync action in the Degrande panel plus event-driven reload hooks and limited startup refresh retries; avoid recurring timer polling unless the user explicitly asks for it
   - for the Degrande panel sync affordance, prefer a small clickable status dot with tooltip text over a full sync button; use green for synced and yellow for pending/in-progress
   - in `plugin-main.js`, keep sync/helper functions outside the `getToolbarStyle()` template literal; that function should emit CSS text only, and mixing JS into the template will break startup at runtime
   - for `logseq-db-degrande-colors` publish work, do not open or prepare marketplace PRs unless the user explicitly asks; the normal path is repo update plus version bump and release tag
