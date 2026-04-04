@@ -1,8 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.22";
-const AUTO_SYNC_POLL_INTERVAL_MS = 15000;
-const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
+const FALLBACK_PLUGIN_VERSION = "0.1.23";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const GRAPH_SYNC_CONFIG_KEY = "mugpet-degrande-colors";
@@ -260,8 +258,6 @@ const panelState = {
   gradientPersistTimer: null,
   tagPersistTimer: null,
   dbStateRefreshTimer: null,
-  autoSyncIntervalId: null,
-  startupSyncTimerIds: [],
   pendingTagPersistKeys: [],
   tagClickTimer: null,
   hostTagContextMenuBound: false,
@@ -3436,43 +3432,6 @@ async function syncPersistedAppearance(options = {}) {
   return changed;
 }
 
-function clearStartupSyncRefreshes() {
-  panelState.startupSyncTimerIds.forEach((timerId) => clearTimeout(timerId));
-  panelState.startupSyncTimerIds = [];
-}
-
-function scheduleStartupSyncRefreshes() {
-  clearStartupSyncRefreshes();
-
-  panelState.startupSyncTimerIds = STARTUP_SYNC_RETRY_DELAYS_MS.map((delayMs) => setTimeout(() => {
-    if (panelState.persistTimer || panelState.gradientPersistTimer || panelState.tagPersistTimer) {
-      return;
-    }
-
-    scheduleReloadPersistedAppearance("Checked synced Degrande appearance after startup", {
-      delayMs: 0,
-      fallbackToPrevious: false,
-    });
-  }, delayMs));
-}
-
-function ensureAutoSyncPolling() {
-  if (panelState.autoSyncIntervalId) {
-    return;
-  }
-
-  panelState.autoSyncIntervalId = setInterval(() => {
-    if (panelState.persistTimer || panelState.gradientPersistTimer || panelState.tagPersistTimer || panelState.dbStateRefreshTimer) {
-      return;
-    }
-
-    scheduleReloadPersistedAppearance("Checked synced Degrande appearance", {
-      delayMs: 0,
-      fallbackToPrevious: false,
-    });
-  }, AUTO_SYNC_POLL_INTERVAL_MS);
-}
-
 function scheduleReloadPersistedAppearance(reason = "Reloaded synced Degrande appearance", options = {}) {
   const { delayMs = 180, ...syncOptions } = options;
 
@@ -5264,14 +5223,6 @@ async function main() {
 
   if (typeof logseq.DB?.onChanged === "function") {
     logseq.DB.onChanged(({ txData }) => {
-      if (!Array.isArray(txData) || !txData.length) {
-        scheduleReloadPersistedAppearance("Checked synced Degrande appearance", {
-          delayMs: 0,
-          fallbackToPrevious: false,
-        });
-        return;
-      }
-
       if (!doesTxDataTouchDegrandeState(txData)) {
         return;
       }
@@ -5282,10 +5233,8 @@ async function main() {
     });
   }
 
-  scheduleStartupSyncRefreshes();
-  ensureAutoSyncPolling();
-
   await reloadThemeCss(false, false);
+  setSyncState("synced");
   setTimeout(() => {
     void applyManagedOverrides(false, "Reapplied saved theme controls");
   }, 900);
