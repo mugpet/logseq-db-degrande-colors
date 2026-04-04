@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.28";
+const FALLBACK_PLUGIN_VERSION = "0.1.29";
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
@@ -10,6 +10,7 @@ const GRAPH_SYNC_STORAGE_PAGE_NAME = "mugpet-degrande-colors-sync-state";
 const GRAPH_SYNC_CONTROL_PROPERTY = "mugpet_degrande_colors_controls";
 const GRAPH_SYNC_GRADIENT_PROPERTY = "mugpet_degrande_colors_gradients";
 const GRAPH_SYNC_TAG_COLOR_PROPERTY = "mugpet_degrande_colors_tag_colors";
+const GRAPH_SYNC_REVISION_PROPERTY = "mugpet_degrande_colors_sync_revision";
 const SETTINGS_CONTROL_STATE_KEY = "degrandeControlState";
 const SETTINGS_GRADIENT_STATE_KEY = "degrandeGradientState";
 const BASE_STYLE_ELEMENT_ID = "degrande-colors-base-style";
@@ -255,6 +256,7 @@ const panelState = {
   currentGraphKey: "",
   currentGraphInfo: null,
   syncState: "pending",
+  syncRevision: 0,
   persistTimer: null,
   gradientPersistTimer: null,
   tagPersistTimer: null,
@@ -351,14 +353,48 @@ function cleanupLegacyManagedStyles() {
   });
 }
 
+function normalizeGraphSyncRevision(value) {
+  const parsed = parsePersistedPropertyValue(value);
+  const rawValue = parsed && typeof parsed === "object"
+    ? (parsed.value ?? parsed.revision ?? 0)
+    : parsed;
+  const revision = Number(rawValue);
+
+  return Number.isFinite(revision) && revision > 0
+    ? Math.trunc(revision)
+    : 0;
+}
+
+function getSyncRevisionLabel() {
+  return panelState.syncRevision
+    ? `r${String(panelState.syncRevision).slice(-6)}`
+    : "r0";
+}
+
+function getSyncRevisionTooltip() {
+  return panelState.syncRevision
+    ? `Graph revision ${panelState.syncRevision}`
+    : "Graph revision not set yet.";
+}
+
 function getSyncIndicatorTooltip() {
-  return panelState.syncState === "synced"
+  const stateText = panelState.syncState === "synced"
     ? "Graph data is in sync. Click for manual sync."
     : "Graph sync is pending or in progress. Click for manual sync.";
+
+  return `${stateText} Current revision: ${getSyncRevisionLabel()}.`;
 }
 
 function syncSyncIndicator() {
   const indicator = document.querySelector('[data-role="sync-indicator"]');
+  const revision = document.querySelector('[data-role="sync-revision"]');
+
+  if (revision) {
+    const revisionTooltip = getSyncRevisionTooltip();
+    revision.textContent = getSyncRevisionLabel();
+    revision.setAttribute("title", revisionTooltip);
+    revision.setAttribute("aria-label", revisionTooltip);
+  }
 
   if (!indicator) {
     return;
@@ -932,6 +968,7 @@ function clearGraphTagState() {
   panelState.tagEntityMap = {};
   panelState.tagSourceMap = {};
   panelState.selectedTag = "";
+  panelState.syncRevision = 0;
 }
 
 function normalizeRefreshTagsOptions(showToastOrOptions) {
@@ -1989,6 +2026,8 @@ function getGraphSyncPropertyDisplayName(propertyKey) {
       return "Degrande Colors Gradients";
     case GRAPH_SYNC_TAG_COLOR_PROPERTY:
       return "Degrande Colors Tag Sync";
+    case GRAPH_SYNC_REVISION_PROPERTY:
+      return "Degrande Colors Revision";
     default:
       return "Degrande Colors State";
   }
@@ -2038,6 +2077,36 @@ async function ensureGraphSyncProperty(propertyKey) {
 
 async function ensureGraphSyncTagColorProperty() {
   await ensureGraphSyncProperty(GRAPH_SYNC_TAG_COLOR_PROPERTY);
+}
+
+async function loadGraphSyncRevisionState() {
+  const state = await loadGraphBackedPageState(GRAPH_SYNC_REVISION_PROPERTY);
+  panelState.syncRevision = state.exists ? normalizeGraphSyncRevision(state.value) : 0;
+  syncSyncIndicator();
+
+  return {
+    exists: state.exists,
+    value: panelState.syncRevision,
+  };
+}
+
+function getNextGraphSyncRevision() {
+  const now = Date.now();
+  return now > panelState.syncRevision ? now : panelState.syncRevision + 1;
+}
+
+async function bumpGraphSyncRevision(reason = "update") {
+  const nextRevision = getNextGraphSyncRevision();
+  const saved = await saveGraphBackedPageState(GRAPH_SYNC_REVISION_PROPERTY, nextRevision);
+
+  if (saved) {
+    panelState.syncRevision = nextRevision;
+    syncSyncIndicator();
+  } else {
+    console.warn(`[Degrande Colors] Failed to bump sync revision after ${reason}`);
+  }
+
+  return saved;
 }
 
 async function loadGraphBackedPageState(propertyKey, mergeValue) {
@@ -2391,6 +2460,7 @@ async function saveGraphSyncedTagColors(tagNames = null) {
     }
 
     removeLocalPersistedItem(TAG_COLOR_STORAGE_KEY);
+    await bumpGraphSyncRevision("tag-colors");
   } catch (error) {
     console.error("[Degrande Colors] Failed to persist graph-backed tag colors", error);
   }
@@ -2565,6 +2635,7 @@ function schedulePersistControls() {
 
       if (saved) {
         removeLocalPersistedItem(CONTROL_STORAGE_KEY);
+        await bumpGraphSyncRevision("controls");
         setSyncState("synced");
       }
     } catch (error) {
@@ -2625,6 +2696,7 @@ function schedulePersistGradients() {
 
       if (saved) {
         removeLocalPersistedItem(GRADIENT_STORAGE_KEY);
+        await bumpGraphSyncRevision("gradients");
         setSyncState("synced");
       }
     } catch (error) {
@@ -3355,6 +3427,7 @@ async function handleCurrentGraphChanged() {
   await loadStoredGradients();
   await refreshTags({ showToast: false, fallbackToPrevious: false });
   await loadStoredTagColors();
+  await loadGraphSyncRevisionState();
   await applyManagedOverrides(false, `Loaded synced tag colors for ${graphInfo?.name || "current graph"}`, "soft");
 }
 
@@ -3363,6 +3436,7 @@ function doesTxDataTouchDegrandeState(txData = []) {
     ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_CONTROL_PROPERTY),
     ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_GRADIENT_PROPERTY),
     ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_TAG_COLOR_PROPERTY),
+    ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_REVISION_PROPERTY),
     ":block/title",
     ":block/name",
     ":block/original-name",
@@ -3383,7 +3457,8 @@ function doesTxDataTouchDegrandeState(txData = []) {
       || value === GRAPH_SYNC_STORAGE_PAGE_NAME
       || value === GRAPH_SYNC_CONTROL_PROPERTY
       || value === GRAPH_SYNC_GRADIENT_PROPERTY
-      || value === GRAPH_SYNC_TAG_COLOR_PROPERTY;
+      || value === GRAPH_SYNC_TAG_COLOR_PROPERTY
+      || value === GRAPH_SYNC_REVISION_PROPERTY;
   });
 }
 
@@ -3393,6 +3468,7 @@ function buildPersistedAppearanceSnapshot() {
     gradients: panelState.gradientState,
     tagColors: mergeStoredTagColors(panelState.tagColorAssignments),
     tags: panelState.tags.map((tagName) => String(tagName || "").toLowerCase()),
+    revision: panelState.syncRevision,
   });
 }
 
@@ -3410,6 +3486,7 @@ async function syncPersistedAppearance(options = {}) {
   setSyncState("pending");
 
   await syncCurrentGraphInfo();
+  await loadGraphSyncRevisionState();
   await loadStoredControls();
   await loadStoredGradients();
   await loadStoredTagColors({ allowEntityFallback: false });
@@ -4624,6 +4701,7 @@ function mountPanel() {
           </div>
           <div class="ctl-status">
             <span class="ctl-status-text" data-role="status-text"></span>
+            <span class="ctl-sync-revision" data-role="sync-revision"></span>
             <button class="ctl-sync-indicator" type="button" data-action="sync-graph-state" data-role="sync-indicator"></button>
           </div>
         </div>
@@ -5151,6 +5229,7 @@ async function resetControls() {
 
   await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState);
   await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState);
+  await bumpGraphSyncRevision("reset-controls");
   removeLocalPersistedItem(CONTROL_STORAGE_KEY);
   removeLocalPersistedItem(GRADIENT_STORAGE_KEY);
   await applyManagedOverrides(true, "Reset live controls to the base defaults");
@@ -5199,6 +5278,7 @@ async function main() {
   await loadStoredControls();
   await loadStoredTagColors();
   await loadStoredGradients();
+  await loadGraphSyncRevisionState();
   bindHostTagContextMenu();
 
   const userConfigs = await logseq.App.getUserConfigs();
