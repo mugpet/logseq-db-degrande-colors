@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.30";
+const FALLBACK_PLUGIN_VERSION = "0.1.31";
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
@@ -5212,20 +5212,30 @@ async function applyManagedOverrides(showToast = false, statusMessage = "Updated
   }
 }
 
-function openThemeLoader() {
+async function openThemeLoader() {
   if (!panelState.mounted) {
     mountPanel();
   }
 
   setPanelRootVisibility(true);
   logseq.setMainUIInlineStyle(MAIN_UI_INLINE_STYLE);
-  renderPanel();
+  renderPanel("Loading latest synced graph state...");
   logseq.showMainUI({ autoFocus: true });
 
-  // Always recheck the current graph tags when the settings panel opens.
-  void ensureTagsForCurrentGraph({ force: true, fallbackToPrevious: true });
+  try {
+    await syncPersistedAppearance({
+      reason: "Loaded latest synced graph state",
+      forceRender: true,
+      fallbackToPrevious: false,
+      renderMode: "soft",
+    });
+  } catch (error) {
+    console.error("[Degrande Colors] Failed to refresh synced graph state when opening panel", error);
 
-  void applyManagedOverrides(false, "Reapplied saved theme controls");
+    await ensureTagsForCurrentGraph({ force: true, fallbackToPrevious: true });
+    await applyManagedOverrides(false, "Reapplied saved theme controls");
+    renderPanel("Unable to refresh synced graph state. Showing current values.");
+  }
 }
 
 function closeThemeLoader() {
@@ -5237,7 +5247,7 @@ function toggleThemeLoader() {
   if (logseq.isMainUIVisible) {
     closeThemeLoader();
   } else {
-    openThemeLoader();
+    void openThemeLoader();
   }
 }
 
