@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.18";
+const FALLBACK_PLUGIN_VERSION = "0.1.19";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const GRAPH_SYNC_CONFIG_KEY = "mugpet-degrande-colors";
@@ -234,6 +234,7 @@ const panelState = {
   tagEntityMap: {},
   tagSourceMap: {},
   propertyIdentMap: {},
+  propertyAttrMap: {},
   selectedTag: "",
   tagCustomColorDraft: "#14b8a6",
   tagCustomForegroundDraft: "#0f172a",
@@ -1902,23 +1903,43 @@ async function resolveGraphSyncPropertyIdent(propertyKey) {
     return panelState.propertyIdentMap[propertyKey];
   }
 
+  const fallbackIdent = getPluginPropertyIdent(propertyKey);
+
   if (typeof logseq.Editor?.getProperty !== "function") {
-    return getPluginPropertyIdent(propertyKey);
+    panelState.propertyAttrMap[propertyKey] = [fallbackIdent].filter(Boolean);
+    return fallbackIdent;
   }
 
   try {
     const property = await logseq.Editor.getProperty(propertyKey);
-    const ident = String(property?.ident || property?.["db/ident"] || getPluginPropertyIdent(propertyKey) || "");
+    const ident = String(property?.ident || property?.["db/ident"] || fallbackIdent || "");
+    const attributeCandidates = Array.from(new Set([
+      ident,
+      fallbackIdent,
+      property?.id,
+      property?.["db/id"],
+    ].filter((value) => value != null && value !== "").map((value) => String(value))));
 
     if (ident) {
       panelState.propertyIdentMap[propertyKey] = ident;
     }
 
+    panelState.propertyAttrMap[propertyKey] = attributeCandidates;
+
     return ident;
   } catch (error) {
     console.warn(`[Degrande Colors] Failed to resolve property ident: ${propertyKey}`, error);
-    return getPluginPropertyIdent(propertyKey);
+    panelState.propertyAttrMap[propertyKey] = [fallbackIdent].filter(Boolean);
+    return fallbackIdent;
   }
+}
+
+function getGraphSyncPropertyAttrCandidates(propertyKey) {
+  return [
+    ...(panelState.propertyAttrMap[propertyKey] || []),
+    panelState.propertyIdentMap[propertyKey],
+    getPluginPropertyIdent(propertyKey),
+  ].filter(Boolean);
 }
 
 function parsePersistedPropertyValue(value) {
@@ -1998,6 +2019,7 @@ async function loadGraphBackedPageState(propertyKey, mergeValue) {
   }
 
   try {
+    await resolveGraphSyncPropertyIdent(propertyKey);
     const page = await getGraphSyncStoragePage(false);
 
     if (!page) {
@@ -2039,6 +2061,7 @@ async function saveGraphBackedPageState(propertyKey, value) {
     }
 
     await logseq.Editor.upsertBlockProperty(page.uuid, propertyKey, value, { reset: true });
+    await resolveGraphSyncPropertyIdent(propertyKey);
     return true;
   } catch (error) {
     console.error(`[Degrande Colors] Failed to persist graph-backed state: ${propertyKey}`, error);
@@ -3254,12 +3277,9 @@ async function handleCurrentGraphChanged() {
 
 function doesTxDataTouchDegrandeState(txData = []) {
   const relevantAttributes = new Set([
-    panelState.propertyIdentMap[GRAPH_SYNC_CONTROL_PROPERTY],
-    getPluginPropertyIdent(GRAPH_SYNC_CONTROL_PROPERTY),
-    panelState.propertyIdentMap[GRAPH_SYNC_GRADIENT_PROPERTY],
-    getPluginPropertyIdent(GRAPH_SYNC_GRADIENT_PROPERTY),
-    panelState.propertyIdentMap[GRAPH_SYNC_TAG_COLOR_PROPERTY],
-    getPluginPropertyIdent(GRAPH_SYNC_TAG_COLOR_PROPERTY),
+    ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_CONTROL_PROPERTY),
+    ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_GRADIENT_PROPERTY),
+    ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_TAG_COLOR_PROPERTY),
     ":block/title",
     ":block/name",
     ":block/original-name",
@@ -3268,7 +3288,20 @@ function doesTxDataTouchDegrandeState(txData = []) {
     ":block/refs",
   ].filter(Boolean));
 
-  return (txData || []).some((datom) => relevantAttributes.has(String(Array.isArray(datom) ? datom[1] || "" : "")));
+  return (txData || []).some((datom) => {
+    if (!Array.isArray(datom)) {
+      return false;
+    }
+
+    const attribute = String(datom[1] ?? "");
+    const value = String(datom[2] ?? "");
+
+    return relevantAttributes.has(attribute)
+      || value === GRAPH_SYNC_STORAGE_PAGE_NAME
+      || value === GRAPH_SYNC_CONTROL_PROPERTY
+      || value === GRAPH_SYNC_GRADIENT_PROPERTY
+      || value === GRAPH_SYNC_TAG_COLOR_PROPERTY;
+  });
 }
 
 function scheduleReloadPersistedAppearance(reason = "Reloaded synced Degrande appearance") {
