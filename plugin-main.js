@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.16";
+const FALLBACK_PLUGIN_VERSION = "0.1.17";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const GRAPH_SYNC_CONFIG_KEY = "mugpet-degrande-colors";
@@ -233,6 +233,7 @@ const panelState = {
   tags: [],
   tagEntityMap: {},
   tagSourceMap: {},
+  propertyIdentMap: {},
   selectedTag: "",
   tagCustomColorDraft: "#14b8a6",
   tagCustomForegroundDraft: "#0f172a",
@@ -1860,9 +1861,64 @@ function persistPluginSettingValue(settingKey, value) {
   }
 }
 
+function getDegrandeSettingsSchema() {
+  return [
+    {
+      key: SETTINGS_CONTROL_STATE_KEY,
+      type: "object",
+      default: { ...DEFAULT_CONTROL_STATE },
+      title: "Degrande Control State",
+      description: "Internal persisted slider values for Degrande Colors.",
+    },
+    {
+      key: SETTINGS_GRADIENT_STATE_KEY,
+      type: "object",
+      default: createDefaultGradientState(),
+      title: "Degrande Gradient State",
+      description: "Internal persisted gradient state for Degrande Colors.",
+    },
+  ];
+}
+
+function registerDegrandeSettingsSchema() {
+  if (typeof logseq.useSettingsSchema !== "function") {
+    return;
+  }
+
+  try {
+    logseq.useSettingsSchema(getDegrandeSettingsSchema());
+  } catch (error) {
+    console.error("[Degrande Colors] Failed to register settings schema", error);
+  }
+}
+
 function getPluginPropertyIdent(propertyKey) {
   const pluginId = String(logseq?.baseInfo?.id || "").trim();
   return pluginId ? `:plugin.property.${pluginId}/${propertyKey}` : "";
+}
+
+async function resolveGraphSyncPropertyIdent(propertyKey) {
+  if (panelState.propertyIdentMap[propertyKey]) {
+    return panelState.propertyIdentMap[propertyKey];
+  }
+
+  if (typeof logseq.Editor?.getProperty !== "function") {
+    return getPluginPropertyIdent(propertyKey);
+  }
+
+  try {
+    const property = await logseq.Editor.getProperty(propertyKey);
+    const ident = String(property?.ident || property?.["db/ident"] || getPluginPropertyIdent(propertyKey) || "");
+
+    if (ident) {
+      panelState.propertyIdentMap[propertyKey] = ident;
+    }
+
+    return ident;
+  } catch (error) {
+    console.warn(`[Degrande Colors] Failed to resolve property ident: ${propertyKey}`, error);
+    return getPluginPropertyIdent(propertyKey);
+  }
 }
 
 function parsePersistedPropertyValue(value) {
@@ -1926,6 +1982,7 @@ async function ensureGraphSyncProperty(propertyKey) {
       { type: "json", hide: true, public: false },
       { name: getGraphSyncPropertyDisplayName(propertyKey) }
     );
+    void resolveGraphSyncPropertyIdent(propertyKey);
   } catch (error) {
     console.warn(`[Degrande Colors] Failed to ensure graph sync property schema: ${propertyKey}`, error);
   }
@@ -2125,7 +2182,7 @@ async function loadQueryBackedTagColorState() {
     return { exists: false, tagColors: {}, tagNames: [], tagEntityMap: {}, tagSourceMap: {} };
   }
 
-  const propertyIdent = getPluginPropertyIdent(GRAPH_SYNC_TAG_COLOR_PROPERTY);
+  const propertyIdent = await resolveGraphSyncPropertyIdent(GRAPH_SYNC_TAG_COLOR_PROPERTY);
 
   if (!propertyIdent) {
     return { exists: false, tagColors: {}, tagNames: [], tagEntityMap: {}, tagSourceMap: {} };
@@ -3201,6 +3258,7 @@ async function handleCurrentGraphChanged() {
 
 function doesTxDataTouchDegrandeState(txData = []) {
   const relevantAttributes = new Set([
+    panelState.propertyIdentMap[GRAPH_SYNC_TAG_COLOR_PROPERTY],
     getPluginPropertyIdent(GRAPH_SYNC_TAG_COLOR_PROPERTY),
     ":block/title",
     ":block/name",
@@ -4936,6 +4994,7 @@ async function main() {
   const commandKey = (suffix) => `${pluginId}/${suffix}`;
   const activationMessage = `Degrande Colors v${PLUGIN_VERSION} is active for this Logseq DB graph.`;
 
+  registerDegrandeSettingsSchema();
   await loadStoredControls();
   await loadStoredTagColors();
   await loadStoredGradients();
@@ -4948,6 +5007,23 @@ async function main() {
     setThemeMode(mode);
     renderPanel(`Logseq theme: ${mode}`);
   });
+
+  if (typeof logseq.onSettingsChanged === "function") {
+    logseq.onSettingsChanged((nextSettings, previousSettings) => {
+      const nextControls = nextSettings?.[SETTINGS_CONTROL_STATE_KEY];
+      const prevControls = previousSettings?.[SETTINGS_CONTROL_STATE_KEY];
+      const nextGradients = nextSettings?.[SETTINGS_GRADIENT_STATE_KEY];
+      const prevGradients = previousSettings?.[SETTINGS_GRADIENT_STATE_KEY];
+
+      if (JSON.stringify(nextControls) !== JSON.stringify(prevControls) && nextControls != null) {
+        panelState.controlState = mergeStoredControls(nextControls);
+      }
+
+      if (JSON.stringify(nextGradients) !== JSON.stringify(prevGradients) && nextGradients != null) {
+        panelState.gradientState = mergeStoredGradients(nextGradients);
+      }
+    });
+  }
 
   if (typeof logseq.App.onCurrentGraphChanged === "function") {
     logseq.App.onCurrentGraphChanged(() => {
