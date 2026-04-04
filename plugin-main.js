@@ -1,5 +1,6 @@
+(() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.11";
+const FALLBACK_PLUGIN_VERSION = "0.1.12";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const GRAPH_SYNC_CONFIG_KEY = "mugpet-degrande-colors";
@@ -4545,4 +4546,5 @@ async function main() {
 }
 
 window.__degrandeColorsMain = main;
+})();
 
