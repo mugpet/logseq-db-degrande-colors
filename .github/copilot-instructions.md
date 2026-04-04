@@ -25,6 +25,7 @@ This workspace is used to investigate Logseq DB graphs and the local Logseq HTTP
 - On Windows, avoid fragile shell one-liners with embedded JSON when calling Logseq. Prefer a script file or browser `fetch` execution so the JSON body stays intact.
 - When the user asks for tags, use `logseq.Editor.getAllTags()` first.
 - For UI customization work in this workspace, prefer editing `custom.css` and loading the unpacked plugin from the repository root rather than relying on the HTTP bridge for style injection.
+- For `degrande-colors` publish updates, do not open or propose marketplace PRs unless the user explicitly asks for that path. The normal publish path for this repo is updating the repository, bumping the version, and pushing the corresponding release tag.
 - For the Degrande panel layout in `index.html`, prefer grid row constraints such as `minmax(0, 1fr)` and `min-height: 0` for inner scroll regions. Do not force `height: 100%` on `.ctl-tags-layout`, `.ctl-tags-detail-scroll`, or `.ctl-preview-scroll`, or the intro sections will be pushed out of view.
 - Keep the Degrande panel backdrop transparent and non-interactive unless the user explicitly asks for a modal overlay effect.
 - For page title gradients, do not reuse generic linked-block selectors or broad `.block-title-wrap` matches. Keep linked-block gradients on their existing `.ls-block > div:first-child` path and target page titles specifically through `.block-main-content:has(.ls-page-title-container)`.

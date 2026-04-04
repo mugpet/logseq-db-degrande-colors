@@ -27,6 +27,9 @@ jobs:
             package.json \
             index.html \
             plugin.js \
+            plugin-main.js \
+            lsplugin.user.js \
+            lsplugin.user.js.LICENSE.txt \
             custom.css \
             icon.svg
 
