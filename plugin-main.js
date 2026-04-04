@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.21";
+const FALLBACK_PLUGIN_VERSION = "0.1.22";
 const AUTO_SYNC_POLL_INTERVAL_MS = 15000;
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
@@ -353,13 +353,6 @@ function cleanupLegacyManagedStyles() {
   });
 }
 
-function getToolbarStyle() {
-  return `
-.ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] {
-  display: inline-flex;
-  align-items: center;
-}
-
 function getSyncIndicatorTooltip() {
   return panelState.syncState === "synced"
     ? "Graph data is in sync. Click for manual sync."
@@ -382,6 +375,13 @@ function syncSyncIndicator() {
 function setSyncState(nextState) {
   panelState.syncState = nextState === "synced" ? "synced" : "pending";
   syncSyncIndicator();
+}
+
+function getToolbarStyle() {
+  return `
+.ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] {
+  display: inline-flex;
+  align-items: center;
 }
 
 .ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] a,
@@ -2043,12 +2043,31 @@ async function ensureGraphSyncTagColorProperty() {
 }
 
 async function loadGraphBackedPageState(propertyKey, mergeValue) {
-  if (typeof logseq.Editor?.getBlockProperty !== "function") {
+  if (typeof logseq.DB?.datascriptQuery !== "function" && typeof logseq.Editor?.getBlockProperty !== "function") {
     return { exists: false, value: null };
   }
 
   try {
-    await resolveGraphSyncPropertyIdent(propertyKey);
+    const propertyIdent = await resolveGraphSyncPropertyIdent(propertyKey);
+
+    if (typeof logseq.DB?.datascriptQuery === "function" && propertyIdent) {
+      const rows = await logseq.DB.datascriptQuery(`
+        [:find ?v .
+         :where
+         [?p :block/name "${GRAPH_SYNC_STORAGE_PAGE_NAME}"]
+         [?p ${propertyIdent} ?v]]
+      `);
+
+      if (rows != null) {
+        const parsed = parsePersistedPropertyValue(rows);
+
+        return {
+          exists: true,
+          value: typeof mergeValue === "function" ? mergeValue(parsed) : parsed,
+        };
+      }
+    }
+
     const page = await getGraphSyncStoragePage(false);
 
     if (!page) {
@@ -2119,11 +2138,29 @@ async function removeGraphBackedPageState(propertyKey) {
 }
 
 async function loadPageBackedTagColorState() {
-  if (typeof logseq.Editor?.getBlockProperty !== "function") {
+  if (typeof logseq.DB?.datascriptQuery !== "function" && typeof logseq.Editor?.getBlockProperty !== "function") {
     return { exists: false, tagColors: {} };
   }
 
   try {
+    const propertyIdent = await resolveGraphSyncPropertyIdent(GRAPH_SYNC_TAG_COLOR_PROPERTY);
+
+    if (typeof logseq.DB?.datascriptQuery === "function" && propertyIdent) {
+      const row = await logseq.DB.datascriptQuery(`
+        [:find ?v .
+         :where
+         [?p :block/name "${GRAPH_SYNC_STORAGE_PAGE_NAME}"]
+         [?p ${propertyIdent} ?v]]
+      `);
+
+      if (row != null) {
+        return {
+          exists: true,
+          tagColors: mergeStoredTagColors(parsePersistedPropertyValue(row)),
+        };
+      }
+    }
+
     const page = await getGraphSyncStoragePage(false);
 
     if (!page) {

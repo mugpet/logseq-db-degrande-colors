@@ -34,6 +34,7 @@ Use this skill when working against a running local Logseq desktop instance that
   - for DB tag-color reads in `logseq-db-degrande-colors`, prefer Datascript/property-query loading over per-tag `Editor.getBlockProperty` fallback reads; some DB tag/page entities can throw on the fallback path
   - keep a manual sync action in the Degrande panel and a lightweight background refresh fallback, because remote sync can sometimes arrive without a useful `txData` payload to filter
   - for the Degrande panel sync affordance, prefer a small clickable status dot with tooltip text over a full sync button; use green for synced and yellow for pending/in-progress
+  - in `plugin-main.js`, keep sync/helper functions outside the `getToolbarStyle()` template literal; that function should emit CSS text only, and mixing JS into the template will break startup at runtime
   - for `logseq-db-degrande-colors` publish work, do not open or prepare marketplace PRs unless the user explicitly asks; the normal path is repo update plus version bump and release tag
   - published installs now keep styling working through a packaged-plugin `logseq.provideStyle` fallback when direct host-document style injection is unavailable; do not remove that fallback when editing publish-facing code
   - packaged fallback updates must emit neutral per-tag reset rules for known tags so stale published tag styles do not survive after a reset
