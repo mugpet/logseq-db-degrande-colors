@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.20";
+const FALLBACK_PLUGIN_VERSION = "0.1.21";
 const AUTO_SYNC_POLL_INTERVAL_MS = 15000;
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
@@ -255,6 +255,7 @@ const panelState = {
   mounted: false,
   currentGraphKey: "",
   currentGraphInfo: null,
+  syncState: "pending",
   persistTimer: null,
   gradientPersistTimer: null,
   tagPersistTimer: null,
@@ -357,6 +358,30 @@ function getToolbarStyle() {
 .ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] {
   display: inline-flex;
   align-items: center;
+}
+
+function getSyncIndicatorTooltip() {
+  return panelState.syncState === "synced"
+    ? "Graph data is in sync. Click for manual sync."
+    : "Graph sync is pending or in progress. Click for manual sync.";
+}
+
+function syncSyncIndicator() {
+  const indicator = document.querySelector('[data-role="sync-indicator"]');
+
+  if (!indicator) {
+    return;
+  }
+
+  indicator.dataset.syncState = panelState.syncState;
+  const tooltip = getSyncIndicatorTooltip();
+  indicator.setAttribute("title", tooltip);
+  indicator.setAttribute("aria-label", tooltip);
+}
+
+function setSyncState(nextState) {
+  panelState.syncState = nextState === "synced" ? "synced" : "pending";
+  syncSyncIndicator();
 }
 
 .ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] a,
@@ -2497,17 +2522,22 @@ function schedulePersistControls() {
     clearTimeout(panelState.persistTimer);
   }
 
+  setSyncState("pending");
+
   panelState.persistTimer = setTimeout(async () => {
     try {
       const saved = await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState);
 
       if (saved) {
         removeLocalPersistedItem(CONTROL_STORAGE_KEY);
+        setSyncState("synced");
       }
     } catch (error) {
       console.error("[Local Custom Theme Loader] Failed to persist controls", error);
+      setSyncState("pending");
     } finally {
       panelState.persistTimer = null;
+      syncSyncIndicator();
     }
   }, 120);
 }
@@ -2524,6 +2554,8 @@ function schedulePersistTagColors(tagNames = []) {
     ]));
   }
 
+  setSyncState("pending");
+
   if (panelState.tagPersistTimer) {
     clearTimeout(panelState.tagPersistTimer);
   }
@@ -2534,10 +2566,13 @@ function schedulePersistTagColors(tagNames = []) {
 
     try {
       await saveGraphSyncedTagColors(pendingTagNames);
+      setSyncState("synced");
     } catch (error) {
       console.error("[Local Custom Theme Loader] Failed to persist tag colors", error);
+      setSyncState("pending");
     } finally {
       panelState.tagPersistTimer = null;
+      syncSyncIndicator();
     }
   }, 120);
 }
@@ -2547,17 +2582,22 @@ function schedulePersistGradients() {
     clearTimeout(panelState.gradientPersistTimer);
   }
 
+  setSyncState("pending");
+
   panelState.gradientPersistTimer = setTimeout(async () => {
     try {
       const saved = await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState);
 
       if (saved) {
         removeLocalPersistedItem(GRADIENT_STORAGE_KEY);
+        setSyncState("synced");
       }
     } catch (error) {
       console.error("[Local Custom Theme Loader] Failed to persist gradients", error);
+      setSyncState("pending");
     } finally {
       panelState.gradientPersistTimer = null;
+      syncSyncIndicator();
     }
   }, 120);
 }
@@ -3332,6 +3372,8 @@ async function syncPersistedAppearance(options = {}) {
   const previousSnapshot = buildPersistedAppearanceSnapshot();
   const previousSelectedTag = String(panelState.selectedTag || "").toLowerCase();
 
+  setSyncState("pending");
+
   await syncCurrentGraphInfo();
   await loadStoredControls();
   await loadStoredGradients();
@@ -3351,6 +3393,8 @@ async function syncPersistedAppearance(options = {}) {
     changed ? reason : "Synced graph state is already current",
     renderMode
   );
+
+  setSyncState("synced");
 
   return changed;
 }
@@ -3394,6 +3438,8 @@ function ensureAutoSyncPolling() {
 
 function scheduleReloadPersistedAppearance(reason = "Reloaded synced Degrande appearance", options = {}) {
   const { delayMs = 180, ...syncOptions } = options;
+
+  setSyncState("pending");
 
   if (panelState.dbStateRefreshTimer) {
     clearTimeout(panelState.dbStateRefreshTimer);
@@ -4069,7 +4115,7 @@ function endGradientHandleDrag() {
 }
 
 function syncPanelMeta(statusMessage) {
-  const status = document.querySelector('[data-role="status"]');
+  const status = document.querySelector('[data-role="status-text"]');
   const themeToggleButton = document.querySelector('[data-action="toggle-logseq-theme"]');
 
   if (!status) {
@@ -4077,6 +4123,7 @@ function syncPanelMeta(statusMessage) {
   }
 
   status.textContent = statusMessage ?? `Theme mode: ${panelState.themeMode} | Tag colors sync with this graph | Appearance controls sync with this graph`;
+  syncSyncIndicator();
 
   if (themeToggleButton) {
     themeToggleButton.textContent = getThemeToggleLabel();
@@ -4552,12 +4599,14 @@ function mountPanel() {
         <div class="ctl-toolbar">
           <div class="ctl-toolbar-actions">
             <button class="ctl-button ctl-button-primary" data-action="reload-file">Reload Styles</button>
-            <button class="ctl-button ctl-button-secondary" data-action="sync-graph-state">Sync Now</button>
             <button class="ctl-button ctl-button-secondary" data-action="toggle-logseq-theme">${getThemeToggleLabel()}</button>
             <button class="ctl-button ctl-button-secondary" data-action="reset-controls">Reset Controls</button>
             <button class="ctl-button ctl-button-secondary" data-action="close">Close</button>
           </div>
-          <div class="ctl-status" data-role="status"></div>
+          <div class="ctl-status">
+            <span class="ctl-status-text" data-role="status-text"></span>
+            <button class="ctl-sync-indicator" type="button" data-action="sync-graph-state" data-role="sync-indicator"></button>
+          </div>
         </div>
         <div class="ctl-tabbar" role="tablist" aria-label="Theme panel views">
           <button class="ctl-tab" type="button" data-tab="tags" role="tab" aria-selected="true">Tags</button>

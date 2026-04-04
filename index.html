@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors v0.1.20</title>
-    <meta name="degrande-colors-version" content="0.1.20">
+    <title>Degrande Colors v0.1.21</title>
+    <meta name="degrande-colors-version" content="0.1.21">
     <style>
       :root {
         color-scheme: light;
@@ -284,9 +284,49 @@
 
       .ctl-status {
         min-height: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
         font-size: 12px;
         color: var(--ctl-text-muted);
         text-align: right;
+      }
+
+      .ctl-status-text {
+        min-width: 0;
+      }
+
+      .ctl-sync-indicator {
+        flex: 0 0 auto;
+        width: 14px;
+        height: 14px;
+        border: none;
+        border-radius: 999px;
+        padding: 0;
+        background: #f59e0b;
+        box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.16);
+        cursor: pointer;
+        transition: transform 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease;
+      }
+
+      .ctl-sync-indicator:hover {
+        transform: scale(1.08);
+      }
+
+      .ctl-sync-indicator:focus-visible {
+        outline: 2px solid var(--ctl-accent);
+        outline-offset: 2px;
+      }
+
+      .ctl-sync-indicator[data-sync-state="synced"] {
+        background: #22c55e;
+        box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.16);
+      }
+
+      .ctl-sync-indicator[data-sync-state="pending"] {
+        background: #f59e0b;
+        box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.16);
       }
 
       .ctl-viewer {
