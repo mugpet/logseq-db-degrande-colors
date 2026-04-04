@@ -1,5 +1,5 @@
 const STARTUP_ERROR_PREFIX = "[Degrande Colors] Failed to start";
-const FALLBACK_PLUGIN_VERSION = "0.1.8";
+const FALLBACK_PLUGIN_VERSION = "0.1.9";
 let pluginStartupPromise = null;
 
 function getPluginVersion() {

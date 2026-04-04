@@ -17,7 +17,7 @@ Degrande Colors is a styling panel for Logseq DB graphs. It makes it easier to a
 ## Highlights
 
 - Assign preset or custom colors to tags from an in-app control panel.
-- Sync tag color assignments with the current graph across installations.
+- Sync tag color assignments through the graph database across installations.
 - Apply live gradients to tagged blocks and page titles.
 - Tune quote blocks, background blocks, and tag chip presentation.
 - Filter and sort tags while you work through larger graphs.

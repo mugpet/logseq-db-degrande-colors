@@ -1,9 +1,11 @@
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.8";
+const FALLBACK_PLUGIN_VERSION = "0.1.9";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const GRAPH_SYNC_CONFIG_KEY = "mugpet-degrande-colors";
 const GRAPH_SYNC_TAG_COLOR_VERSION = 1;
+const GRAPH_SYNC_STORAGE_PAGE_NAME = "mugpet-degrande-colors-sync-state";
+const GRAPH_SYNC_TAG_COLOR_PROPERTY = "mugpet_degrande_colors_tag_colors";
 const BASE_STYLE_ELEMENT_ID = "degrande-colors-base-style";
 const MANAGED_STYLE_ELEMENT_ID = "degrande-colors-managed-style";
 const TOOLBAR_STYLE_ELEMENT_ID = "degrande-colors-toolbar-style";
@@ -1762,7 +1764,61 @@ async function loadStoredItemWithLegacyFallback(storageKey) {
   return null;
 }
 
-async function loadGraphSyncedTagColorState() {
+async function getGraphSyncStoragePage(createIfMissing = false) {
+  if (typeof logseq.Editor?.getPage !== "function") {
+    return null;
+  }
+
+  let page = await logseq.Editor.getPage(GRAPH_SYNC_STORAGE_PAGE_NAME);
+
+  if (page || !createIfMissing || typeof logseq.Editor.createPage !== "function") {
+    return page;
+  }
+
+  try {
+    page = await logseq.Editor.createPage(
+      GRAPH_SYNC_STORAGE_PAGE_NAME,
+      {},
+      { redirect: false }
+    );
+  } catch (error) {
+    console.warn("[Degrande Colors] Failed to create sync storage page, retrying lookup", error);
+    page = await logseq.Editor.getPage(GRAPH_SYNC_STORAGE_PAGE_NAME);
+  }
+
+  return page;
+}
+
+async function loadPageBackedTagColorState() {
+  if (typeof logseq.Editor?.getPageProperties !== "function") {
+    return { exists: false, tagColors: {} };
+  }
+
+  try {
+    const page = await getGraphSyncStoragePage(false);
+
+    if (!page) {
+      return { exists: false, tagColors: {} };
+    }
+
+    const properties = await logseq.Editor.getPageProperties(page.uuid || GRAPH_SYNC_STORAGE_PAGE_NAME);
+    const saved = properties?.[GRAPH_SYNC_TAG_COLOR_PROPERTY];
+
+    if (!saved) {
+      return { exists: true, tagColors: {} };
+    }
+
+    return {
+      exists: true,
+      tagColors: mergeStoredTagColors(typeof saved === "string" ? JSON.parse(saved) : saved),
+    };
+  } catch (error) {
+    console.error("[Degrande Colors] Failed to load page-backed tag colors", error);
+    return { exists: false, tagColors: {} };
+  }
+}
+
+async function loadLegacyGraphConfigTagColorState() {
   if (typeof logseq.App?.getCurrentGraphConfigs !== "function") {
     return { exists: false, tagColors: {} };
   }
@@ -1779,7 +1835,7 @@ async function loadGraphSyncedTagColorState() {
       tagColors: mergeStoredTagColors(saved.tagColors),
     };
   } catch (error) {
-    console.error("[Degrande Colors] Failed to load graph-synced tag colors", error);
+    console.error("[Degrande Colors] Failed to load legacy graph-config tag colors", error);
     return { exists: false, tagColors: {} };
   }
 }
@@ -1787,34 +1843,58 @@ async function loadGraphSyncedTagColorState() {
 async function saveGraphSyncedTagColors() {
   const serializedTagColors = JSON.stringify(panelState.tagColorAssignments);
 
-  if (typeof logseq.App?.setCurrentGraphConfigs !== "function") {
+  if (typeof logseq.Editor?.upsertBlockProperty !== "function") {
     await logseq.FileStorage.setItem(TAG_COLOR_STORAGE_KEY, serializedTagColors);
     return;
   }
 
   try {
-    const existingConfig = await logseq.App.getCurrentGraphConfigs(GRAPH_SYNC_CONFIG_KEY);
-    const nextConfig = {
-      ...(existingConfig && typeof existingConfig === "object" ? existingConfig : {}),
-      tagColors: JSON.parse(serializedTagColors),
-      version: GRAPH_SYNC_TAG_COLOR_VERSION,
-      updatedAt: new Date().toISOString(),
-    };
+    const page = await getGraphSyncStoragePage(true);
 
-    await logseq.App.setCurrentGraphConfigs({
-      [GRAPH_SYNC_CONFIG_KEY]: nextConfig,
-    });
+    if (!page?.uuid) {
+      throw new Error("Unable to resolve graph sync storage page");
+    }
+
+    if (Object.keys(panelState.tagColorAssignments).length) {
+      await logseq.Editor.upsertBlockProperty(
+        page.uuid,
+        GRAPH_SYNC_TAG_COLOR_PROPERTY,
+        serializedTagColors,
+        { reset: true }
+      );
+    } else if (typeof logseq.Editor.removeBlockProperty === "function") {
+      await logseq.Editor.removeBlockProperty(page.uuid, GRAPH_SYNC_TAG_COLOR_PROPERTY);
+    } else {
+      await logseq.Editor.upsertBlockProperty(
+        page.uuid,
+        GRAPH_SYNC_TAG_COLOR_PROPERTY,
+        "",
+        { reset: true }
+      );
+    }
 
     try {
       await logseq.FileStorage.removeItem(TAG_COLOR_STORAGE_KEY);
     } catch (error) {
       if (!isMissingStorageError(error)) {
         console.warn("[Degrande Colors] Failed to remove legacy local tag colors", error);
+    }
+  }
+
+    if (typeof logseq.App?.setCurrentGraphConfigs === "function") {
+      try {
+        await logseq.App.setCurrentGraphConfigs({
+          [GRAPH_SYNC_CONFIG_KEY]: {
+            version: GRAPH_SYNC_TAG_COLOR_VERSION,
+            migratedToPageStorageAt: new Date().toISOString(),
+          },
+        });
+      } catch (error) {
+        console.warn("[Degrande Colors] Failed to mark graph-config migration", error);
       }
     }
   } catch (error) {
     console.error("[Degrande Colors] Failed to persist graph-synced tag colors", error);
-  }
 }
 
 async function loadStoredControls() {
@@ -1838,10 +1918,22 @@ async function loadStoredControls() {
 
 async function loadStoredTagColors() {
   try {
-    const graphSyncedState = await loadGraphSyncedTagColorState();
+    const pageBackedState = await loadPageBackedTagColorState();
 
-    if (graphSyncedState.exists) {
-      panelState.tagColorAssignments = graphSyncedState.tagColors;
+    if (pageBackedState.exists) {
+      panelState.tagColorAssignments = pageBackedState.tagColors;
+      return;
+    }
+
+    const legacyGraphConfigState = await loadLegacyGraphConfigTagColorState();
+
+    if (legacyGraphConfigState.exists) {
+      panelState.tagColorAssignments = legacyGraphConfigState.tagColors;
+
+      if (Object.keys(panelState.tagColorAssignments).length) {
+        await saveGraphSyncedTagColors();
+      }
+
       return;
     }
 
