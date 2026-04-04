@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.24";
+const FALLBACK_PLUGIN_VERSION = "0.1.25";
 const AUTO_SYNC_POLL_INTERVAL_MS = 15000;
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
@@ -3422,6 +3422,7 @@ async function syncPersistedAppearance(options = {}) {
     || previousSelectedTag !== String(panelState.selectedTag || "").toLowerCase();
 
   if (!changed && !forceRender && !showToast) {
+    setSyncState("synced");
     return false;
   }
 
