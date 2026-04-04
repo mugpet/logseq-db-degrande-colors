@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.32";
+const FALLBACK_PLUGIN_VERSION = "0.1.33";
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
@@ -266,6 +266,8 @@ const panelState = {
   dbStateRefreshTimer: null,
   startupSyncTimerIds: [],
   pendingTagPersistKeys: [],
+  pendingGraphStateMigrations: {},
+  pendingTagColorMigrationKeys: [],
   tagClickTimer: null,
   hostTagContextMenuBound: false,
 };
@@ -1892,6 +1894,11 @@ function isBenignGetAllTagsError(error) {
   return message.includes("indexaccess._datoms") || message.includes("defined for type null");
 }
 
+function isRecoverableGraphSyncWriteError(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+  return message.includes("get-block error") || message.includes("defined for type null");
+}
+
 function getLocalPersistenceBackend() {
   try {
     return window.localStorage || null;
@@ -2165,6 +2172,25 @@ async function bumpGraphSyncRevision(reason = "update") {
   return saved;
 }
 
+function queuePendingGraphStateMigration(propertyKey, value) {
+  panelState.pendingGraphStateMigrations[propertyKey] = value;
+}
+
+function queuePendingTagColorMigration(tagNames) {
+  const normalizedNames = (Array.isArray(tagNames) ? tagNames : [])
+    .map(getCanonicalTagName)
+    .filter(Boolean);
+
+  if (!normalizedNames.length) {
+    return;
+  }
+
+  panelState.pendingTagColorMigrationKeys = dedupeTagNames([
+    ...panelState.pendingTagColorMigrationKeys,
+    ...normalizedNames,
+  ]);
+}
+
 async function loadGraphBackedPageState(propertyKey, mergeValue) {
   if (typeof logseq.DB?.datascriptQuery !== "function" && typeof logseq.Editor?.getBlockProperty !== "function") {
     return { exists: false, value: null };
@@ -2225,7 +2251,7 @@ async function loadGraphBackedPageState(propertyKey, mergeValue) {
   }
 }
 
-async function saveGraphBackedPageState(propertyKey, value) {
+async function saveGraphBackedPageState(propertyKey, value, options = {}) {
   if (typeof logseq.Editor?.upsertBlockProperty !== "function") {
     return false;
   }
@@ -2242,6 +2268,10 @@ async function saveGraphBackedPageState(propertyKey, value) {
     await resolveGraphSyncPropertyIdent(propertyKey);
     return true;
   } catch (error) {
+    if (options.suppressReadyErrors && isRecoverableGraphSyncWriteError(error)) {
+      return false;
+    }
+
     console.error(`[Degrande Colors] Failed to persist graph-backed state: ${propertyKey}`, error);
     return false;
   }
@@ -2488,12 +2518,12 @@ async function loadLegacyGraphConfigTagColorState() {
   }
 }
 
-async function saveGraphSyncedTagColors(tagNames = null) {
+async function saveGraphSyncedTagColors(tagNames = null, options = {}) {
   const normalizedTagColors = mergeStoredTagColors(panelState.tagColorAssignments);
 
   if (typeof logseq.Editor?.upsertBlockProperty !== "function") {
     writeLocalPersistedItem(TAG_COLOR_STORAGE_KEY, JSON.stringify(normalizedTagColors));
-    return;
+    return false;
   }
 
   const namesToPersist = (Array.isArray(tagNames) && tagNames.length ? tagNames : Object.keys(normalizedTagColors))
@@ -2501,7 +2531,7 @@ async function saveGraphSyncedTagColors(tagNames = null) {
     .filter(Boolean);
 
   if (!namesToPersist.length) {
-    return;
+    return true;
   }
 
   try {
@@ -2530,8 +2560,36 @@ async function saveGraphSyncedTagColors(tagNames = null) {
 
     removeLocalPersistedItem(TAG_COLOR_STORAGE_KEY);
     await bumpGraphSyncRevision("tag-colors");
+    return true;
   } catch (error) {
+    if (options.suppressReadyErrors && isRecoverableGraphSyncWriteError(error)) {
+      return false;
+    }
+
     console.error("[Degrande Colors] Failed to persist graph-backed tag colors", error);
+    return false;
+  }
+}
+
+async function flushPendingGraphStateMigrations() {
+  const pendingStateEntries = Object.entries(panelState.pendingGraphStateMigrations || {});
+
+  for (const [propertyKey, value] of pendingStateEntries) {
+    const saved = await saveGraphBackedPageState(propertyKey, value, { suppressReadyErrors: true });
+
+    if (saved) {
+      delete panelState.pendingGraphStateMigrations[propertyKey];
+    }
+  }
+
+  if (panelState.pendingTagColorMigrationKeys.length) {
+    const saved = await saveGraphSyncedTagColors(panelState.pendingTagColorMigrationKeys, {
+      suppressReadyErrors: true,
+    });
+
+    if (saved) {
+      panelState.pendingTagColorMigrationKeys = [];
+    }
   }
 }
 
@@ -2548,7 +2606,7 @@ async function loadStoredControls() {
 
     if (settingsValue != null) {
       panelState.controlState = mergeStoredControls(settingsValue);
-      await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState);
+      queuePendingGraphStateMigration(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState);
       return;
     }
 
@@ -2560,7 +2618,7 @@ async function loadStoredControls() {
 
     const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
     panelState.controlState = mergeStoredControls(parsed);
-    await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState);
+    queuePendingGraphStateMigration(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState);
   } catch (error) {
     if (isMissingStorageError(error)) {
       return;
@@ -2616,7 +2674,7 @@ async function loadStoredTagColors(options = {}) {
       panelState.tagColorAssignments = pageBackedState.tagColors;
 
       if (Object.keys(panelState.tagColorAssignments).length) {
-        await saveGraphSyncedTagColors(Object.keys(panelState.tagColorAssignments));
+        queuePendingTagColorMigration(Object.keys(panelState.tagColorAssignments));
       }
 
       return;
@@ -2628,7 +2686,7 @@ async function loadStoredTagColors(options = {}) {
       panelState.tagColorAssignments = legacyGraphConfigState.tagColors;
 
       if (Object.keys(panelState.tagColorAssignments).length) {
-        await saveGraphSyncedTagColors(Object.keys(panelState.tagColorAssignments));
+        queuePendingTagColorMigration(Object.keys(panelState.tagColorAssignments));
       }
 
       return;
@@ -2645,7 +2703,7 @@ async function loadStoredTagColors(options = {}) {
     panelState.tagColorAssignments = mergeStoredTagColors(parsed);
 
     if (Object.keys(panelState.tagColorAssignments).length) {
-      await saveGraphSyncedTagColors(Object.keys(panelState.tagColorAssignments));
+      queuePendingTagColorMigration(Object.keys(panelState.tagColorAssignments));
     }
   } catch (error) {
     if (isMissingStorageError(error)) {
@@ -2669,7 +2727,7 @@ async function loadStoredGradients() {
 
     if (settingsValue != null) {
       panelState.gradientState = mergeStoredGradients(settingsValue);
-      await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState);
+      queuePendingGraphStateMigration(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState);
       return;
     }
 
@@ -2681,7 +2739,7 @@ async function loadStoredGradients() {
 
     const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
     panelState.gradientState = mergeStoredGradients(parsed);
-    await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState);
+    queuePendingGraphStateMigration(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState);
   } catch (error) {
     if (isMissingStorageError(error)) {
       return;
@@ -3556,6 +3614,7 @@ async function syncPersistedAppearance(options = {}) {
   setSyncState("pending");
 
   await syncCurrentGraphInfo();
+  await flushPendingGraphStateMigrations();
   await loadGraphSyncRevisionState();
   await loadStoredControls();
   await loadStoredGradients();
