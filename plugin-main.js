@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.31";
+const FALLBACK_PLUGIN_VERSION = "0.1.32";
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
@@ -2068,6 +2068,10 @@ function parsePersistedPropertyValue(value) {
   }
 }
 
+function preferDatascriptGraphReads() {
+  return typeof logseq.DB?.datascriptQuery === "function";
+}
+
 function getGraphSyncPropertyDisplayName(propertyKey) {
   switch (propertyKey) {
     case GRAPH_SYNC_CONTROL_PROPERTY:
@@ -2187,6 +2191,13 @@ async function loadGraphBackedPageState(propertyKey, mergeValue) {
       }
     }
 
+    // In DB graphs, avoid the block-property fallback during startup.
+    // Datascript becomes reliable after indexing, while getBlockProperty can
+    // raise noisy get-block errors before the graph is ready.
+    if (preferDatascriptGraphReads()) {
+      return { exists: false, value: null };
+    }
+
     const page = await getGraphSyncStoragePage(false);
 
     if (!page) {
@@ -2278,6 +2289,12 @@ async function loadPageBackedTagColorState() {
           tagColors: mergeStoredTagColors(parsePersistedPropertyValue(row)),
         };
       }
+    }
+
+    // Query-backed DB reads are the primary source in Logseq DB mode.
+    // Skip the page/block fallback there to avoid startup get-block noise.
+    if (preferDatascriptGraphReads()) {
+      return { exists: false, tagColors: {} };
     }
 
     const page = await getGraphSyncStoragePage(false);
