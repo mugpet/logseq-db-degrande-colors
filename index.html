@@ -3,7 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors</title>
+    <title>Degrande Colors v0.1.6</title>
+    <meta name="degrande-colors-version" content="0.1.6">
     <style>
       :root {
         color-scheme: light;
@@ -125,6 +126,32 @@
         font-size: 26px;
         line-height: 1.08;
         letter-spacing: -0.04em;
+      }
+
+      .ctl-title-row {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .ctl-version-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4px 8px;
+        border: 1px solid var(--ctl-border);
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ctl-accent);
+        background: rgba(255, 255, 255, 0.42);
+      }
+
+      .theme-dark .ctl-version-badge {
+        background: rgba(15, 23, 42, 0.62);
       }
 
       .ctl-subtitle {
@@ -1302,7 +1329,7 @@
   </head>
   <body>
     <div id="app"></div>
-    <script src="./lsplugin.user.js"></script>
-    <script src="./plugin.js"></script>
+    <script src="./lsplugin.user.js?v=0.1.6"></script>
+    <script src="./plugin.js?v=0.1.6"></script>
   </body>
 </html>
