@@ -1,8 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.25";
-const AUTO_SYNC_POLL_INTERVAL_MS = 15000;
-const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
+const FALLBACK_PLUGIN_VERSION = "0.1.26";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const GRAPH_SYNC_CONFIG_KEY = "mugpet-degrande-colors";
@@ -11,6 +9,7 @@ const GRAPH_SYNC_STORAGE_PAGE_NAME = "mugpet-degrande-colors-sync-state";
 const GRAPH_SYNC_CONTROL_PROPERTY = "mugpet_degrande_colors_controls";
 const GRAPH_SYNC_GRADIENT_PROPERTY = "mugpet_degrande_colors_gradients";
 const GRAPH_SYNC_TAG_COLOR_PROPERTY = "mugpet_degrande_colors_tag_colors";
+const GRAPH_SYNC_REVISION_PROPERTY = "mugpet_degrande_colors_sync_revision";
 const SETTINGS_CONTROL_STATE_KEY = "degrandeControlState";
 const SETTINGS_GRADIENT_STATE_KEY = "degrandeGradientState";
 const BASE_STYLE_ELEMENT_ID = "degrande-colors-base-style";
@@ -256,12 +255,12 @@ const panelState = {
   currentGraphKey: "",
   currentGraphInfo: null,
   syncState: "pending",
+  graphRevisionToken: "",
+  appliedRevisionToken: "",
   persistTimer: null,
   gradientPersistTimer: null,
   tagPersistTimer: null,
   dbStateRefreshTimer: null,
-  autoSyncIntervalId: null,
-  startupSyncTimerIds: [],
   pendingTagPersistKeys: [],
   tagClickTimer: null,
   hostTagContextMenuBound: false,
@@ -1991,9 +1990,30 @@ function getGraphSyncPropertyDisplayName(propertyKey) {
       return "Degrande Colors Gradients";
     case GRAPH_SYNC_TAG_COLOR_PROPERTY:
       return "Degrande Colors Tag Sync";
+    case GRAPH_SYNC_REVISION_PROPERTY:
+      return "Degrande Colors Sync Revision";
     default:
       return "Degrande Colors State";
   }
+}
+
+function getGraphSyncRevisionToken(value) {
+  const parsed = parsePersistedPropertyValue(value);
+
+  if (parsed && typeof parsed === "object") {
+    return String(parsed.token || parsed.updatedAt || parsed.value || "");
+  }
+
+  return String(parsed || "");
+}
+
+function createGraphSyncRevision(reason = "update") {
+  return {
+    token: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    updatedAt: new Date().toISOString(),
+    reason,
+    source: logseq.baseInfo?.id || "mugpet-degrande-colors",
+  };
 }
 
 async function getGraphSyncStoragePage(createIfMissing = false) {
@@ -2040,6 +2060,31 @@ async function ensureGraphSyncProperty(propertyKey) {
 
 async function ensureGraphSyncTagColorProperty() {
   await ensureGraphSyncProperty(GRAPH_SYNC_TAG_COLOR_PROPERTY);
+}
+
+async function loadGraphSyncRevisionState() {
+  const state = await loadGraphBackedPageState(GRAPH_SYNC_REVISION_PROPERTY);
+  const token = state.exists ? getGraphSyncRevisionToken(state.value) : "";
+  panelState.graphRevisionToken = token;
+
+  return {
+    exists: state.exists,
+    value: state.value,
+    token,
+  };
+}
+
+async function writeGraphSyncRevision(reason = "update") {
+  const revision = createGraphSyncRevision(reason);
+  const saved = await saveGraphBackedPageState(GRAPH_SYNC_REVISION_PROPERTY, revision);
+
+  if (saved) {
+    const token = getGraphSyncRevisionToken(revision);
+    panelState.graphRevisionToken = token;
+    panelState.appliedRevisionToken = token;
+  }
+
+  return saved;
 }
 
 async function loadGraphBackedPageState(propertyKey, mergeValue) {
@@ -2393,6 +2438,7 @@ async function saveGraphSyncedTagColors(tagNames = null) {
     }
 
     removeLocalPersistedItem(TAG_COLOR_STORAGE_KEY);
+    await writeGraphSyncRevision("tag-colors");
   } catch (error) {
     console.error("[Degrande Colors] Failed to persist graph-backed tag colors", error);
   }
@@ -2567,6 +2613,7 @@ function schedulePersistControls() {
 
       if (saved) {
         removeLocalPersistedItem(CONTROL_STORAGE_KEY);
+        await writeGraphSyncRevision("controls");
         setSyncState("synced");
       }
     } catch (error) {
@@ -2627,6 +2674,7 @@ function schedulePersistGradients() {
 
       if (saved) {
         removeLocalPersistedItem(GRADIENT_STORAGE_KEY);
+        await writeGraphSyncRevision("gradients");
         setSyncState("synced");
       }
     } catch (error) {
@@ -3365,6 +3413,7 @@ function doesTxDataTouchDegrandeState(txData = []) {
     ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_CONTROL_PROPERTY),
     ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_GRADIENT_PROPERTY),
     ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_TAG_COLOR_PROPERTY),
+    ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_REVISION_PROPERTY),
     ":block/title",
     ":block/name",
     ":block/original-name",
@@ -3385,7 +3434,8 @@ function doesTxDataTouchDegrandeState(txData = []) {
       || value === GRAPH_SYNC_STORAGE_PAGE_NAME
       || value === GRAPH_SYNC_CONTROL_PROPERTY
       || value === GRAPH_SYNC_GRADIENT_PROPERTY
-      || value === GRAPH_SYNC_TAG_COLOR_PROPERTY;
+      || value === GRAPH_SYNC_TAG_COLOR_PROPERTY
+      || value === GRAPH_SYNC_REVISION_PROPERTY;
   });
 }
 
@@ -3395,6 +3445,7 @@ function buildPersistedAppearanceSnapshot() {
     gradients: panelState.gradientState,
     tagColors: mergeStoredTagColors(panelState.tagColorAssignments),
     tags: panelState.tags.map((tagName) => String(tagName || "").toLowerCase()),
+    revision: panelState.graphRevisionToken,
   });
 }
 
@@ -3412,6 +3463,7 @@ async function syncPersistedAppearance(options = {}) {
   setSyncState("pending");
 
   await syncCurrentGraphInfo();
+  const revisionState = await loadGraphSyncRevisionState();
   await loadStoredControls();
   await loadStoredGradients();
   await loadStoredTagColors({ allowEntityFallback: false });
@@ -3432,46 +3484,10 @@ async function syncPersistedAppearance(options = {}) {
     renderMode
   );
 
+  panelState.appliedRevisionToken = revisionState.token;
   setSyncState("synced");
 
   return changed;
-}
-
-function clearStartupSyncRefreshes() {
-  panelState.startupSyncTimerIds.forEach((timerId) => clearTimeout(timerId));
-  panelState.startupSyncTimerIds = [];
-}
-
-function scheduleStartupSyncRefreshes() {
-  clearStartupSyncRefreshes();
-
-  panelState.startupSyncTimerIds = STARTUP_SYNC_RETRY_DELAYS_MS.map((delayMs) => setTimeout(() => {
-    if (panelState.persistTimer || panelState.gradientPersistTimer || panelState.tagPersistTimer) {
-      return;
-    }
-
-    scheduleReloadPersistedAppearance("Checked synced Degrande appearance after startup", {
-      delayMs: 0,
-      fallbackToPrevious: false,
-    });
-  }, delayMs));
-}
-
-function ensureAutoSyncPolling() {
-  if (panelState.autoSyncIntervalId) {
-    return;
-  }
-
-  panelState.autoSyncIntervalId = setInterval(() => {
-    if (panelState.persistTimer || panelState.gradientPersistTimer || panelState.tagPersistTimer || panelState.dbStateRefreshTimer) {
-      return;
-    }
-
-    scheduleReloadPersistedAppearance("Checked synced Degrande appearance", {
-      delayMs: 0,
-      fallbackToPrevious: false,
-    });
-  }, AUTO_SYNC_POLL_INTERVAL_MS);
 }
 
 function scheduleReloadPersistedAppearance(reason = "Reloaded synced Degrande appearance", options = {}) {
@@ -5170,6 +5186,7 @@ async function resetControls() {
 
   await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState);
   await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState);
+  await writeGraphSyncRevision("reset-controls");
   removeLocalPersistedItem(CONTROL_STORAGE_KEY);
   removeLocalPersistedItem(GRADIENT_STORAGE_KEY);
   await applyManagedOverrides(true, "Reset live controls to the base defaults");
@@ -5265,14 +5282,6 @@ async function main() {
 
   if (typeof logseq.DB?.onChanged === "function") {
     logseq.DB.onChanged(({ txData }) => {
-      if (!Array.isArray(txData) || !txData.length) {
-        scheduleReloadPersistedAppearance("Checked synced Degrande appearance", {
-          delayMs: 0,
-          fallbackToPrevious: false,
-        });
-        return;
-      }
-
       if (!doesTxDataTouchDegrandeState(txData)) {
         return;
       }
@@ -5283,10 +5292,10 @@ async function main() {
     });
   }
 
-  scheduleStartupSyncRefreshes();
-  ensureAutoSyncPolling();
-
+  const initialRevisionState = await loadGraphSyncRevisionState();
+  panelState.appliedRevisionToken = initialRevisionState.token;
   await reloadThemeCss(false, false);
+  setSyncState("synced");
   setTimeout(() => {
     void applyManagedOverrides(false, "Reapplied saved theme controls");
   }, 900);
