@@ -1,5 +1,5 @@
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.6";
+const FALLBACK_PLUGIN_VERSION = "0.1.7";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const BASE_STYLE_ELEMENT_ID = "degrande-colors-base-style";
@@ -268,6 +268,30 @@ function getHostDocument() {
   return document;
 }
 
+function canAccessExternalHostDocument() {
+  try {
+    if (window.top && window.top !== window && window.top.document && window.top.document !== document) {
+      return true;
+    }
+  } catch (error) {
+    // Ignore cross-frame access issues and fall back to the current document.
+  }
+
+  try {
+    if (window.parent && window.parent !== window && window.parent.document && window.parent.document !== document) {
+      return true;
+    }
+  } catch (error) {
+    // Ignore cross-frame access issues and fall back to the current document.
+  }
+
+  return false;
+}
+
+function shouldUseProvideStyleFallback() {
+  return window.top !== window && !canAccessExternalHostDocument();
+}
+
 function ensureHostStyleElement(styleId) {
   const hostDocument = getHostDocument();
   let styleElement = hostDocument.getElementById(styleId);
@@ -287,6 +311,14 @@ function setHostStyleText(styleId, cssText) {
   if (styleElement.textContent !== cssText) {
     styleElement.textContent = cssText;
   }
+}
+
+function applyPluginStyleText(cssText) {
+  if (!cssText || typeof logseq?.provideStyle !== "function") {
+    return;
+  }
+
+  logseq.provideStyle(cssText);
 }
 
 function cleanupLegacyManagedStyles() {
@@ -1597,6 +1629,14 @@ function parseBaseTagColorMap(cssText) {
   }
 
   return mapping;
+}
+
+function getKnownTagNames() {
+  return Array.from(new Set([
+    ...panelState.tags,
+    ...Object.keys(panelState.tagColorAssignments),
+    ...Object.keys(panelState.baseTagColorMap),
+  ].map((tagName) => String(tagName || "").trim()).filter(Boolean))).sort((left, right) => left.localeCompare(right));
 }
 
 function mergeStoredControls(saved) {
@@ -3302,8 +3342,69 @@ ${selector} {
 }
 `).join("");
 
-  const tagColorRules = Object.entries(panelState.tagColorAssignments).map(([tagName, assignment]) => {
+  const tagColorRules = getKnownTagNames().map((tagName) => {
+    const assignment = getTagColorAssignment(tagName);
     const escapedTagName = escapeAttributeValue(tagName);
+
+    if (!assignment) {
+      return `
+a.tag[data-ref="${escapedTagName}" i],
+a.tag[data-ref="${escapedTagName}" i]:hover {
+  background: var(--bg-grey) !important;
+  background-color: var(--bg-grey) !important;
+  background-image: none !important;
+  border-color: var(--bd-grey) !important;
+  color: #111 !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+.dark-theme a.tag[data-ref="${escapedTagName}" i],
+.dark-theme a.tag[data-ref="${escapedTagName}" i]:hover {
+  background: #374151 !important;
+  background-color: #374151 !important;
+  background-image: none !important;
+  border-color: #4b5563 !important;
+  color: #f3f4f6 !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+:is(.ls-block > div:first-child, h1.title, .journal-title):has(a.tag[data-ref="${escapedTagName}" i]) {
+  --node-color: transparent;
+}
+
+.ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref="${escapedTagName}" i]) {
+  --node-color: transparent;
+}
+
+.dark-theme :is(.ls-block > div:first-child, h1.title, .journal-title):has(a.tag[data-ref="${escapedTagName}" i]) {
+  --node-color: transparent;
+}
+
+.dark-theme .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref="${escapedTagName}" i]) {
+  --node-color: transparent;
+}
+
+:is(
+  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref="${escapedTagName}" i]),
+  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref="${escapedTagName}" i]),
+  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref="${escapedTagName}" i]),
+  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref="${escapedTagName}" i])
+) {
+  --node-color: transparent;
+}
+
+.dark-theme :is(
+  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref="${escapedTagName}" i]),
+  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref="${escapedTagName}" i]),
+  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref="${escapedTagName}" i]),
+  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref="${escapedTagName}" i])
+) {
+  --node-color: transparent;
+}
+`;
+    }
 
     if (assignment?.type === "custom") {
       const lightTheme = getResolvedCustomTagTheme(assignment, "light");
@@ -4035,6 +4136,11 @@ async function applyManagedOverrides(showToast = false, statusMessage = "Updated
   panelState.lastAppliedAt = new Date();
   cleanupLegacyManagedStyles();
   setHostStyleText(MANAGED_STYLE_ELEMENT_ID, managedOverrides);
+
+  if (shouldUseProvideStyleFallback()) {
+    applyPluginStyleText(panelState.cssText);
+  }
+
   syncHostColorVariables();
 
   if (panelState.mounted) {
@@ -4085,6 +4191,11 @@ async function reloadThemeCss(showToast = false, reopenUI = !!logseq.isMainUIVis
   panelState.baseCssText = await loadWorkspaceCss();
   panelState.baseTagColorMap = parseBaseTagColorMap(panelState.baseCssText);
   setHostStyleText(BASE_STYLE_ELEMENT_ID, panelState.baseCssText);
+
+  if (shouldUseProvideStyleFallback()) {
+    applyPluginStyleText(panelState.baseCssText);
+  }
+
   await applyManagedOverrides(showToast, "Reloaded base styles and re-applied controls");
 
   if (reopenUI) {
