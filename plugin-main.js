@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.46";
+const FALLBACK_PLUGIN_VERSION = "0.1.47";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1940,10 +1940,17 @@ function formatCssTextStats(stats) {
   return `${stats.lines} lines / ${stats.chars.toLocaleString()} chars`;
 }
 
+function hasEnabledAppearanceSections() {
+  return APPEARANCE_SECTIONS.some((section) => isAppearanceSectionEnabled(section.key));
+}
+
 function buildCssStats(baseCssText, managedCssText, sections = {}) {
-  const base = getCssTextStats(baseCssText);
-  const managed = getCssTextStats(managedCssText);
-  const total = getCssTextStats(`${String(baseCssText || "").trim()}\n\n${String(managedCssText || "").trim()}`);
+  const shouldApplyCss = hasEnabledAppearanceSections();
+  const appliedBaseCssText = shouldApplyCss ? baseCssText : "";
+  const appliedManagedCssText = shouldApplyCss ? managedCssText : "";
+  const base = getCssTextStats(appliedBaseCssText);
+  const managed = getCssTextStats(appliedManagedCssText);
+  const total = getCssTextStats(`${String(appliedBaseCssText || "").trim()}\n\n${String(appliedManagedCssText || "").trim()}`);
   const sectionStats = Object.fromEntries(APPEARANCE_SECTIONS.map((section) => [
     section.key,
     getCssTextStats(sections[section.key] || ""),
@@ -3455,7 +3462,6 @@ function buildPreviewCardHeadMarkup(sectionKey, title, subtitle) {
         <strong>${escapeHtml(title)}</strong>
         <span>${escapeHtml(subtitle)} · ${enabled ? "On" : "Off"} · ${formatCssTextStats(sectionStats)}</span>
       </div>
-      ${buildAppearanceToggleButtonMarkup(sectionKey)}
     </div>
   `;
 }
@@ -4000,7 +4006,18 @@ function syncControlInputs() {
 }
 
 function buildEffectiveCssText(managedOverrides) {
-  return `${panelState.baseCssText.trim()}\n\n${managedOverrides.trim()}\n`;
+  if (!hasEnabledAppearanceSections()) {
+    return "";
+  }
+
+  const baseCssText = panelState.baseCssText.trim();
+  const managedCssText = String(managedOverrides || "").trim();
+
+  if (!baseCssText && !managedCssText) {
+    return "";
+  }
+
+  return `${baseCssText}\n\n${managedCssText}\n`;
 }
 
 function buildSweepGradient(angle, edgeColor, clearStart, clearEnd) {
@@ -5447,11 +5464,13 @@ function mountPanel() {
 
 async function applyManagedOverrides(showToast = false, statusMessage = "Updated live overrides", renderMode = "full") {
   const managedOverrides = buildManagedOverrides();
+  const shouldApplyCss = hasEnabledAppearanceSections();
 
   panelState.cssText = buildEffectiveCssText(managedOverrides.cssText);
   panelState.cssStats = buildCssStats(panelState.baseCssText, managedOverrides.cssText, managedOverrides.sections);
   panelState.lastAppliedAt = new Date();
   cleanupLegacyManagedStyles();
+  setHostStyleText(BASE_STYLE_ELEMENT_ID, shouldApplyCss ? panelState.baseCssText : "");
   setHostStyleText(MANAGED_STYLE_ELEMENT_ID, managedOverrides.cssText);
 
   if (shouldUseProvideStyleFallback()) {
@@ -5484,7 +5503,7 @@ function toggleAppearanceSection(sectionKey) {
 
   panelState.appearanceState[sectionKey] = !isAppearanceSectionEnabled(sectionKey);
   persistAppearanceState();
-  void applyManagedOverrides(false, `${section.label} ${panelState.appearanceState[sectionKey] ? "enabled" : "disabled"}`, "full");
+  void applyManagedOverrides(false, `${section.label} ${panelState.appearanceState[sectionKey] ? "enabled" : "disabled"}`, "preview");
   return true;
 }
 
