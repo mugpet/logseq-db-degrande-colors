@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.41";
+const FALLBACK_PLUGIN_VERSION = "0.1.42";
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
@@ -24,6 +24,7 @@ const HOST_COLOR_SYNC_OBSERVER_KEY = "__degrandeColorsHostColorObserver";
 const HOST_COLOR_SYNC_TIMER_KEY = "__degrandeColorsHostColorSyncTimer";
 const COMMAND_REGISTRY_KEY = "__degrandeColorsRegisteredCommands";
 const TOOLBAR_REGISTRY_KEY = "__degrandeColorsRegisteredToolbarItems";
+const HOST_SESSION_KEY = "__degrandeColorsHostSession";
 const PANEL_HOST_CLASS = "degrande-panel-host";
 const MAIN_UI_INLINE_STYLE = {
   position: "fixed",
@@ -2861,11 +2862,16 @@ async function loadStoredControls() {
 async function loadStoredTagColors(options = {}) {
   const allowEntityFallback = options.allowEntityFallback ?? typeof logseq.DB?.datascriptQuery !== "function";
   const fallbackToCurrent = options.fallbackToCurrent ?? false;
+  const hasCurrentTagColors = Object.keys(mergeStoredTagColors(panelState.tagColorAssignments)).length > 0;
 
   try {
     const pageBackedState = await loadPageBackedTagColorState();
 
     if (pageBackedState.exists) {
+      if (fallbackToCurrent && !Object.keys(pageBackedState.tagColors || {}).length && hasCurrentTagColors) {
+        return;
+      }
+
       panelState.tagColorAssignments = pageBackedState.tagColors;
       writeLocalPersistedItem(TAG_COLOR_STORAGE_KEY, JSON.stringify(panelState.tagColorAssignments));
 
@@ -5665,6 +5671,10 @@ async function main() {
   const pluginId = logseq.baseInfo.id;
   const commandKey = (suffix) => `${pluginId}/${suffix}`;
   const activationMessage = `Degrande Colors v${PLUGIN_VERSION} is active for this Logseq DB graph.`;
+  const hostWindow = getHostWindow();
+  const hostSession = hostWindow[HOST_SESSION_KEY] || (hostWindow[HOST_SESSION_KEY] = {});
+  const hostToolbarButtonExists = Boolean(getHostDocument().getElementById(TOOLBAR_BUTTON_ID));
+  const shouldRegisterHostUi = !hostSession[pluginId] && !hostToolbarButtonExists;
 
   registerDegrandeSettingsSchema();
   await loadStoredControls();
@@ -5756,14 +5766,16 @@ async function main() {
 
   logseq.provideStyle(getToolbarStyle());
 
-  registerToolbarItemSafely({
-    key: "custom-theme-loader-open",
-    template: `
-      <a class="button" data-on-click="toggleThemeLoader" title="Open Degrande Colors" aria-label="Open Degrande Colors">
-        <i class="ti ti-palette" aria-hidden="true"></i>
-      </a>
-    `,
-  });
+  if (shouldRegisterHostUi) {
+    registerToolbarItemSafely({
+      key: "custom-theme-loader-open",
+      template: `
+        <a class="button" data-on-click="toggleThemeLoader" title="Open Degrande Colors" aria-label="Open Degrande Colors">
+          <i class="ti ti-palette" aria-hidden="true"></i>
+        </a>
+      `,
+    });
+  }
 
   await logseq.UI.showMsg(
     activationMessage,
@@ -5771,64 +5783,71 @@ async function main() {
     { timeout: 2500 }
   );
 
-  registerCommandPaletteSafely(
-    {
-      key: commandKey("open-panel"),
-      label: "Degrande Colors: open panel",
-    },
-    openThemeLoader
-  );
+  if (shouldRegisterHostUi) {
+    registerCommandPaletteSafely(
+      {
+        key: commandKey("open-panel"),
+        label: "Degrande Colors: open panel",
+      },
+      openThemeLoader
+    );
 
-  registerCommandPaletteSafely(
-    {
-      key: commandKey("status"),
-      label: "Degrande Colors: show status",
-    },
-    async () => {
-      await logseq.UI.showMsg(
-        activationMessage,
-        "success"
-      );
-      openThemeLoader();
-    }
-  );
+    registerCommandPaletteSafely(
+      {
+        key: commandKey("status"),
+        label: "Degrande Colors: show status",
+      },
+      async () => {
+        await logseq.UI.showMsg(
+          activationMessage,
+          "success"
+        );
+        openThemeLoader();
+      }
+    );
 
-  registerCommandPaletteSafely(
-    {
-      key: commandKey("reload-css"),
-      label: "Degrande Colors: reload styles",
-    },
-    () => reloadThemeCss(true)
-  );
+    registerCommandPaletteSafely(
+      {
+        key: commandKey("reload-css"),
+        label: "Degrande Colors: reload styles",
+      },
+      () => reloadThemeCss(true)
+    );
 
-  registerCommandPaletteSafely(
-    {
-      key: commandKey("sync-graph-state"),
-      label: "Degrande Colors: sync graph state",
-    },
-    () => syncPersistedAppearance({
-      reason: "Synced Degrande appearance from this graph",
-      showToast: true,
-      forceRender: true,
-      fallbackToPrevious: false,
-    })
-  );
+    registerCommandPaletteSafely(
+      {
+        key: commandKey("sync-graph-state"),
+        label: "Degrande Colors: sync graph state",
+      },
+      () => syncPersistedAppearance({
+        reason: "Synced Degrande appearance from this graph",
+        showToast: true,
+        forceRender: true,
+        fallbackToPrevious: false,
+      })
+    );
 
-  registerCommandPaletteSafely(
-    {
-      key: commandKey("refresh-tags"),
-      label: "Degrande Colors: refresh tags",
-    },
-    () => ensureTagsForCurrentGraph({ force: true, showToast: true, fallbackToPrevious: false })
-  );
+    registerCommandPaletteSafely(
+      {
+        key: commandKey("refresh-tags"),
+        label: "Degrande Colors: refresh tags",
+      },
+      () => ensureTagsForCurrentGraph({ force: true, showToast: true, fallbackToPrevious: false })
+    );
 
-  registerCommandPaletteSafely(
-    {
-      key: commandKey("toggle-logseq-theme"),
-      label: "Degrande Colors: toggle Logseq theme",
-    },
-    toggleLogseqTheme
-  );
+    registerCommandPaletteSafely(
+      {
+        key: commandKey("toggle-logseq-theme"),
+        label: "Degrande Colors: toggle Logseq theme",
+      },
+      toggleLogseqTheme
+    );
+
+    hostSession[pluginId] = {
+      version: PLUGIN_VERSION,
+      activatedAt: Date.now(),
+    };
+  }
 
   console.info(`[Degrande Colors] Loaded base styles and controls (v${PLUGIN_VERSION})`);
 }
