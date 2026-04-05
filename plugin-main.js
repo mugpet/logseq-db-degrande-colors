@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.43";
+const FALLBACK_PLUGIN_VERSION = "0.1.44";
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
@@ -246,6 +246,7 @@ const panelState = {
   lastTagCatalogLoadedAt: 0,
   propertyIdentMap: {},
   propertyAttrMap: {},
+  propertySchemaEnsureMap: {},
   selectedTag: "",
   tagCustomColorDraft: "#14b8a6",
   tagCustomForegroundDraft: "#0f172a",
@@ -987,7 +988,7 @@ async function collectTagCatalog() {
     }
   }
 
-  console.info("[Local Custom Theme Loader] Loaded tag candidates", sourceCounts);
+  console.debug("[Local Custom Theme Loader] Loaded tag candidates", sourceCounts);
 
   const sortedEntries = Array.from(tagMap.entries())
     .sort((left, right) => left[1].name.localeCompare(right[1].name));
@@ -2347,19 +2348,39 @@ async function getGraphSyncStoragePage(createIfMissing = false) {
 
 async function ensureGraphSyncProperty(propertyKey) {
   if (typeof logseq.Editor?.upsertProperty !== "function") {
-    return;
+    return false;
   }
 
-  try {
-    await logseq.Editor.upsertProperty(
-      propertyKey,
-      { type: "json", hide: true, public: false },
-      { name: getGraphSyncPropertyDisplayName(propertyKey) }
-    );
-    void resolveGraphSyncPropertyIdent(propertyKey);
-  } catch (error) {
-    console.warn(`[Degrande Colors] Failed to ensure graph sync property schema: ${propertyKey}`, error);
+  const currentState = panelState.propertySchemaEnsureMap[propertyKey];
+
+  if (currentState === true) {
+    return true;
   }
+
+  if (currentState && typeof currentState.then === "function") {
+    return currentState;
+  }
+
+  const ensurePromise = (async () => {
+    try {
+      await logseq.Editor.upsertProperty(
+        propertyKey,
+        { type: "json", hide: true, public: false },
+        { name: getGraphSyncPropertyDisplayName(propertyKey) }
+      );
+      void resolveGraphSyncPropertyIdent(propertyKey);
+      panelState.propertySchemaEnsureMap[propertyKey] = true;
+      return true;
+    } catch (error) {
+      delete panelState.propertySchemaEnsureMap[propertyKey];
+      console.warn(`[Degrande Colors] Failed to ensure graph sync property schema: ${propertyKey}`, error);
+      return false;
+    }
+  })();
+
+  panelState.propertySchemaEnsureMap[propertyKey] = ensurePromise;
+
+  return ensurePromise;
 }
 
 async function ensureGraphSyncTagColorProperty() {
@@ -2469,7 +2490,12 @@ async function saveGraphBackedPageState(propertyKey, value, options = {}) {
   }
 
   try {
-    await ensureGraphSyncProperty(propertyKey);
+    const ensured = await ensureGraphSyncProperty(propertyKey);
+
+    if (!ensured) {
+      return false;
+    }
+
     const page = await getGraphSyncStoragePage(true);
 
     if (!page) {
@@ -3139,6 +3165,8 @@ function schedulePersistGradients() {
   if (panelState.gradientPersistTimer) {
     clearTimeout(panelState.gradientPersistTimer);
   }
+
+  writeLocalPersistedItem(GRADIENT_STORAGE_KEY, JSON.stringify(panelState.gradientState));
 
   setSyncState("pending");
 
@@ -4660,8 +4688,7 @@ function updateGradientHandleDrag(clientX) {
 
   drag.moved = true;
   updateGradientStop(drag.areaKey, drag.stopIndex, { position: nextPosition });
-  void applyManagedOverrides(false, "Adjusted gradient stop", "soft");
-  schedulePersistGradients();
+  void applyManagedOverrides(false, "Adjusted gradient stop", "preview");
 }
 
 function endGradientHandleDrag() {
@@ -4676,6 +4703,7 @@ function endGradientHandleDrag() {
   if (drag.moved) {
     panelState.suppressGradientClick = true;
     rerenderPreviewPanePreservingScroll("Adjusted gradient stop");
+    schedulePersistGradients();
   }
 }
 
