@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.50";
+const FALLBACK_PLUGIN_VERSION = "0.1.51";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1660,14 +1660,16 @@ function buildGroupedTagChipRule(tagNames, config) {
     return "";
   }
 
+  const sameChipDeclarations = config.lightChipDeclarations === config.darkChipDeclarations;
+
   return `
 ${buildGroupedTagChipSelectors(tagNames)} {
   ${config.lightChipDeclarations}
 }
 
-${buildGroupedTagChipSelectors(tagNames, ".dark-theme ")} {
+${sameChipDeclarations ? "" : `${buildGroupedTagChipSelectors(tagNames, ".dark-theme ")} {
   ${config.darkChipDeclarations}
-}
+}`}
 `;
 }
 
@@ -1677,15 +1679,16 @@ function buildGroupedLinkedBlockColorRule(tagNames, lightNodeColor, darkNodeColo
   }
 
   const innerSelector = buildGroupedTagInnerSelector(tagNames);
+  const sameNodeColor = lightNodeColor === darkNodeColor;
 
   return `
 :is(.ls-block > div:first-child):not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(:is(${innerSelector})) {
   --node-color: ${lightNodeColor};
 }
 
-.dark-theme :is(.ls-block > div:first-child):not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(:is(${innerSelector})) {
+${sameNodeColor ? "" : `.dark-theme :is(.ls-block > div:first-child):not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(:is(${innerSelector})) {
   --node-color: ${darkNodeColor};
-}
+}`}
 `;
 }
 
@@ -1695,15 +1698,16 @@ function buildGroupedPageTitleColorRule(tagNames, lightNodeColor, darkNodeColor)
   }
 
   const innerSelector = buildGroupedTagInnerSelector(tagNames);
+  const sameNodeColor = lightNodeColor === darkNodeColor;
 
   return `
 .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right :is(${innerSelector})) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container) {
   --node-color: ${lightNodeColor};
 }
 
-.dark-theme .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right :is(${innerSelector})) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container) {
+${sameNodeColor ? "" : `.dark-theme .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right :is(${innerSelector})) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container) {
   --node-color: ${darkNodeColor};
-}
+}`}
 `;
 }
 
@@ -4712,10 +4716,8 @@ ${selector} {
 `).join("");
 
   const presetGroups = new Map();
+  const customGroups = new Map();
   const resetTagNames = [];
-  const customTagChipRules = [];
-  const customLinkedBlockRules = [];
-  const customPageTitleRules = [];
 
   managedTagNames.forEach((tagName) => {
     const assignment = getTagColorAssignment(tagName);
@@ -4729,7 +4731,6 @@ ${selector} {
     }
 
     if (assignment.type === "custom") {
-      const escapedTagName = escapeAttributeValue(tagName);
       const lightTheme = getResolvedCustomTagTheme(assignment, "light");
       const darkTheme = getResolvedCustomTagTheme(assignment, "dark");
       const lightGradient = getCustomTagGradientColor(assignment, "light");
@@ -4739,51 +4740,26 @@ ${selector} {
         return;
       }
 
-      customTagChipRules.push(`
-a.tag[data-ref="${escapedTagName}" i],
-a.tag[data-ref="${escapedTagName}" i]:hover {
-  background: ${lightTheme.background} !important;
-  background-color: ${lightTheme.background} !important;
-  background-image: none !important;
-  border-color: ${lightTheme.borderColor} !important;
-  color: ${lightTheme.color} !important;
-  box-shadow: none !important;
-  opacity: 1 !important;
-}
+      const groupKey = JSON.stringify([
+        lightTheme.background,
+        lightTheme.borderColor,
+        lightTheme.color,
+        darkTheme.background,
+        darkTheme.borderColor,
+        darkTheme.color,
+        lightGradient,
+        darkGradient,
+      ]);
+      const group = customGroups.get(groupKey) || {
+        tagNames: [],
+        lightTheme,
+        darkTheme,
+        lightGradient,
+        darkGradient,
+      };
 
-.dark-theme a.tag[data-ref="${escapedTagName}" i],
-.dark-theme a.tag[data-ref="${escapedTagName}" i]:hover {
-  background: ${darkTheme.background} !important;
-  background-color: ${darkTheme.background} !important;
-  background-image: none !important;
-  border-color: ${darkTheme.borderColor} !important;
-  color: ${darkTheme.color} !important;
-  box-shadow: none !important;
-  opacity: 1 !important;
-}
-`);
-
-      customLinkedBlockRules.push(`
-.ls-block > div:first-child:not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(a.tag[data-ref="${escapedTagName}" i]) {
-  --node-color: ${lightGradient};
-}
-
-.dark-theme .ls-block > div:first-child:not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(a.tag[data-ref="${escapedTagName}" i]) {
-  --node-color: ${darkGradient};
-}
-
-`);
-
-      customPageTitleRules.push(`
-.ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref="${escapedTagName}" i]) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container),
-{
-  --node-color: ${lightGradient};
-}
-
-.dark-theme .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref="${escapedTagName}" i]) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container) {
-  --node-color: ${darkGradient};
-}
-`);
+      group.tagNames.push(tagName);
+      customGroups.set(groupKey, group);
       return;
     }
 
@@ -4793,6 +4769,8 @@ a.tag[data-ref="${escapedTagName}" i]:hover {
       presetGroups.set(assignment.token, group);
     }
   });
+
+  const customEntries = Array.from(customGroups.values());
 
   const resetTagRules = resetTagNames.length
     ? buildGroupedTagChipRule(resetTagNames, {
@@ -4814,6 +4792,11 @@ a.tag[data-ref="${escapedTagName}" i]:hover {
     });
   }).join("");
 
+  const customTagChipRules = customEntries.map(({ tagNames, lightTheme, darkTheme }) => buildGroupedTagChipRule(tagNames, {
+    lightChipDeclarations: `background: ${lightTheme.background} !important;\n  background-color: ${lightTheme.background} !important;\n  background-image: none !important;\n  border-color: ${lightTheme.borderColor} !important;\n  color: ${lightTheme.color} !important;\n  box-shadow: none !important;\n  opacity: 1 !important;`,
+    darkChipDeclarations: `background: ${darkTheme.background} !important;\n  background-color: ${darkTheme.background} !important;\n  background-image: none !important;\n  border-color: ${darkTheme.borderColor} !important;\n  color: ${darkTheme.color} !important;\n  box-shadow: none !important;\n  opacity: 1 !important;`,
+  })).join("");
+
   const presetLinkedBlockRules = Array.from(presetGroups.entries()).map(([token, tagNames]) => {
     if (!COLOR_PRESET_MAP[token]) {
       return "";
@@ -4830,8 +4813,12 @@ a.tag[data-ref="${escapedTagName}" i]:hover {
     return buildGroupedPageTitleColorRule(tagNames, `var(--grad-${token})`, `var(--grad-${token})`);
   }).join("");
 
+  const customLinkedBlockRules = customEntries.map(({ tagNames, lightGradient, darkGradient }) => buildGroupedLinkedBlockColorRule(tagNames, lightGradient, darkGradient)).join("");
+
+  const customPageTitleRules = customEntries.map(({ tagNames, lightGradient, darkGradient }) => buildGroupedPageTitleColorRule(tagNames, lightGradient, darkGradient)).join("");
+
   const sections = {
-    tagColors: `${resetTagRules}${presetTagChipRules}${customTagChipRules.join("")}`.trim(),
+    tagColors: `${resetTagRules}${presetTagChipRules}${customTagChipRules}`.trim(),
     tagChips: `
 a.tag, a.tag:hover, h1 a.tag, h2 a.tag, h3 a.tag, h4 a.tag {
   border-radius: ${controls.tagRadius}px !important;
@@ -4848,14 +4835,9 @@ a.tag:hover {
     linkedBlocks: `
 ${presetLinkedBlockRules}
 
-${customLinkedBlockRules.join("")}
+${customLinkedBlockRules}
 
 .ls-block > div:first-child:not(.selected):not(.selected-block):not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(a.tag[data-ref]) {
-  background-image: ${nodeGradient} !important;
-  background-color: transparent !important;
-}
-
-.dark-theme .ls-block > div:first-child:not(.selected):not(.selected-block):not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(a.tag[data-ref]) {
   background-image: ${nodeGradient} !important;
   background-color: transparent !important;
 }
@@ -4863,7 +4845,7 @@ ${customLinkedBlockRules.join("")}
     pageTitles: `
 ${presetPageTitleRules}
 
-${customPageTitleRules.join("")}
+${customPageTitleRules}
 
 .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref]) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container) {
   background-image: ${titleGradient} !important;
