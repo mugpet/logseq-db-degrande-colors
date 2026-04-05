@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.47";
+const FALLBACK_PLUGIN_VERSION = "0.1.48";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -4094,8 +4094,8 @@ function buildPreviewMarkup() {
       "Appearance",
       "Use this page to tune chip sizing and gradients. Click a gradient strip to add a stop, and right-click a stop handle to remove it."
     )}
-    ${buildAppearanceDiagnosticsMarkup()}
     <div class="ctl-preview-scroll" data-role="preview-scroll">
+      ${buildAppearanceDiagnosticsMarkup()}
       <div class="ctl-preview-grid">
         <article class="ctl-preview-card">
           ${buildPreviewCardHeadMarkup("tagChips", "Tags", "Inline chips")}
