@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.35";
+const FALLBACK_PLUGIN_VERSION = "0.1.36";
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
@@ -236,6 +236,7 @@ const panelState = {
   tags: [],
   tagEntityMap: {},
   tagSourceMap: {},
+  tagColorCleanupChecked: false,
   propertyIdentMap: {},
   propertyAttrMap: {},
   selectedTag: "",
@@ -1015,6 +1016,7 @@ function clearGraphTagState() {
   panelState.tags = [];
   panelState.tagEntityMap = {};
   panelState.tagSourceMap = {};
+  panelState.tagColorCleanupChecked = false;
   panelState.selectedTag = "";
   panelState.syncRevision = 0;
   panelState.lastLocalSyncRevision = 0;
@@ -2497,6 +2499,45 @@ async function loadQueryBackedTagColorState() {
   }
 }
 
+async function cleanupLegacyEntityBackedTagColors(tagNames = [], entityMap = {}, options = {}) {
+  if (typeof logseq.Editor?.removeBlockProperty !== "function") {
+    return false;
+  }
+
+  const namesToClean = Array.from(new Set((Array.isArray(tagNames) ? tagNames : [tagNames])
+    .map((tagName) => getCanonicalTagName(tagName))
+    .filter(Boolean)));
+
+  if (!namesToClean.length) {
+    return true;
+  }
+
+  let removedAny = false;
+
+  for (const tagName of namesToClean) {
+    const normalizedKey = tagName.toLowerCase();
+    const mappedEntity = entityMap?.[normalizedKey] || panelState.tagEntityMap?.[normalizedKey] || null;
+    const target = mappedEntity?.uuid || mappedEntity?.id || await resolveTagStorageTarget(tagName);
+
+    if (!target) {
+      continue;
+    }
+
+    try {
+      await logseq.Editor.removeBlockProperty(target, GRAPH_SYNC_TAG_COLOR_PROPERTY);
+      removedAny = true;
+    } catch (error) {
+      if (options.suppressReadyErrors && isRecoverableGraphSyncWriteError(error)) {
+        continue;
+      }
+
+      console.warn(`[Degrande Colors] Failed to clear legacy tag color property for ${tagName}`, error);
+    }
+  }
+
+  return removedAny;
+}
+
 async function loadLegacyGraphConfigTagColorState() {
   if (typeof logseq.App?.getCurrentGraphConfigs !== "function") {
     return { exists: false, tagColors: {} };
@@ -2527,36 +2568,26 @@ async function saveGraphSyncedTagColors(tagNames = null, options = {}) {
     return false;
   }
 
-  const namesToPersist = (Array.isArray(tagNames) && tagNames.length ? tagNames : Object.keys(normalizedTagColors))
-    .map(getCanonicalTagName)
-    .filter(Boolean);
-
-  if (!namesToPersist.length) {
-    return true;
-  }
+  const namesToCleanup = Array.from(new Set([
+    ...((Array.isArray(options.cleanupTagNames) ? options.cleanupTagNames : []).map(getCanonicalTagName)),
+    ...((Array.isArray(tagNames) && tagNames.length ? tagNames : Object.keys(normalizedTagColors)).map(getCanonicalTagName)),
+  ].filter(Boolean)));
 
   try {
     await ensureGraphSyncTagColorProperty();
 
-    for (const tagName of namesToPersist) {
-      const target = await resolveTagStorageTarget(tagName);
+    const saved = Object.keys(normalizedTagColors).length
+      ? await saveGraphBackedPageState(GRAPH_SYNC_TAG_COLOR_PROPERTY, normalizedTagColors, options)
+      : await removeGraphBackedPageState(GRAPH_SYNC_TAG_COLOR_PROPERTY);
 
-      if (!target) {
-        continue;
-      }
+    if (!saved) {
+      return false;
+    }
 
-      const assignment = normalizeTagColorAssignment(normalizedTagColors[tagName.toLowerCase()]);
-
-      if (assignment) {
-        await logseq.Editor.upsertBlockProperty(
-          target,
-          GRAPH_SYNC_TAG_COLOR_PROPERTY,
-          assignment,
-          { reset: true }
-        );
-      } else if (typeof logseq.Editor.removeBlockProperty === "function") {
-        await logseq.Editor.removeBlockProperty(target, GRAPH_SYNC_TAG_COLOR_PROPERTY);
-      }
+    if (namesToCleanup.length) {
+      await cleanupLegacyEntityBackedTagColors(namesToCleanup, options.entityMap, {
+        suppressReadyErrors: options.suppressReadyErrors,
+      });
     }
 
     removeLocalPersistedItem(TAG_COLOR_STORAGE_KEY);
@@ -2615,6 +2646,41 @@ async function loadStoredTagColors(options = {}) {
   const allowEntityFallback = options.allowEntityFallback ?? typeof logseq.DB?.datascriptQuery !== "function";
 
   try {
+    const pageBackedState = await loadPageBackedTagColorState();
+
+    if (pageBackedState.exists) {
+      panelState.tagColorAssignments = pageBackedState.tagColors;
+
+      if (!panelState.tagColorCleanupChecked) {
+        const queryBackedState = await loadQueryBackedTagColorState();
+
+        if (queryBackedState.exists) {
+          panelState.tagEntityMap = {
+            ...panelState.tagEntityMap,
+            ...queryBackedState.tagEntityMap,
+          };
+          panelState.tagSourceMap = {
+            ...panelState.tagSourceMap,
+            ...queryBackedState.tagSourceMap,
+          };
+          panelState.tags = dedupeTagNames([
+            ...panelState.tags,
+            ...queryBackedState.tagNames,
+          ]);
+
+          await cleanupLegacyEntityBackedTagColors(queryBackedState.tagNames, queryBackedState.tagEntityMap, {
+            suppressReadyErrors: true,
+          });
+
+          panelState.tagColorCleanupChecked = false;
+        } else {
+          panelState.tagColorCleanupChecked = true;
+        }
+      }
+
+      return;
+    }
+
     const queryBackedState = await loadQueryBackedTagColorState();
 
     if (queryBackedState.exists) {
@@ -2636,6 +2702,12 @@ async function loadStoredTagColors(options = {}) {
         panelState.selectedTag = panelState.tags[0];
       }
 
+      await saveGraphSyncedTagColors(Object.keys(panelState.tagColorAssignments), {
+        suppressReadyErrors: true,
+        entityMap: queryBackedState.tagEntityMap,
+        cleanupTagNames: queryBackedState.tagNames,
+      });
+      panelState.tagColorCleanupChecked = false;
       return;
     }
 
@@ -2647,22 +2719,14 @@ async function loadStoredTagColors(options = {}) {
 
       if (entityBackedState.exists) {
         panelState.tagColorAssignments = entityBackedState.tagColors;
-        return;
-      }
-    }
-
-    const pageBackedState = await loadPageBackedTagColorState();
-
-    if (pageBackedState.exists) {
-      panelState.tagColorAssignments = pageBackedState.tagColors;
-
-      if (Object.keys(panelState.tagColorAssignments).length) {
         await saveGraphSyncedTagColors(Object.keys(panelState.tagColorAssignments), {
           suppressReadyErrors: true,
+          entityMap: tagCatalog.tagEntityMap,
+          cleanupTagNames: Object.keys(entityBackedState.tagColors),
         });
+        panelState.tagColorCleanupChecked = false;
+        return;
       }
-
-      return;
     }
 
     const legacyGraphConfigState = await loadLegacyGraphConfigTagColorState();
@@ -2675,6 +2739,8 @@ async function loadStoredTagColors(options = {}) {
           suppressReadyErrors: true,
         });
       }
+
+      panelState.tagColorCleanupChecked = true;
 
       return;
     }
@@ -2694,6 +2760,8 @@ async function loadStoredTagColors(options = {}) {
         suppressReadyErrors: true,
       });
     }
+
+    panelState.tagColorCleanupChecked = true;
   } catch (error) {
     if (isMissingStorageError(error)) {
       return;
