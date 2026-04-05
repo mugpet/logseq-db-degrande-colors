@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.42";
+const FALLBACK_PLUGIN_VERSION = "0.1.43";
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
@@ -2114,6 +2114,15 @@ function syncLocalTagColorMirror() {
   }
 }
 
+function hasPendingTagColorSync() {
+  return Boolean(
+    panelState.tagPersistTimer
+    || panelState.pendingTagPersistKeys.length
+    || panelState.pendingGraphPageState[GRAPH_SYNC_TAG_COLOR_PROPERTY] != null
+    || panelState.pendingTagColorMigration
+  );
+}
+
 async function loadStoredItemWithLegacyFallback(storageKey) {
   return readLocalPersistedItem(storageKey);
 }
@@ -2864,6 +2873,10 @@ async function loadStoredTagColors(options = {}) {
   const fallbackToCurrent = options.fallbackToCurrent ?? false;
   const hasCurrentTagColors = Object.keys(mergeStoredTagColors(panelState.tagColorAssignments)).length > 0;
 
+  if (fallbackToCurrent && hasCurrentTagColors && hasPendingTagColorSync()) {
+    return;
+  }
+
   try {
     const pageBackedState = await loadPageBackedTagColorState();
 
@@ -2965,6 +2978,10 @@ async function loadStoredTagColors(options = {}) {
     const legacyGraphConfigState = await loadLegacyGraphConfigTagColorState();
 
     if (legacyGraphConfigState.exists) {
+      if (fallbackToCurrent && !Object.keys(legacyGraphConfigState.tagColors || {}).length && hasCurrentTagColors) {
+        return;
+      }
+
       panelState.tagColorAssignments = legacyGraphConfigState.tagColors;
 
       if (Object.keys(panelState.tagColorAssignments).length) {
@@ -2990,7 +3007,13 @@ async function loadStoredTagColors(options = {}) {
     }
 
     const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
-    panelState.tagColorAssignments = mergeStoredTagColors(parsed);
+    const normalizedSavedTagColors = mergeStoredTagColors(parsed);
+
+    if (fallbackToCurrent && !Object.keys(normalizedSavedTagColors).length && hasCurrentTagColors) {
+      return;
+    }
+
+    panelState.tagColorAssignments = normalizedSavedTagColors;
 
     if (Object.keys(panelState.tagColorAssignments).length) {
       await saveGraphSyncedTagColors(Object.keys(panelState.tagColorAssignments), {
