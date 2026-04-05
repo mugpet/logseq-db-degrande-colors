@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.39";
+const FALLBACK_PLUGIN_VERSION = "0.1.40";
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
@@ -295,6 +295,26 @@ function getHostDocument() {
   }
 
   return document;
+}
+
+function getHostWindow() {
+  try {
+    if (window.top?.document) {
+      return window.top;
+    }
+  } catch (error) {
+    // Ignore cross-frame access issues and fall back to the current window.
+  }
+
+  try {
+    if (window.parent?.document) {
+      return window.parent;
+    }
+  } catch (error) {
+    // Ignore cross-frame access issues and fall back to the current window.
+  }
+
+  return window;
 }
 
 function canAccessExternalHostDocument() {
