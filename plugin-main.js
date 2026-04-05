@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.1";
+const FALLBACK_PLUGIN_VERSION = "0.3.2";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -2247,6 +2247,8 @@ function hasPendingTagColorSync() {
   return Boolean(
     panelState.tagPersistTimer
     || panelState.pendingTagPersistKeys.length
+    || panelState.pendingTagColorMigration
+    || Object.prototype.hasOwnProperty.call(panelState.pendingGraphPageState, GRAPH_SYNC_TAG_COLOR_PROPERTY)
   );
 }
 
@@ -2384,6 +2386,24 @@ function normalizeGraphSyncRevision(value) {
 
 function preferDatascriptGraphReads() {
   return typeof logseq.DB?.datascriptQuery === "function";
+}
+
+async function primeGraphIndexedState() {
+  if (panelState.graphIndexed || !preferDatascriptGraphReads()) {
+    return panelState.graphIndexed;
+  }
+
+  try {
+    await logseq.DB.datascriptQuery(`
+      [:find ?p .
+       :where
+       [?p :block/name "${GRAPH_SYNC_STORAGE_PAGE_NAME}"]]
+    `);
+    panelState.graphIndexed = true;
+    return true;
+  } catch (error) {
+    return false;
+  }
 }
 
 function canWriteGraphSyncState() {
@@ -2573,6 +2593,8 @@ async function loadGraphBackedPageState(propertyKey, mergeValue) {
          [?p ${propertyIdent} ?v]]
       `);
 
+      panelState.graphIndexed = true;
+
       if (rows != null) {
         const parsed = parsePersistedPropertyValue(rows);
 
@@ -2621,6 +2643,8 @@ async function saveGraphBackedPageState(propertyKey, value, options = {}) {
   if (typeof logseq.Editor?.upsertBlockProperty !== "function") {
     return false;
   }
+
+  await primeGraphIndexedState();
 
   if (!canWriteGraphSyncState() && (options.deferUntilIndexed || options.suppressReadyErrors)) {
     queueDeferredGraphPageState(propertyKey, value);
@@ -2688,6 +2712,8 @@ async function loadPageBackedTagColorState() {
          [?p :block/name "${GRAPH_SYNC_STORAGE_PAGE_NAME}"]
          [?p ${propertyIdent} ?v]]
       `);
+
+      panelState.graphIndexed = true;
 
       if (row != null) {
         return {
@@ -2825,6 +2851,7 @@ async function loadQueryBackedTagColorState() {
        :where
        [?b ${propertyIdent} ?v]]
     `);
+    panelState.graphIndexed = true;
     const tagColors = {};
     const tagEntityMap = {};
     const tagSourceMap = {};
@@ -2950,6 +2977,8 @@ async function saveGraphSyncedTagColors(tagNames = null, options = {}) {
     ...((Array.isArray(options.cleanupTagNames) ? options.cleanupTagNames : []).map(getCanonicalTagName)),
     ...((Array.isArray(tagNames) && tagNames.length ? tagNames : Object.keys(normalizedTagColors)).map(getCanonicalTagName)),
   ].filter(Boolean)));
+
+  await primeGraphIndexedState();
 
   if (!canWriteGraphSyncState() && options.suppressReadyErrors) {
     queueDeferredTagColorMigration({
@@ -5955,6 +5984,7 @@ async function main() {
   const shouldRegisterHostUi = !hostSession[pluginId] && !hostToolbarButtonExists;
 
   await syncCurrentGraphInfo();
+  await primeGraphIndexedState();
   await loadStoredAppearanceState();
   await loadGraphSyncRevisionState();
   await loadStoredControls();
