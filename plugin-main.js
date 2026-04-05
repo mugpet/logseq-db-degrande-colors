@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.36";
+const FALLBACK_PLUGIN_VERSION = "0.1.37";
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
@@ -237,6 +237,9 @@ const panelState = {
   tagEntityMap: {},
   tagSourceMap: {},
   tagColorCleanupChecked: false,
+  graphIndexed: false,
+  pendingGraphPageState: {},
+  pendingTagColorMigration: null,
   propertyIdentMap: {},
   propertyAttrMap: {},
   selectedTag: "",
@@ -1017,6 +1020,9 @@ function clearGraphTagState() {
   panelState.tagEntityMap = {};
   panelState.tagSourceMap = {};
   panelState.tagColorCleanupChecked = false;
+  panelState.graphIndexed = false;
+  panelState.pendingGraphPageState = {};
+  panelState.pendingTagColorMigration = null;
   panelState.selectedTag = "";
   panelState.syncRevision = 0;
   panelState.lastLocalSyncRevision = 0;
@@ -1617,6 +1623,82 @@ function getManagedOverrideTagNames() {
   )).sort((left, right) => left.localeCompare(right));
 }
 
+function buildGroupedTagChipSelectors(tagNames, themePrefix = "") {
+  return tagNames.flatMap((tagName) => {
+    const escapedTagName = escapeAttributeValue(tagName);
+
+    return [
+      `${themePrefix}a.tag[data-ref="${escapedTagName}" i]`,
+      `${themePrefix}a.tag[data-ref="${escapedTagName}" i]:hover`,
+    ];
+  }).join(",\n");
+}
+
+function buildGroupedTagInnerSelector(tagNames) {
+  return tagNames
+    .map((tagName) => `a.tag[data-ref="${escapeAttributeValue(tagName)}" i]`)
+    .join(", ");
+}
+
+function buildGroupedDirectTitleSelector(tagNames, themePrefix = "") {
+  const selectors = tagNames.flatMap((tagName) => {
+    const escapedTagName = escapeAttributeValue(tagName);
+
+    return [
+      `${themePrefix}.ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref="${escapedTagName}" i])`,
+      `${themePrefix}.ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref="${escapedTagName}" i])`,
+      `${themePrefix}.ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref="${escapedTagName}" i])`,
+      `${themePrefix}.ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref="${escapedTagName}" i])`,
+    ];
+  });
+
+  return selectors.length ? `:is(\n  ${selectors.join(",\n  ")}\n)` : "";
+}
+
+function buildGroupedTagRule(tagNames, config) {
+  if (!tagNames.length) {
+    return "";
+  }
+
+  const innerSelector = buildGroupedTagInnerSelector(tagNames);
+  const directSelector = buildGroupedDirectTitleSelector(tagNames);
+  const darkDirectSelector = buildGroupedDirectTitleSelector(tagNames, ".dark-theme ");
+
+  return `
+${buildGroupedTagChipSelectors(tagNames)} {
+  ${config.lightChipDeclarations}
+}
+
+${buildGroupedTagChipSelectors(tagNames, ".dark-theme ")} {
+  ${config.darkChipDeclarations}
+}
+
+:is(.ls-block > div:first-child, h1.title, .journal-title):has(:is(${innerSelector})) {
+  --node-color: ${config.lightNodeColor};
+}
+
+.ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right :is(${innerSelector})) {
+  --node-color: ${config.lightNodeColor};
+}
+
+.dark-theme :is(.ls-block > div:first-child, h1.title, .journal-title):has(:is(${innerSelector})) {
+  --node-color: ${config.darkNodeColor};
+}
+
+.dark-theme .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right :is(${innerSelector})) {
+  --node-color: ${config.darkNodeColor};
+}
+
+${directSelector} {
+  --node-color: ${config.lightNodeColor};
+}
+
+${darkDirectSelector} {
+  --node-color: ${config.darkNodeColor};
+}
+`;
+}
+
 function getTagChipThemeStyle(assignmentOrToken) {
   const assignment = typeof assignmentOrToken === "string"
     ? normalizeTagColorAssignment(assignmentOrToken)
@@ -1918,7 +2000,9 @@ function isBenignGetAllTagsError(error) {
 
 function isRecoverableGraphSyncWriteError(error) {
   const message = String(error?.message || error || "").toLowerCase();
-  return message.includes("get-block error") || message.includes("defined for type null");
+  return message.includes("get-block error")
+    || message.includes("defined for type null")
+    || message.includes("no protocol method iswap.-swap! defined for type null");
 }
 
 function getLocalPersistenceBackend() {
@@ -2101,6 +2185,64 @@ function preferDatascriptGraphReads() {
   return typeof logseq.DB?.datascriptQuery === "function";
 }
 
+function canWriteGraphSyncState() {
+  return !preferDatascriptGraphReads() || panelState.graphIndexed;
+}
+
+function queueDeferredGraphPageState(propertyKey, value) {
+  panelState.pendingGraphPageState[propertyKey] = value;
+}
+
+function queueDeferredTagColorMigration(options = {}) {
+  const existing = panelState.pendingTagColorMigration || { cleanupTagNames: [], entityMap: {} };
+  panelState.pendingTagColorMigration = {
+    cleanupTagNames: Array.from(new Set([
+      ...existing.cleanupTagNames,
+      ...((Array.isArray(options.cleanupTagNames) ? options.cleanupTagNames : [])
+        .map(getCanonicalTagName)
+        .filter(Boolean)),
+    ])),
+    entityMap: {
+      ...existing.entityMap,
+      ...(options.entityMap || {}),
+    },
+  };
+}
+
+async function flushDeferredGraphSyncWrites() {
+  if (!canWriteGraphSyncState()) {
+    return false;
+  }
+
+  let flushedAny = false;
+  const pendingPageState = { ...panelState.pendingGraphPageState };
+
+  for (const [propertyKey, value] of Object.entries(pendingPageState)) {
+    const saved = await saveGraphBackedPageState(propertyKey, value, { suppressReadyErrors: true });
+
+    if (saved) {
+      delete panelState.pendingGraphPageState[propertyKey];
+      flushedAny = true;
+    }
+  }
+
+  if (panelState.pendingTagColorMigration) {
+    const pendingTagMigration = panelState.pendingTagColorMigration;
+    const saved = await saveGraphSyncedTagColors(Object.keys(panelState.tagColorAssignments), {
+      suppressReadyErrors: true,
+      entityMap: pendingTagMigration.entityMap,
+      cleanupTagNames: pendingTagMigration.cleanupTagNames,
+    });
+
+    if (saved) {
+      panelState.pendingTagColorMigration = null;
+      flushedAny = true;
+    }
+  }
+
+  return flushedAny;
+}
+
 function getGraphSyncPropertyDisplayName(propertyKey) {
   switch (propertyKey) {
     case GRAPH_SYNC_CONTROL_PROPERTY:
@@ -2256,6 +2398,11 @@ async function loadGraphBackedPageState(propertyKey, mergeValue) {
 
 async function saveGraphBackedPageState(propertyKey, value, options = {}) {
   if (typeof logseq.Editor?.upsertBlockProperty !== "function") {
+    return false;
+  }
+
+  if (!canWriteGraphSyncState() && (options.deferUntilIndexed || options.suppressReadyErrors)) {
+    queueDeferredGraphPageState(propertyKey, value);
     return false;
   }
 
@@ -2573,11 +2720,22 @@ async function saveGraphSyncedTagColors(tagNames = null, options = {}) {
     ...((Array.isArray(tagNames) && tagNames.length ? tagNames : Object.keys(normalizedTagColors)).map(getCanonicalTagName)),
   ].filter(Boolean)));
 
+  if (!canWriteGraphSyncState() && options.suppressReadyErrors) {
+    queueDeferredTagColorMigration({
+      cleanupTagNames: namesToCleanup,
+      entityMap: options.entityMap,
+    });
+    return false;
+  }
+
   try {
     await ensureGraphSyncTagColorProperty();
 
     const saved = Object.keys(normalizedTagColors).length
-      ? await saveGraphBackedPageState(GRAPH_SYNC_TAG_COLOR_PROPERTY, normalizedTagColors, options)
+      ? await saveGraphBackedPageState(GRAPH_SYNC_TAG_COLOR_PROPERTY, normalizedTagColors, {
+        ...options,
+        deferUntilIndexed: true,
+      })
       : await removeGraphBackedPageState(GRAPH_SYNC_TAG_COLOR_PROPERTY);
 
     if (!saved) {
@@ -2618,6 +2776,7 @@ async function loadStoredControls() {
       panelState.controlState = mergeStoredControls(settingsValue);
       await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState, {
         suppressReadyErrors: true,
+        deferUntilIndexed: true,
       });
       return;
     }
@@ -2632,6 +2791,7 @@ async function loadStoredControls() {
     panelState.controlState = mergeStoredControls(parsed);
     await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState, {
       suppressReadyErrors: true,
+      deferUntilIndexed: true,
     });
   } catch (error) {
     if (isMissingStorageError(error)) {
@@ -2668,9 +2828,16 @@ async function loadStoredTagColors(options = {}) {
             ...queryBackedState.tagNames,
           ]);
 
-          await cleanupLegacyEntityBackedTagColors(queryBackedState.tagNames, queryBackedState.tagEntityMap, {
-            suppressReadyErrors: true,
-          });
+          if (canWriteGraphSyncState()) {
+            await cleanupLegacyEntityBackedTagColors(queryBackedState.tagNames, queryBackedState.tagEntityMap, {
+              suppressReadyErrors: true,
+            });
+          } else {
+            queueDeferredTagColorMigration({
+              cleanupTagNames: queryBackedState.tagNames,
+              entityMap: queryBackedState.tagEntityMap,
+            });
+          }
 
           panelState.tagColorCleanupChecked = false;
         } else {
@@ -2786,6 +2953,7 @@ async function loadStoredGradients() {
       panelState.gradientState = mergeStoredGradients(settingsValue);
       await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState, {
         suppressReadyErrors: true,
+        deferUntilIndexed: true,
       });
       return;
     }
@@ -2800,6 +2968,7 @@ async function loadStoredGradients() {
     panelState.gradientState = mergeStoredGradients(parsed);
     await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState, {
       suppressReadyErrors: true,
+      deferUntilIndexed: true,
     });
   } catch (error) {
     if (isMissingStorageError(error)) {
@@ -4522,85 +4691,33 @@ ${selector} {
 }
 `).join("");
 
-  const tagColorRules = managedTagNames.map((tagName) => {
+  const presetGroups = new Map();
+  const resetTagNames = [];
+  const customTagRules = [];
+
+  managedTagNames.forEach((tagName) => {
     const assignment = getTagColorAssignment(tagName);
-    const escapedTagName = escapeAttributeValue(tagName);
 
     if (!assignment) {
-      if (!emitResetRules) {
-        return "";
+      if (emitResetRules) {
+        resetTagNames.push(tagName);
       }
 
-      return `
-a.tag[data-ref="${escapedTagName}" i],
-a.tag[data-ref="${escapedTagName}" i]:hover {
-  background: var(--bg-grey) !important;
-  background-color: var(--bg-grey) !important;
-  background-image: none !important;
-  border-color: var(--bd-grey) !important;
-  color: #111 !important;
-  box-shadow: none !important;
-  opacity: 1 !important;
-}
-
-.dark-theme a.tag[data-ref="${escapedTagName}" i],
-.dark-theme a.tag[data-ref="${escapedTagName}" i]:hover {
-  background: #374151 !important;
-  background-color: #374151 !important;
-  background-image: none !important;
-  border-color: #4b5563 !important;
-  color: #f3f4f6 !important;
-  box-shadow: none !important;
-  opacity: 1 !important;
-}
-
-:is(.ls-block > div:first-child, h1.title, .journal-title):has(a.tag[data-ref="${escapedTagName}" i]) {
-  --node-color: transparent;
-}
-
-.ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref="${escapedTagName}" i]) {
-  --node-color: transparent;
-}
-
-.dark-theme :is(.ls-block > div:first-child, h1.title, .journal-title):has(a.tag[data-ref="${escapedTagName}" i]) {
-  --node-color: transparent;
-}
-
-.dark-theme .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref="${escapedTagName}" i]) {
-  --node-color: transparent;
-}
-
-:is(
-  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref="${escapedTagName}" i]),
-  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref="${escapedTagName}" i]),
-  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref="${escapedTagName}" i]),
-  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref="${escapedTagName}" i])
-) {
-  --node-color: transparent;
-}
-
-.dark-theme :is(
-  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref="${escapedTagName}" i]),
-  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref="${escapedTagName}" i]),
-  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref="${escapedTagName}" i]),
-  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref="${escapedTagName}" i])
-) {
-  --node-color: transparent;
-}
-`;
+      return;
     }
 
-    if (assignment?.type === "custom") {
+    if (assignment.type === "custom") {
+      const escapedTagName = escapeAttributeValue(tagName);
       const lightTheme = getResolvedCustomTagTheme(assignment, "light");
       const darkTheme = getResolvedCustomTagTheme(assignment, "dark");
       const lightGradient = getCustomTagGradientColor(assignment, "light");
       const darkGradient = getCustomTagGradientColor(assignment, "dark") || lightGradient;
 
       if (!lightTheme || !darkTheme || !lightGradient) {
-        return "";
+        return;
       }
 
-      return `
+      customTagRules.push(`
 a.tag[data-ref="${escapedTagName}" i],
 a.tag[data-ref="${escapedTagName}" i]:hover {
   background: ${lightTheme.background} !important;
@@ -4656,54 +4773,42 @@ a.tag[data-ref="${escapedTagName}" i]:hover {
 ) {
   --node-color: ${darkGradient};
 }
-`;
+`);
+      return;
     }
 
-    const token = assignment?.token;
-
-    if (!token) {
-      return "";
+    if (assignment.type === "preset" && COLOR_PRESET_MAP[assignment.token]) {
+      const group = presetGroups.get(assignment.token) || [];
+      group.push(tagName);
+      presetGroups.set(assignment.token, group);
     }
+  });
 
+  const resetTagRules = resetTagNames.length
+    ? buildGroupedTagRule(resetTagNames, {
+      lightChipDeclarations: `background: var(--bg-grey) !important;\n  background-color: var(--bg-grey) !important;\n  background-image: none !important;\n  border-color: var(--bd-grey) !important;\n  color: #111 !important;\n  box-shadow: none !important;\n  opacity: 1 !important;`,
+      darkChipDeclarations: `background: #374151 !important;\n  background-color: #374151 !important;\n  background-image: none !important;\n  border-color: #4b5563 !important;\n  color: #f3f4f6 !important;\n  box-shadow: none !important;\n  opacity: 1 !important;`,
+      lightNodeColor: "transparent",
+      darkNodeColor: "transparent",
+    })
+    : "";
+
+  const presetTagRules = Array.from(presetGroups.entries()).map(([token, tagNames]) => {
     const preset = getPresetMeta(token);
 
     if (!preset) {
       return "";
     }
 
-    return `
-a.tag[data-ref="${escapedTagName}" i],
-a.tag[data-ref="${escapedTagName}" i]:hover {
-  background-color: var(--bg-${token}) !important;
-  border-color: var(--bd-${token}) !important;
-  color: ${preset.lightText} !important;
-}
-
-.dark-theme a.tag[data-ref="${escapedTagName}" i],
-.dark-theme a.tag[data-ref="${escapedTagName}" i]:hover {
-  background-color: var(--bg-${token}) !important;
-  border-color: var(--bd-${token}) !important;
-  color: ${preset.darkText} !important;
-}
-
-:is(.ls-block > div:first-child, h1.title, .journal-title):has(a.tag[data-ref="${escapedTagName}" i]) {
-  --node-color: var(--grad-${token});
-}
-
-.ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref="${escapedTagName}" i]) {
-  --node-color: var(--grad-${token});
-}
-
-:is(
-  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref="${escapedTagName}" i]),
-  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref="${escapedTagName}" i]),
-  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref="${escapedTagName}" i]),
-  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref="${escapedTagName}" i])
-) {
-  --node-color: var(--grad-${token});
-}
-`;
+    return buildGroupedTagRule(tagNames, {
+      lightChipDeclarations: `background-color: var(--bg-${token}) !important;\n  border-color: var(--bd-${token}) !important;\n  color: ${preset.lightText} !important;`,
+      darkChipDeclarations: `background-color: var(--bg-${token}) !important;\n  border-color: var(--bd-${token}) !important;\n  color: ${preset.darkText} !important;`,
+      lightNodeColor: `var(--grad-${token})`,
+      darkNodeColor: `var(--grad-${token})`,
+    });
   }).join("");
+
+  const tagColorRules = `${resetTagRules}${presetTagRules}${customTagRules.join("")}`;
 
   return `
 /* =============================================== */
@@ -5525,6 +5630,10 @@ async function main() {
       if (!doesRepoMatchGraph(repo)) {
         return;
       }
+
+      panelState.graphIndexed = true;
+
+      void flushDeferredGraphSyncWrites();
 
       scheduleReloadPersistedAppearance("Reloaded saved graph appearance", {
         fallbackToPrevious: false,
