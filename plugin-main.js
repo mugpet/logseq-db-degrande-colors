@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.51";
+const FALLBACK_PLUGIN_VERSION = "0.1.52";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1281,6 +1281,22 @@ function getDerivedGradientColor(colorValue, alphaMultiplier = 0.65, minAlpha = 
   return rgbToCss(rgb, gradientAlpha);
 }
 
+function syncInlineCssVariable(element, propertyName, nextValue) {
+  const currentValue = element.style.getPropertyValue(propertyName);
+
+  if (nextValue) {
+    if (currentValue !== nextValue) {
+      element.style.setProperty(propertyName, nextValue);
+    }
+
+    return;
+  }
+
+  if (currentValue) {
+    element.style.removeProperty(propertyName);
+  }
+}
+
 function syncHostColorVariables() {
   const hostDocument = getHostDocument();
   const hostWindow = hostDocument.defaultView || window;
@@ -1297,11 +1313,7 @@ function syncHostColorVariables() {
       0.34
     );
 
-    if (gradientColor) {
-      element.style.setProperty("--ctl-bg-sweep-color", gradientColor);
-    } else {
-      element.style.removeProperty("--ctl-bg-sweep-color");
-    }
+    syncInlineCssVariable(element, "--ctl-bg-sweep-color", gradientColor);
   });
 
   hostDocument.querySelectorAll('div[data-node-type="quote"]').forEach((element) => {
@@ -1316,11 +1328,7 @@ function syncHostColorVariables() {
       0.42
     );
 
-    if (gradientColor) {
-      element.style.setProperty("--ctl-quote-color", gradientColor);
-    } else {
-      element.style.removeProperty("--ctl-quote-color");
-    }
+    syncInlineCssVariable(element, "--ctl-quote-color", gradientColor);
   });
 }
 
@@ -5489,7 +5497,9 @@ async function openThemeLoader() {
 }
 
 function closeThemeLoader() {
+  clearPendingTagSelection();
   setPanelRootVisibility(false);
+  logseq.setMainUIInlineStyle({});
   logseq.hideMainUI({ restoreEditingCursor: true });
 }
 
