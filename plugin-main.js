@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.38";
+const FALLBACK_PLUGIN_VERSION = "0.1.39";
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
@@ -22,6 +22,8 @@ const TOOLBAR_OBSERVER_KEY = "__degrandeColorsToolbarObserver";
 const TOOLBAR_RENDER_TIMER_KEY = "__degrandeColorsToolbarRenderTimer";
 const HOST_COLOR_SYNC_OBSERVER_KEY = "__degrandeColorsHostColorObserver";
 const HOST_COLOR_SYNC_TIMER_KEY = "__degrandeColorsHostColorSyncTimer";
+const COMMAND_REGISTRY_KEY = "__degrandeColorsRegisteredCommands";
+const TOOLBAR_REGISTRY_KEY = "__degrandeColorsRegisteredToolbarItems";
 const PANEL_HOST_CLASS = "degrande-panel-host";
 const MAIN_UI_INLINE_STYLE = {
   position: "fixed",
@@ -240,6 +242,7 @@ const panelState = {
   graphIndexed: false,
   pendingGraphPageState: {},
   pendingTagColorMigration: null,
+  lastTagCatalogLoadedAt: 0,
   propertyIdentMap: {},
   propertyAttrMap: {},
   selectedTag: "",
@@ -698,31 +701,49 @@ function isDuplicateRegistrationError(error) {
 }
 
 function registerCommandPaletteSafely(config, handler) {
+  const hostWindow = getHostWindow();
+  const registeredCommands = hostWindow[COMMAND_REGISTRY_KEY] || (hostWindow[COMMAND_REGISTRY_KEY] = new Set());
+
+  if (registeredCommands.has(config.key)) {
+    return false;
+  }
+
   try {
     logseq.App.registerCommandPalette(config, handler);
   } catch (error) {
     if (isDuplicateRegistrationError(error)) {
-      console.info(`[Degrande Colors] Skipping duplicate command registration: ${config.key}`);
+      registeredCommands.add(config.key);
       return false;
     }
 
     throw error;
   }
+
+  registeredCommands.add(config.key);
 
   return true;
 }
 
 function registerToolbarItemSafely(config) {
+  const hostWindow = getHostWindow();
+  const registeredToolbarItems = hostWindow[TOOLBAR_REGISTRY_KEY] || (hostWindow[TOOLBAR_REGISTRY_KEY] = new Set());
+
+  if (registeredToolbarItems.has(config.key)) {
+    return false;
+  }
+
   try {
     logseq.App.registerUIItem("toolbar", config);
   } catch (error) {
     if (isDuplicateRegistrationError(error)) {
-      console.info(`[Degrande Colors] Skipping duplicate toolbar registration: ${config.key}`);
+      registeredToolbarItems.add(config.key);
       return false;
     }
 
     throw error;
   }
+
+  registeredToolbarItems.add(config.key);
 
   return true;
 }
@@ -1023,6 +1044,7 @@ function clearGraphTagState() {
   panelState.graphIndexed = false;
   panelState.pendingGraphPageState = {};
   panelState.pendingTagColorMigration = null;
+  panelState.lastTagCatalogLoadedAt = 0;
   panelState.selectedTag = "";
   panelState.syncRevision = 0;
   panelState.lastLocalSyncRevision = 0;
@@ -2710,8 +2732,13 @@ async function loadLegacyGraphConfigTagColorState() {
 async function saveGraphSyncedTagColors(tagNames = null, options = {}) {
   const normalizedTagColors = mergeStoredTagColors(panelState.tagColorAssignments);
 
-  if (typeof logseq.Editor?.upsertBlockProperty !== "function") {
+  if (Object.keys(normalizedTagColors).length) {
     writeLocalPersistedItem(TAG_COLOR_STORAGE_KEY, JSON.stringify(normalizedTagColors));
+  } else {
+    removeLocalPersistedItem(TAG_COLOR_STORAGE_KEY);
+  }
+
+  if (typeof logseq.Editor?.upsertBlockProperty !== "function") {
     return false;
   }
 
@@ -2746,12 +2773,6 @@ async function saveGraphSyncedTagColors(tagNames = null, options = {}) {
       await cleanupLegacyEntityBackedTagColors(namesToCleanup, options.entityMap, {
         suppressReadyErrors: options.suppressReadyErrors,
       });
-    }
-
-    if (Object.keys(normalizedTagColors).length) {
-      writeLocalPersistedItem(TAG_COLOR_STORAGE_KEY, JSON.stringify(normalizedTagColors));
-    } else {
-      removeLocalPersistedItem(TAG_COLOR_STORAGE_KEY);
     }
 
     await bumpGraphSyncRevision("tag-colors");
@@ -3702,10 +3723,21 @@ function buildGradientEditorMarkup(areaKey, previewMarkup, controlKeys = []) {
 
 async function refreshTags(showToastOrOptions = false) {
   try {
-    const { showToast, fallbackToPrevious } = normalizeRefreshTagsOptions(showToastOrOptions);
+    const { showToast, fallbackToPrevious, force = false } = normalizeRefreshTagsOptions(showToastOrOptions);
     const previousSelectedKey = panelState.selectedTag.toLowerCase();
     const previousTags = panelState.tags.slice();
     const previousTagSourceMap = { ...panelState.tagSourceMap };
+
+    if (!force && previousTags.length && Date.now() - panelState.lastTagCatalogLoadedAt < 3000) {
+      renderPanel(showToast ? "Refreshed tags from Logseq" : undefined);
+
+      if (showToast) {
+        await logseq.UI.showMsg("Refreshed tags from Logseq.", "success");
+      }
+
+      return;
+    }
+
     let tagCatalog = await collectTagCatalog();
     let normalizedTags = tagCatalog.tags;
 
@@ -3742,6 +3774,8 @@ async function refreshTags(showToastOrOptions = false) {
     } else {
       panelState.selectedTag = normalizedTags[0] || "";
     }
+
+    panelState.lastTagCatalogLoadedAt = Date.now();
 
     renderPanel(showToast ? "Refreshed tags from Logseq" : undefined);
 
