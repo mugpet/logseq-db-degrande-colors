@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.52";
+const FALLBACK_PLUGIN_VERSION = "0.1.53";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -289,6 +289,8 @@ const panelState = {
   persistTimer: null,
   gradientPersistTimer: null,
   tagPersistTimer: null,
+  fallbackStyleFlushTimer: null,
+  pendingFallbackCssText: "",
   dbStateRefreshTimer: null,
   startupSyncTimerIds: [],
   pendingTagPersistKeys: [],
@@ -387,6 +389,38 @@ function applyPluginStyleText(cssText) {
   }
 
   logseq.provideStyle(cssText);
+}
+
+function flushPendingFallbackStyleText() {
+  if (panelState.fallbackStyleFlushTimer) {
+    clearTimeout(panelState.fallbackStyleFlushTimer);
+    panelState.fallbackStyleFlushTimer = null;
+  }
+
+  const cssText = panelState.pendingFallbackCssText;
+  panelState.pendingFallbackCssText = "";
+
+  if (cssText) {
+    applyPluginStyleText(cssText);
+  }
+}
+
+function queueFallbackStyleText(cssText, delay = 180) {
+  panelState.pendingFallbackCssText = cssText;
+
+  if (panelState.fallbackStyleFlushTimer) {
+    clearTimeout(panelState.fallbackStyleFlushTimer);
+  }
+
+  panelState.fallbackStyleFlushTimer = setTimeout(() => {
+    panelState.fallbackStyleFlushTimer = null;
+    const nextCssText = panelState.pendingFallbackCssText;
+    panelState.pendingFallbackCssText = "";
+
+    if (nextCssText) {
+      applyPluginStyleText(nextCssText);
+    }
+  }, delay);
 }
 
 function cleanupLegacyManagedStyles() {
@@ -5437,7 +5471,12 @@ async function applyManagedOverrides(showToast = false, statusMessage = "Updated
   setHostStyleText(MANAGED_STYLE_ELEMENT_ID, managedOverrides.cssText);
 
   if (shouldUseProvideStyleFallback()) {
-    applyPluginStyleText(panelState.cssText);
+    if (renderMode === "full") {
+      panelState.pendingFallbackCssText = panelState.cssText;
+      flushPendingFallbackStyleText();
+    } else {
+      queueFallbackStyleText(panelState.cssText);
+    }
   }
 
   syncHostColorVariables();
@@ -5498,6 +5537,7 @@ async function openThemeLoader() {
 
 function closeThemeLoader() {
   clearPendingTagSelection();
+  flushPendingFallbackStyleText();
   setPanelRootVisibility(false);
   logseq.setMainUIInlineStyle({});
   logseq.hideMainUI({ restoreEditingCursor: true });
@@ -5515,10 +5555,6 @@ async function reloadThemeCss(showToast = false, reopenUI = !!logseq.isMainUIVis
   panelState.baseCssText = await loadWorkspaceCss();
   panelState.baseTagColorMap = parseBaseTagColorMap(panelState.baseCssText);
   setHostStyleText(BASE_STYLE_ELEMENT_ID, panelState.baseCssText);
-
-  if (shouldUseProvideStyleFallback()) {
-    applyPluginStyleText(panelState.baseCssText);
-  }
 
   await applyManagedOverrides(showToast, "Reloaded base styles and re-applied controls");
 
