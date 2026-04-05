@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.2";
+const FALLBACK_PLUGIN_VERSION = "0.3.3";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -2243,6 +2243,14 @@ function syncLocalTagColorMirror() {
   }
 }
 
+function syncLocalControlMirror() {
+  writeLocalPersistedItem(CONTROL_STORAGE_KEY, JSON.stringify(panelState.controlState));
+}
+
+function syncLocalGradientMirror() {
+  writeLocalPersistedItem(GRADIENT_STORAGE_KEY, JSON.stringify(panelState.gradientState));
+}
+
 function hasPendingTagColorSync() {
   return Boolean(
     panelState.tagPersistTimer
@@ -2264,6 +2272,14 @@ function readPluginSettingValue(settingKey) {
   }
 
   return settings[settingKey] ?? null;
+}
+
+function hasMeaningfulStoredControls(saved) {
+  return JSON.stringify(mergeStoredControls(saved)) !== JSON.stringify(DEFAULT_CONTROL_STATE);
+}
+
+function hasMeaningfulStoredGradients(saved) {
+  return JSON.stringify(mergeStoredGradients(saved)) !== JSON.stringify(createDefaultGradientState());
 }
 
 function persistPluginSettingValue(settingKey, value) {
@@ -3026,13 +3042,15 @@ async function loadStoredControls() {
 
     if (graphBackedState.exists) {
       panelState.controlState = graphBackedState.value;
+      syncLocalControlMirror();
       return;
     }
 
     const settingsValue = readPluginSettingValue(SETTINGS_CONTROL_STATE_KEY);
 
-    if (settingsValue != null) {
+    if (settingsValue != null && hasMeaningfulStoredControls(settingsValue)) {
       panelState.controlState = mergeStoredControls(settingsValue);
+      syncLocalControlMirror();
       await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState, {
         suppressReadyErrors: true,
         deferUntilIndexed: true,
@@ -3048,6 +3066,7 @@ async function loadStoredControls() {
 
     const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
     panelState.controlState = mergeStoredControls(parsed);
+    syncLocalControlMirror();
     await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState, {
       suppressReadyErrors: true,
       deferUntilIndexed: true,
@@ -3230,13 +3249,15 @@ async function loadStoredGradients() {
 
     if (graphBackedState.exists) {
       panelState.gradientState = graphBackedState.value;
+      syncLocalGradientMirror();
       return;
     }
 
     const settingsValue = readPluginSettingValue(SETTINGS_GRADIENT_STATE_KEY);
 
-    if (settingsValue != null) {
+    if (settingsValue != null && hasMeaningfulStoredGradients(settingsValue)) {
       panelState.gradientState = mergeStoredGradients(settingsValue);
+      syncLocalGradientMirror();
       await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState, {
         suppressReadyErrors: true,
         deferUntilIndexed: true,
@@ -3252,6 +3273,7 @@ async function loadStoredGradients() {
 
     const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
     panelState.gradientState = mergeStoredGradients(parsed);
+    syncLocalGradientMirror();
     await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState, {
       suppressReadyErrors: true,
       deferUntilIndexed: true,
@@ -3267,7 +3289,7 @@ async function loadStoredGradients() {
 
 function schedulePersistControls() {
   setSyncState("pending");
-  writeLocalPersistedItem(CONTROL_STORAGE_KEY, JSON.stringify(panelState.controlState));
+  syncLocalControlMirror();
 
   void (async () => {
     try {
@@ -3277,7 +3299,6 @@ function schedulePersistControls() {
       });
 
       if (saved) {
-        removeLocalPersistedItem(CONTROL_STORAGE_KEY);
         await bumpGraphSyncRevision("controls");
         setSyncState("synced");
       } else {
@@ -3328,7 +3349,7 @@ function schedulePersistTagColors(tagNames = []) {
 
 function schedulePersistGradients() {
   setSyncState("pending");
-  writeLocalPersistedItem(GRADIENT_STORAGE_KEY, JSON.stringify(panelState.gradientState));
+  syncLocalGradientMirror();
 
   void (async () => {
     try {
@@ -3338,7 +3359,6 @@ function schedulePersistGradients() {
       });
 
       if (saved) {
-        removeLocalPersistedItem(GRADIENT_STORAGE_KEY);
         await bumpGraphSyncRevision("gradients");
         setSyncState("synced");
       } else {
