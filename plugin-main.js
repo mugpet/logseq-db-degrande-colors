@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.2.2";
+const FALLBACK_PLUGIN_VERSION = "0.2.3";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -4100,6 +4100,24 @@ function renderPreviewPane() {
   container.innerHTML = buildPreviewMarkup();
 }
 
+function buildDiagnosticsPaneMarkup() {
+  return `
+    <div class="ctl-preview-scroll" data-role="diagnostics-scroll">
+      ${buildAppearanceDiagnosticsMarkup()}
+    </div>
+  `;
+}
+
+function renderDiagnosticsPane() {
+  const container = document.querySelector('[data-pane="diagnostics"]');
+
+  if (!container) {
+    return;
+  }
+
+  container.innerHTML = buildDiagnosticsPaneMarkup();
+}
+
 function buildPreviewMarkup() {
   const nodePreview = buildGradientEditorMarkup(
     "node",
@@ -4149,7 +4167,6 @@ function buildPreviewMarkup() {
       "Use this page to tune chip sizing and gradients. Click a gradient strip to add a stop, and right-click a stop handle to remove it."
     )}
     <div class="ctl-preview-scroll" data-role="preview-scroll">
-      ${buildAppearanceDiagnosticsMarkup()}
       <div class="ctl-preview-grid">
         <article class="ctl-preview-card">
           ${buildPreviewCardHeadMarkup("tagChips", "Tags", "Inline chips")}
@@ -4663,6 +4680,8 @@ function refreshPanel(statusMessage, { rerenderPreview = false, rerenderTags = f
     renderTagsPane();
   }
 
+  renderDiagnosticsPane();
+
   syncPanelMeta(statusMessage);
   syncControlInputs();
   syncPreviewStyles();
@@ -4683,6 +4702,21 @@ function rerenderPreviewPanePreservingScroll(statusMessage) {
   if (nextPreviewScroll) {
     nextPreviewScroll.scrollTop = scrollTop;
     nextPreviewScroll.scrollLeft = scrollLeft;
+  }
+}
+
+function rerenderDiagnosticsPanePreservingScroll(statusMessage) {
+  const diagnosticsScroll = document.querySelector('[data-role="diagnostics-scroll"]');
+  const scrollTop = diagnosticsScroll?.scrollTop ?? 0;
+  const scrollLeft = diagnosticsScroll?.scrollLeft ?? 0;
+
+  refreshPanel(statusMessage);
+
+  const nextDiagnosticsScroll = document.querySelector('[data-role="diagnostics-scroll"]');
+
+  if (nextDiagnosticsScroll) {
+    nextDiagnosticsScroll.scrollTop = scrollTop;
+    nextDiagnosticsScroll.scrollLeft = scrollLeft;
   }
 }
 
@@ -4727,7 +4761,12 @@ function rerenderTagsPanePreservingFocus(statusMessage) {
 }
 
 function setActiveTab(tab) {
-  panelState.activeTab = ["preview", "tags"].includes(tab) ? tab : "tags";
+  panelState.activeTab = ["preview", "tags", "diagnostics"].includes(tab) ? tab : "tags";
+
+  if (panelState.activeTab === "diagnostics") {
+    renderDiagnosticsPane();
+  }
+
   syncTabState();
 
   if (panelState.activeTab === "tags" && !panelState.tags.length) {
@@ -5033,6 +5072,7 @@ function mountPanel() {
         <div class="ctl-tabbar" role="tablist" aria-label="Theme panel views">
           <button class="ctl-tab" type="button" data-tab="tags" role="tab" aria-selected="true">Tags</button>
           <button class="ctl-tab" type="button" data-tab="preview" role="tab" aria-selected="false">Appearance</button>
+          <button class="ctl-tab" type="button" data-tab="diagnostics" role="tab" aria-selected="false">Diagnostics</button>
         </div>
         <div class="ctl-main">
           <section class="ctl-viewer">
@@ -5041,6 +5081,9 @@ function mountPanel() {
             </div>
             <div class="ctl-pane ctl-pane-preview" data-pane="preview" hidden>
               ${buildPreviewMarkup()}
+            </div>
+            <div class="ctl-pane ctl-pane-preview" data-pane="diagnostics" hidden>
+              ${buildDiagnosticsPaneMarkup()}
             </div>
           </section>
         </div>
@@ -5485,7 +5528,11 @@ async function applyManagedOverrides(showToast = false, statusMessage = "Updated
     if (renderMode === "soft") {
       refreshPanel(statusMessage);
     } else if (renderMode === "preview") {
-      rerenderPreviewPanePreservingScroll(statusMessage);
+      if (panelState.activeTab === "diagnostics") {
+        rerenderDiagnosticsPanePreservingScroll(statusMessage);
+      } else {
+        rerenderPreviewPanePreservingScroll(statusMessage);
+      }
     } else {
       renderPanel(statusMessage);
     }
