@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.40";
+const FALLBACK_PLUGIN_VERSION = "0.1.41";
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
@@ -2103,6 +2103,16 @@ function removeLocalPersistedItem(storageKey) {
   }
 }
 
+function syncLocalTagColorMirror() {
+  const normalizedTagColors = mergeStoredTagColors(panelState.tagColorAssignments);
+
+  if (Object.keys(normalizedTagColors).length) {
+    writeLocalPersistedItem(TAG_COLOR_STORAGE_KEY, JSON.stringify(normalizedTagColors));
+  } else {
+    removeLocalPersistedItem(TAG_COLOR_STORAGE_KEY);
+  }
+}
+
 async function loadStoredItemWithLegacyFallback(storageKey) {
   return readLocalPersistedItem(storageKey);
 }
@@ -2850,6 +2860,7 @@ async function loadStoredControls() {
 
 async function loadStoredTagColors(options = {}) {
   const allowEntityFallback = options.allowEntityFallback ?? typeof logseq.DB?.datascriptQuery !== "function";
+  const fallbackToCurrent = options.fallbackToCurrent ?? false;
 
   try {
     const pageBackedState = await loadPageBackedTagColorState();
@@ -2964,6 +2975,10 @@ async function loadStoredTagColors(options = {}) {
     const saved = await loadStoredItemWithLegacyFallback(TAG_COLOR_STORAGE_KEY);
 
     if (!saved) {
+      if (fallbackToCurrent && Object.keys(panelState.tagColorAssignments).length) {
+        return;
+      }
+
       panelState.tagColorAssignments = {};
       return;
     }
@@ -3058,6 +3073,8 @@ function schedulePersistTagColors(tagNames = []) {
   const names = (Array.isArray(tagNames) ? tagNames : [tagNames])
     .map((tagName) => getCanonicalTagName(tagName))
     .filter(Boolean);
+
+  syncLocalTagColorMirror();
 
   if (names.length) {
     panelState.pendingTagPersistKeys = Array.from(new Set([
@@ -3910,7 +3927,7 @@ async function syncPersistedAppearance(options = {}) {
   await loadGraphSyncRevisionState();
   await loadStoredControls();
   await loadStoredGradients();
-  await loadStoredTagColors({ allowEntityFallback: false });
+  await loadStoredTagColors({ allowEntityFallback: false, fallbackToCurrent: true });
   await refreshTags({ showToast: false, fallbackToPrevious });
 
   const nextSnapshot = buildPersistedAppearanceSnapshot();
