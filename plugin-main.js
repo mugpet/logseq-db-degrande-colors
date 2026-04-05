@@ -1,8 +1,9 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.45";
+const FALLBACK_PLUGIN_VERSION = "0.1.46";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
+const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
 const GRAPH_SYNC_CONFIG_KEY = "mugpet-degrande-colors";
 const GRAPH_SYNC_TAG_COLOR_VERSION = 1;
 const GRAPH_SYNC_STORAGE_PAGE_NAME = "mugpet-degrande-colors-sync-state";
@@ -202,6 +203,16 @@ const CONTROL_SECTIONS = [
 const ALL_CONTROLS = CONTROL_SECTIONS.flatMap((section) => section.controls);
 const CONTROL_MAP = Object.fromEntries(ALL_CONTROLS.map((control) => [control.key, control]));
 const DEFAULT_CONTROL_STATE = Object.fromEntries(ALL_CONTROLS.map((control) => [control.key, control.defaultValue]));
+const APPEARANCE_SECTIONS = [
+  { key: "tagColors", label: "Tag Colors", description: "Tag-specific chip and color-variable overrides." },
+  { key: "tagChips", label: "Tag Chips", description: "Inline chip sizing, borders, and hover lift." },
+  { key: "linkedBlocks", label: "Linked Blocks", description: "Tag-driven gradients on ordinary linked blocks." },
+  { key: "pageTitles", label: "Page Titles", description: "Gradient accents on page and journal title rows." },
+  { key: "quotes", label: "Quotes", description: "Quote edge glow, padding, and gradient fills." },
+  { key: "backgroundBlocks", label: "Background Blocks", description: "Gradient sweeps on non-quote colored blocks." },
+];
+const APPEARANCE_SECTION_MAP = Object.fromEntries(APPEARANCE_SECTIONS.map((section) => [section.key, section]));
+const DEFAULT_APPEARANCE_STATE = Object.fromEntries(APPEARANCE_SECTIONS.map((section) => [section.key, true]));
 
 const QUOTE_COLOR_RULES = [
   { selector: 'div[data-node-type="quote"][style*="red"]', token: 'red' },
@@ -228,6 +239,13 @@ const panelState = {
   cssText: "",
   themeMode: "light",
   controlState: { ...DEFAULT_CONTROL_STATE },
+  appearanceState: { ...DEFAULT_APPEARANCE_STATE },
+  cssStats: {
+    base: { lines: 0, chars: 0 },
+    managed: { lines: 0, chars: 0 },
+    total: { lines: 0, chars: 0 },
+    sections: Object.fromEntries(APPEARANCE_SECTIONS.map((section) => [section.key, { lines: 0, chars: 0 }])),
+  },
   gradientState: createDefaultGradientState(),
   gradientSelections: Object.fromEntries(Object.keys(GRADIENT_AREAS).map((areaKey) => [areaKey, 0])),
   gradientDrag: null,
@@ -1893,6 +1911,82 @@ function mergeStoredControls(saved) {
   return merged;
 }
 
+function mergeStoredAppearanceState(saved) {
+  const merged = { ...DEFAULT_APPEARANCE_STATE };
+
+  for (const section of APPEARANCE_SECTIONS) {
+    if (typeof saved?.[section.key] === "boolean") {
+      merged[section.key] = saved[section.key];
+    }
+  }
+
+  return merged;
+}
+
+function getCssTextStats(cssText) {
+  const normalized = String(cssText || "").trim();
+
+  if (!normalized) {
+    return { lines: 0, chars: 0 };
+  }
+
+  return {
+    lines: normalized.split(/\r?\n/).length,
+    chars: normalized.length,
+  };
+}
+
+function formatCssTextStats(stats) {
+  return `${stats.lines} lines / ${stats.chars.toLocaleString()} chars`;
+}
+
+function buildCssStats(baseCssText, managedCssText, sections = {}) {
+  const base = getCssTextStats(baseCssText);
+  const managed = getCssTextStats(managedCssText);
+  const total = getCssTextStats(`${String(baseCssText || "").trim()}\n\n${String(managedCssText || "").trim()}`);
+  const sectionStats = Object.fromEntries(APPEARANCE_SECTIONS.map((section) => [
+    section.key,
+    getCssTextStats(sections[section.key] || ""),
+  ]));
+
+  return { base, managed, total, sections: sectionStats };
+}
+
+function isAppearanceSectionEnabled(sectionKey) {
+  return panelState.appearanceState[sectionKey] !== false;
+}
+
+async function loadStoredAppearanceState() {
+  try {
+    const saved = await loadStoredItemWithLegacyFallback(APPEARANCE_STATE_STORAGE_KEY);
+
+    if (!saved) {
+      panelState.appearanceState = { ...DEFAULT_APPEARANCE_STATE };
+      return;
+    }
+
+    const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
+    panelState.appearanceState = mergeStoredAppearanceState(parsed);
+  } catch (error) {
+    if (isMissingStorageError(error)) {
+      panelState.appearanceState = { ...DEFAULT_APPEARANCE_STATE };
+      return;
+    }
+
+    console.error("[Degrande Colors] Failed to load stored appearance toggles", error);
+  }
+}
+
+function persistAppearanceState() {
+  try {
+    writeLocalPersistedItem(APPEARANCE_STATE_STORAGE_KEY, JSON.stringify(panelState.appearanceState));
+    return true;
+  } catch (error) {
+    console.error("[Degrande Colors] Failed to persist appearance toggles", error);
+    return false;
+  }
+}
+
 function mergeStoredTagColors(saved) {
   const merged = {};
 
@@ -3293,6 +3387,79 @@ function buildPaneIntroMarkup(title, description) {
   `;
 }
 
+function buildAppearanceToggleButtonMarkup(sectionKey) {
+  const section = APPEARANCE_SECTION_MAP[sectionKey];
+  const enabled = isAppearanceSectionEnabled(sectionKey);
+
+  if (!section) {
+    return "";
+  }
+
+  return `
+    <button
+      class="ctl-button ctl-button-secondary ctl-button-small ctl-appearance-toggle${enabled ? " is-active" : " is-disabled"}"
+      type="button"
+      data-action="toggle-appearance-section"
+      data-appearance-section="${section.key}"
+      aria-pressed="${enabled ? "true" : "false"}"
+      title="${enabled ? "Turn off" : "Turn on"} ${escapeHtml(section.label)}"
+    >
+      ${escapeHtml(section.label)}: ${enabled ? "On" : "Off"}
+    </button>
+  `;
+}
+
+function buildAppearanceDiagnosticsMarkup() {
+  return `
+    <section class="ctl-section ctl-section-inline ctl-css-diagnostics">
+      <div class="ctl-section-head">
+        <div>
+          <h2>CSS Diagnostics</h2>
+          <p>The appearance layer is generated CSS. Use these toggles to remove sections from the live output and compare the applied size.</p>
+        </div>
+      </div>
+      <div class="ctl-css-diagnostics-grid">
+        <div class="ctl-css-stat-card">
+          <strong>Total Applied CSS</strong>
+          <span>${formatCssTextStats(panelState.cssStats.total)}</span>
+        </div>
+        <div class="ctl-css-stat-card">
+          <strong>Base CSS</strong>
+          <span>${formatCssTextStats(panelState.cssStats.base)}</span>
+        </div>
+        <div class="ctl-css-stat-card">
+          <strong>Managed CSS</strong>
+          <span>${formatCssTextStats(panelState.cssStats.managed)}</span>
+        </div>
+      </div>
+      <div class="ctl-appearance-toggle-grid">
+        ${APPEARANCE_SECTIONS.map((section) => `
+          <div class="ctl-appearance-toggle-card">
+            ${buildAppearanceToggleButtonMarkup(section.key)}
+            <span>${escapeHtml(section.description)}</span>
+            <strong>${formatCssTextStats(panelState.cssStats.sections[section.key] || { lines: 0, chars: 0 })}</strong>
+          </div>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function buildPreviewCardHeadMarkup(sectionKey, title, subtitle) {
+  const sectionStats = panelState.cssStats.sections[sectionKey] || { lines: 0, chars: 0 };
+  const enabled = isAppearanceSectionEnabled(sectionKey);
+
+  return `
+    <div class="ctl-preview-card-head${enabled ? "" : " is-disabled"}">
+      <div class="ctl-preview-card-head-copy">
+        <strong>${escapeHtml(title)}</strong>
+        <span>${escapeHtml(subtitle)} · ${enabled ? "On" : "Off"} · ${formatCssTextStats(sectionStats)}</span>
+      </div>
+      ${buildAppearanceToggleButtonMarkup(sectionKey)}
+    </div>
+  `;
+}
+
 function buildTagsPaneMarkup() {
   const tags = getVisibleTags();
   const bulkColorableTags = getBulkColorableTags();
@@ -3658,9 +3825,11 @@ async function handleCurrentGraphChanged() {
 
   clearGraphTagState();
   panelState.controlState = { ...DEFAULT_CONTROL_STATE };
+  panelState.appearanceState = { ...DEFAULT_APPEARANCE_STATE };
   panelState.gradientState = createDefaultGradientState();
   panelState.gradientSelections = Object.fromEntries(Object.keys(GRADIENT_AREAS).map((areaKey) => [areaKey, 0]));
   renderPanel(`Graph changed to ${graphInfo?.name || "current graph"}. Refreshing local tags...`);
+  await loadStoredAppearanceState();
   await loadStoredControls();
   await loadStoredGradients();
   await refreshTags({ showToast: false, fallbackToPrevious: false });
@@ -3908,13 +4077,11 @@ function buildPreviewMarkup() {
       "Appearance",
       "Use this page to tune chip sizing and gradients. Click a gradient strip to add a stop, and right-click a stop handle to remove it."
     )}
+    ${buildAppearanceDiagnosticsMarkup()}
     <div class="ctl-preview-scroll" data-role="preview-scroll">
       <div class="ctl-preview-grid">
         <article class="ctl-preview-card">
-          <div class="ctl-preview-card-head">
-            <strong>Tags</strong>
-            <span>Inline chips</span>
-          </div>
+          ${buildPreviewCardHeadMarkup("tagChips", "Tags", "Inline chips")}
           <div class="ctl-preview-card-body">
             <div class="ctl-preview-stage ctl-preview-stage-tags">
               <span class="ctl-preview-tag" data-role="preview-tag-primary">#Gradient</span>
@@ -3932,37 +4099,25 @@ function buildPreviewMarkup() {
           </div>
         </article>
         <article class="ctl-preview-card">
-          <div class="ctl-preview-card-head">
-            <strong>Linked Blocks</strong>
-            <span>Tag-based fill</span>
-          </div>
+          ${buildPreviewCardHeadMarkup("linkedBlocks", "Linked Blocks", "Tag-based fill")}
           <div class="ctl-preview-card-body">
             ${nodePreview}
           </div>
         </article>
         <article class="ctl-preview-card">
-          <div class="ctl-preview-card-head">
-            <strong>Page Titles</strong>
-            <span>Title accent</span>
-          </div>
+          ${buildPreviewCardHeadMarkup("pageTitles", "Page Titles", "Title accent")}
           <div class="ctl-preview-card-body">
             ${titlePreview}
           </div>
         </article>
         <article class="ctl-preview-card">
-          <div class="ctl-preview-card-head">
-            <strong>Quotes</strong>
-            <span>Edge glow</span>
-          </div>
+          ${buildPreviewCardHeadMarkup("quotes", "Quotes", "Edge glow")}
           <div class="ctl-preview-card-body">
             ${quotePreview}
           </div>
         </article>
         <article class="ctl-preview-card">
-          <div class="ctl-preview-card-head">
-            <strong>Background Block</strong>
-            <span>Standalone fill</span>
-          </div>
+          ${buildPreviewCardHeadMarkup("backgroundBlocks", "Background Block", "Standalone fill")}
           <div class="ctl-preview-card-body">
             ${backgroundPreview}
           </div>
@@ -3992,6 +4147,11 @@ function syncTabState() {
 function syncPreviewStyles() {
   const controls = panelState.controlState;
   const isDark = panelState.themeMode === "dark";
+  const chipsEnabled = isAppearanceSectionEnabled("tagChips");
+  const nodeEnabled = isAppearanceSectionEnabled("linkedBlocks");
+  const titleEnabled = isAppearanceSectionEnabled("pageTitles");
+  const quoteEnabled = isAppearanceSectionEnabled("quotes");
+  const backgroundEnabled = isAppearanceSectionEnabled("backgroundBlocks");
 
   const tagBase = {
     borderRadius: `${controls.tagRadius}px`,
@@ -4007,40 +4167,46 @@ function syncPreviewStyles() {
 
   setPreviewElementStyle(document.querySelector('[data-role="preview-tag-primary"]'), {
     ...tagBase,
+    opacity: chipsEnabled ? "1" : "0.55",
     transform: "translateY(0px)",
     boxShadow: "none",
   });
 
   setPreviewElementStyle(document.querySelector('[data-role="preview-tag-hover"]'), {
     ...tagBase,
-    transform: `translateY(-${controls.tagHoverLift}px)`,
-    boxShadow: isDark ? "0 12px 28px rgba(2, 6, 23, 0.44)" : "0 10px 20px rgba(15, 23, 42, 0.12)",
+    opacity: chipsEnabled ? "1" : "0.55",
+    transform: chipsEnabled ? `translateY(-${controls.tagHoverLift}px)` : "translateY(0px)",
+    boxShadow: chipsEnabled ? (isDark ? "0 12px 28px rgba(2, 6, 23, 0.44)" : "0 10px 20px rgba(15, 23, 42, 0.12)") : "none",
   });
 
   setPreviewElementStyle(document.querySelector('[data-role="preview-block"]'), {
-    backgroundImage: buildGradientCss("node", isDark ? "rgba(52, 211, 153, 0.28)" : "rgba(16, 185, 129, 0.2)", "preview"),
+    opacity: nodeEnabled ? "1" : "0.65",
+    backgroundImage: nodeEnabled ? buildGradientCss("node", isDark ? "rgba(52, 211, 153, 0.28)" : "rgba(16, 185, 129, 0.2)", "preview") : "none",
     backgroundColor: isDark ? "rgba(15, 23, 42, 0.68)" : "rgba(255, 255, 255, 0.82)",
   });
 
   setPreviewElementStyle(document.querySelector('[data-role="preview-title-card"]'), {
-    backgroundImage: buildGradientCss("title", isDark ? "rgba(251, 191, 36, 0.28)" : "rgba(245, 158, 11, 0.2)", "preview"),
+    opacity: titleEnabled ? "1" : "0.65",
+    backgroundImage: titleEnabled ? buildGradientCss("title", isDark ? "rgba(251, 191, 36, 0.28)" : "rgba(245, 158, 11, 0.2)", "preview") : "none",
     backgroundColor: isDark ? "rgba(15, 23, 42, 0.72)" : "rgba(255, 255, 255, 0.84)",
   });
 
   setPreviewElementStyle(document.querySelector('[data-role="preview-quote"]'), {
+    opacity: quoteEnabled ? "1" : "0.65",
     borderLeftWidth: `${controls.quoteBorderWidth}px`,
     borderLeftStyle: "solid",
     borderLeftColor: isDark ? "rgba(129, 140, 248, 0.8)" : "rgba(99, 102, 241, 0.58)",
     borderRadius: `0 ${controls.quoteRadius}px ${controls.quoteRadius}px 0`,
     padding: `${controls.quotePaddingY}px ${controls.quotePaddingX}px`,
-    backgroundImage: buildGradientCss("quote", isDark ? `rgba(99, 102, 241, ${controls.quoteDarkOpacity})` : `rgba(99, 102, 241, ${controls.quoteLightOpacity})`, "preview"),
+    backgroundImage: quoteEnabled ? buildGradientCss("quote", isDark ? `rgba(99, 102, 241, ${controls.quoteDarkOpacity})` : `rgba(99, 102, 241, ${controls.quoteLightOpacity})`, "preview") : "none",
     backgroundColor: isDark ? "rgba(15, 23, 42, 0.72)" : "rgba(255, 255, 255, 0.82)",
   });
 
   setPreviewElementStyle(document.querySelector('[data-role="preview-background"]'), {
+    opacity: backgroundEnabled ? "1" : "0.65",
     borderRadius: `${controls.bgRadius}px`,
     padding: `${controls.bgPaddingY}px ${controls.bgPaddingX}px`,
-    backgroundImage: buildGradientCss("background", isDark ? "rgba(244, 114, 182, 0.24)" : "rgba(244, 114, 182, 0.16)", "preview"),
+    backgroundImage: backgroundEnabled ? buildGradientCss("background", isDark ? "rgba(244, 114, 182, 0.24)" : "rgba(244, 114, 182, 0.16)", "preview") : "none",
     backgroundColor: isDark ? "rgba(30, 41, 59, 0.8)" : "rgba(255, 255, 255, 0.85)",
   });
 }
@@ -4408,7 +4574,7 @@ function syncPanelMeta(statusMessage) {
     return;
   }
 
-  status.textContent = statusMessage ?? `Theme mode: ${panelState.themeMode} | Tag colors sync with this graph | Appearance controls sync with this graph`;
+  status.textContent = statusMessage ?? `Theme mode: ${panelState.themeMode} | Applied CSS: ${formatCssTextStats(panelState.cssStats.total)} | Local-only graph state`;
   syncSyncIndicator();
 
   if (themeToggleButton) {
@@ -4637,15 +4803,9 @@ a.tag[data-ref="${escapedTagName}" i]:hover {
     });
   }).join("");
 
-  const tagColorRules = `${resetTagRules}${presetTagRules}${customTagRules.join("")}`;
-
-  return `
-/* =============================================== */
-/* === CUSTOM THEME LOADER MANAGED OVERRIDES ===== */
-/* =============================================== */
-
-${tagColorRules}
-
+  const sections = {
+    tagColors: `${resetTagRules}${presetTagRules}${customTagRules.join("")}`.trim(),
+    tagChips: `
 a.tag, a.tag:hover, h1 a.tag, h2 a.tag, h3 a.tag, h4 a.tag {
   border-radius: ${controls.tagRadius}px !important;
   font-size: ${controls.tagFontSize}px !important;
@@ -4657,7 +4817,8 @@ a.tag, a.tag:hover, h1 a.tag, h2 a.tag, h3 a.tag, h4 a.tag {
 a.tag:hover {
   transform: translateY(-${controls.tagHoverLift}px) !important;
 }
-
+`.trim(),
+    linkedBlocks: `
 .ls-block > div:first-child:not(.selected):not(.selected-block):not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(a.tag[data-ref]) {
   background-image: ${nodeGradient} !important;
   background-color: transparent !important;
@@ -4667,7 +4828,8 @@ a.tag:hover {
   background-image: ${nodeGradient} !important;
   background-color: transparent !important;
 }
-
+`.trim(),
+    pageTitles: `
 .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
   --node-color: inherit;
 }
@@ -4717,7 +4879,8 @@ a.tag:hover {
   background-image: ${titleGradient} !important;
   background-color: transparent !important;
 }
-
+`.trim(),
+    quotes: `
 div[data-node-type="quote"] {
   --ctl-quote-color: rgba(99, 102, 241, ${controls.quoteLightOpacity});
   border-left-width: ${controls.quoteBorderWidth}px !important;
@@ -4732,7 +4895,8 @@ div[data-node-type="quote"] {
 }
 
 ${quoteColorRules}
-
+`.trim(),
+    backgroundBlocks: `
 .with-bg-color:not([data-node-type="quote"]) {
   --ctl-bg-sweep-color: rgba(244, 114, 182, 0.16);
   background-image: ${backgroundGradient} !important;
@@ -4742,7 +4906,22 @@ ${quoteColorRules}
 }
 
 ${backgroundRules}
-`;
+`.trim(),
+  };
+  const activeSections = Object.entries(sections)
+    .filter(([sectionKey, cssText]) => Boolean(cssText) && isAppearanceSectionEnabled(sectionKey))
+    .map(([, cssText]) => cssText);
+
+  return {
+    sections,
+    cssText: `
+/* =============================================== */
+/* === CUSTOM THEME LOADER MANAGED OVERRIDES ===== */
+/* =============================================== */
+
+${activeSections.join("\n\n")}
+`,
+  };
 }
 
 function renderPanel(statusMessage) {
@@ -4947,6 +5126,11 @@ function mountPanel() {
 
     if (action === "toggle-logseq-theme") {
       await toggleLogseqTheme();
+      return;
+    }
+
+    if (action === "toggle-appearance-section") {
+      toggleAppearanceSection(target.dataset.appearanceSection || "");
       return;
     }
 
@@ -5264,10 +5448,11 @@ function mountPanel() {
 async function applyManagedOverrides(showToast = false, statusMessage = "Updated live overrides", renderMode = "full") {
   const managedOverrides = buildManagedOverrides();
 
-  panelState.cssText = buildEffectiveCssText(managedOverrides);
+  panelState.cssText = buildEffectiveCssText(managedOverrides.cssText);
+  panelState.cssStats = buildCssStats(panelState.baseCssText, managedOverrides.cssText, managedOverrides.sections);
   panelState.lastAppliedAt = new Date();
   cleanupLegacyManagedStyles();
-  setHostStyleText(MANAGED_STYLE_ELEMENT_ID, managedOverrides);
+  setHostStyleText(MANAGED_STYLE_ELEMENT_ID, managedOverrides.cssText);
 
   if (shouldUseProvideStyleFallback()) {
     applyPluginStyleText(panelState.cssText);
@@ -5288,6 +5473,19 @@ async function applyManagedOverrides(showToast = false, statusMessage = "Updated
   if (showToast) {
     await logseq.UI.showMsg(statusMessage, "success");
   }
+}
+
+function toggleAppearanceSection(sectionKey) {
+  const section = APPEARANCE_SECTION_MAP[sectionKey];
+
+  if (!section) {
+    return false;
+  }
+
+  panelState.appearanceState[sectionKey] = !isAppearanceSectionEnabled(sectionKey);
+  persistAppearanceState();
+  void applyManagedOverrides(false, `${section.label} ${panelState.appearanceState[sectionKey] ? "enabled" : "disabled"}`, "full");
+  return true;
 }
 
 async function openThemeLoader() {
@@ -5419,6 +5617,7 @@ async function main() {
   const shouldRegisterHostUi = !hostSession[pluginId] && !hostToolbarButtonExists;
 
   await syncCurrentGraphInfo();
+  await loadStoredAppearanceState();
   await loadStoredControls();
   await loadStoredTagColors();
   await loadStoredGradients();

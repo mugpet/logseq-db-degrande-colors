@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors v0.1.45</title>
-    <meta name="degrande-colors-version" content="0.1.45">
+    <title>Degrande Colors v0.1.46</title>
+    <meta name="degrande-colors-version" content="0.1.46">
     <style>
       :root {
         color-scheme: light;
@@ -282,6 +282,18 @@
         font-size: 11px;
       }
 
+      .ctl-appearance-toggle.is-active {
+        border-color: rgba(34, 197, 94, 0.32);
+        background: rgba(34, 197, 94, 0.08);
+        color: var(--ctl-text);
+      }
+
+      .ctl-appearance-toggle.is-disabled {
+        border-color: rgba(245, 158, 11, 0.32);
+        background: rgba(245, 158, 11, 0.08);
+        color: var(--ctl-text-muted);
+      }
+
       .ctl-status {
         min-height: 18px;
         display: inline-flex;
@@ -426,6 +438,43 @@
         align-items: start;
       }
 
+      .ctl-css-diagnostics {
+        gap: 12px;
+      }
+
+      .ctl-css-diagnostics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 10px;
+      }
+
+      .ctl-css-stat-card,
+      .ctl-appearance-toggle-card {
+        display: grid;
+        gap: 6px;
+        padding: 10px 12px;
+        border: 1px solid var(--ctl-border);
+        border-radius: 14px;
+        background: var(--ctl-bg-muted);
+      }
+
+      .ctl-css-stat-card strong,
+      .ctl-appearance-toggle-card strong {
+        font-size: 12px;
+      }
+
+      .ctl-css-stat-card span,
+      .ctl-appearance-toggle-card span {
+        font-size: 11px;
+        color: var(--ctl-text-muted);
+      }
+
+      .ctl-appearance-toggle-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 10px;
+      }
+
       .ctl-preview-card {
         border: 1px solid var(--ctl-border);
         border-radius: 20px;
@@ -445,9 +494,20 @@
 
       .ctl-preview-card-head {
         display: flex;
-        align-items: baseline;
-        gap: 8px;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
         flex-wrap: wrap;
+      }
+
+      .ctl-preview-card-head.is-disabled strong,
+      .ctl-preview-card-head.is-disabled span {
+        opacity: 0.7;
+      }
+
+      .ctl-preview-card-head-copy {
+        display: grid;
+        gap: 4px;
       }
 
       .ctl-preview-card-head strong {
