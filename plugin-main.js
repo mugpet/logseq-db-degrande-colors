@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.37";
+const FALLBACK_PLUGIN_VERSION = "0.1.38";
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
@@ -2748,7 +2748,12 @@ async function saveGraphSyncedTagColors(tagNames = null, options = {}) {
       });
     }
 
-    removeLocalPersistedItem(TAG_COLOR_STORAGE_KEY);
+    if (Object.keys(normalizedTagColors).length) {
+      writeLocalPersistedItem(TAG_COLOR_STORAGE_KEY, JSON.stringify(normalizedTagColors));
+    } else {
+      removeLocalPersistedItem(TAG_COLOR_STORAGE_KEY);
+    }
+
     await bumpGraphSyncRevision("tag-colors");
     return true;
   } catch (error) {
@@ -2810,6 +2815,7 @@ async function loadStoredTagColors(options = {}) {
 
     if (pageBackedState.exists) {
       panelState.tagColorAssignments = pageBackedState.tagColors;
+      writeLocalPersistedItem(TAG_COLOR_STORAGE_KEY, JSON.stringify(panelState.tagColorAssignments));
 
       if (!panelState.tagColorCleanupChecked) {
         const queryBackedState = await loadQueryBackedTagColorState();
@@ -2852,6 +2858,7 @@ async function loadStoredTagColors(options = {}) {
 
     if (queryBackedState.exists) {
       panelState.tagColorAssignments = queryBackedState.tagColors;
+      writeLocalPersistedItem(TAG_COLOR_STORAGE_KEY, JSON.stringify(panelState.tagColorAssignments));
       panelState.tagEntityMap = {
         ...panelState.tagEntityMap,
         ...queryBackedState.tagEntityMap,
@@ -2886,6 +2893,7 @@ async function loadStoredTagColors(options = {}) {
 
       if (entityBackedState.exists) {
         panelState.tagColorAssignments = entityBackedState.tagColors;
+        writeLocalPersistedItem(TAG_COLOR_STORAGE_KEY, JSON.stringify(panelState.tagColorAssignments));
         await saveGraphSyncedTagColors(Object.keys(panelState.tagColorAssignments), {
           suppressReadyErrors: true,
           entityMap: tagCatalog.tagEntityMap,
