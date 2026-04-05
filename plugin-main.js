@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.34";
+const FALLBACK_PLUGIN_VERSION = "0.1.35";
 const STARTUP_SYNC_RETRY_DELAYS_MS = [1200, 4000, 9000];
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
@@ -1514,8 +1514,7 @@ function setTagPresetColor(tagName, token, statusMessage = null) {
     type: "preset",
     token,
   };
-  void applyManagedOverrides(false, `Updated ${tagName} color`);
-  renderPanel(statusMessage || `Set ${tagName} to ${token}`);
+  void applyManagedOverrides(false, statusMessage || `Set ${tagName} to ${token}`);
   schedulePersistTagColors([tagName]);
   return true;
 }
@@ -1533,17 +1532,27 @@ function clearTagColorAssignment(tagName, statusMessage = null) {
   }
 
   delete panelState.tagColorAssignments[tagName.toLowerCase()];
-  renderPanel(statusMessage || `Reset ${tagName} to the default color`);
-  void applyManagedOverrides(false, `Cleared custom color for ${tagName}`);
+  void applyManagedOverrides(false, statusMessage || `Reset ${tagName} to the default color`);
   schedulePersistTagColors([tagName]);
   return true;
 }
 
+function getBulkColorableTags() {
+  return getVisibleTags().filter((tagName) => getTagSourceFlags(tagName).tags);
+}
+
 function addRandomColorsToUncoloredTags() {
-  const uncoloredTags = getVisibleTags().filter((tagName) => !getTagColorToken(tagName));
+  const bulkColorableTags = getBulkColorableTags();
+
+  if (!bulkColorableTags.length) {
+    renderPanel("Bulk add only applies to tag entries. Page-only results were skipped.");
+    return 0;
+  }
+
+  const uncoloredTags = bulkColorableTags.filter((tagName) => !getTagColorToken(tagName));
 
   if (!uncoloredTags.length) {
-    renderPanel("All filtered tags already have colors");
+    renderPanel("All filtered tag entries already have colors");
     return 0;
   }
 
@@ -1561,7 +1570,6 @@ function addRandomColorsToUncoloredTags() {
   });
 
   void applyManagedOverrides(false, `Added random colors to ${uncoloredTags.length} filtered tags`);
-  renderPanel(`Added random colors to ${uncoloredTags.length} filtered tags`);
   schedulePersistTagColors(uncoloredTags);
   return uncoloredTags.length;
 }
@@ -1591,6 +1599,20 @@ function getVisibleAssignedTagCount() {
 
 function getVisibleAssignedTags() {
   return getVisibleTags().filter((tagName) => Boolean(panelState.tagColorAssignments[tagName.toLowerCase()]));
+}
+
+function getManagedOverrideTagNames() {
+  const emitResetRules = shouldUseProvideStyleFallback();
+
+  if (emitResetRules) {
+    return getKnownTagNames();
+  }
+
+  return Array.from(new Set(
+    Object.keys(panelState.tagColorAssignments)
+      .map((tagName) => getCanonicalTagName(tagName))
+      .filter(Boolean)
+  )).sort((left, right) => left.localeCompare(right));
 }
 
 function getTagChipThemeStyle(assignmentOrToken) {
@@ -3169,12 +3191,13 @@ function buildPaneIntroMarkup(title, description) {
 
 function buildTagsPaneMarkup() {
   const tags = getVisibleTags();
+  const bulkColorableTags = getBulkColorableTags();
   const selectedTag = panelState.selectedTag;
   const selectedColor = selectedTag ? getTagColorToken(selectedTag) : null;
   const selectedAssignment = selectedTag ? getTagColorAssignment(selectedTag) : null;
   const hasCustomAssignment = selectedAssignment?.type === "custom";
   const hasTagAssignments = Object.keys(panelState.tagColorAssignments).length > 0;
-  const hasUncoloredTags = tags.some((tagName) => !getTagColorToken(tagName));
+  const hasUncoloredTags = bulkColorableTags.some((tagName) => !getTagColorToken(tagName));
 
   return `
     ${buildPaneIntroMarkup(
@@ -4147,6 +4170,7 @@ function syncTagsPaneState() {
 
 function syncTagBrowserState() {
   const visibleTags = getVisibleTags();
+  const bulkColorableTags = getBulkColorableTags();
   const summary = document.querySelector('[data-role="tags-summary"]');
   const grid = document.querySelector('[data-role="tag-grid"]');
   const addColorsButton = document.querySelector('[data-role="add-random-tag-colors-button"]');
@@ -4165,7 +4189,7 @@ function syncTagBrowserState() {
   }
 
   if (addColorsButton) {
-    addColorsButton.disabled = !visibleTags.some((tagName) => !getTagColorToken(tagName));
+    addColorsButton.disabled = !bulkColorableTags.some((tagName) => !getTagColorToken(tagName));
   }
 
   if (resetColorsButton) {
@@ -4410,6 +4434,8 @@ function setActiveTab(tab) {
 
 function buildManagedOverrides() {
   const controls = panelState.controlState;
+  const emitResetRules = shouldUseProvideStyleFallback();
+  const managedTagNames = getManagedOverrideTagNames();
   const nodeGradient = buildGradientCss("node", "var(--node-color)");
   const titleGradient = buildGradientCss("title", "var(--node-color)");
   const backgroundGradient = buildGradientCss("background", "var(--ctl-bg-sweep-color)");
@@ -4428,11 +4454,15 @@ ${selector} {
 }
 `).join("");
 
-  const tagColorRules = getKnownTagNames().map((tagName) => {
+  const tagColorRules = managedTagNames.map((tagName) => {
     const assignment = getTagColorAssignment(tagName);
     const escapedTagName = escapeAttributeValue(tagName);
 
     if (!assignment) {
+      if (!emitResetRules) {
+        return "";
+      }
+
       return `
 a.tag[data-ref="${escapedTagName}" i],
 a.tag[data-ref="${escapedTagName}" i]:hover {
