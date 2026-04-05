@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.48";
+const FALLBACK_PLUGIN_VERSION = "0.1.49";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1655,14 +1655,10 @@ function buildGroupedDirectTitleSelector(tagNames, themePrefix = "") {
   return selectors.length ? `:is(\n  ${selectors.join(",\n  ")}\n)` : "";
 }
 
-function buildGroupedTagRule(tagNames, config) {
+function buildGroupedTagChipRule(tagNames, config) {
   if (!tagNames.length) {
     return "";
   }
-
-  const innerSelector = buildGroupedTagInnerSelector(tagNames);
-  const directSelector = buildGroupedDirectTitleSelector(tagNames);
-  const darkDirectSelector = buildGroupedDirectTitleSelector(tagNames, ".dark-theme ");
 
   return `
 ${buildGroupedTagChipSelectors(tagNames)} {
@@ -1672,29 +1668,57 @@ ${buildGroupedTagChipSelectors(tagNames)} {
 ${buildGroupedTagChipSelectors(tagNames, ".dark-theme ")} {
   ${config.darkChipDeclarations}
 }
-
-:is(.ls-block > div:first-child, h1.title, .journal-title):has(:is(${innerSelector})) {
-  --node-color: ${config.lightNodeColor};
+`;
 }
 
-.ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right :is(${innerSelector})) {
-  --node-color: ${config.lightNodeColor};
+function buildGroupedLinkedBlockColorRule(tagNames, lightNodeColor, darkNodeColor) {
+  if (!tagNames.length) {
+    return "";
+  }
+
+  const innerSelector = buildGroupedTagInnerSelector(tagNames);
+
+  return `
+:is(.ls-block > div:first-child):not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(:is(${innerSelector})) {
+  --node-color: ${lightNodeColor};
 }
 
-.dark-theme :is(.ls-block > div:first-child, h1.title, .journal-title):has(:is(${innerSelector})) {
-  --node-color: ${config.darkNodeColor};
+.dark-theme :is(.ls-block > div:first-child):not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(:is(${innerSelector})) {
+  --node-color: ${darkNodeColor};
+}
+`;
 }
 
-.dark-theme .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right :is(${innerSelector})) {
-  --node-color: ${config.darkNodeColor};
+function buildGroupedPageTitleColorRule(tagNames, lightNodeColor, darkNodeColor) {
+  if (!tagNames.length) {
+    return "";
+  }
+
+  const innerSelector = buildGroupedTagInnerSelector(tagNames);
+  const directSelector = buildGroupedDirectTitleSelector(tagNames);
+  const darkDirectSelector = buildGroupedDirectTitleSelector(tagNames, ".dark-theme ");
+
+  return `
+h1.title:has(:is(${innerSelector})),
+.journal-title:has(:is(${innerSelector})),
+.ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(:is(${innerSelector})),
+.ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right :is(${innerSelector})) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container) {
+  --node-color: ${lightNodeColor};
 }
 
 ${directSelector} {
-  --node-color: ${config.lightNodeColor};
+  --node-color: ${lightNodeColor};
+}
+
+.dark-theme h1.title:has(:is(${innerSelector})),
+.dark-theme .journal-title:has(:is(${innerSelector})),
+.dark-theme .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(:is(${innerSelector})),
+.dark-theme .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right :is(${innerSelector})) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container) {
+  --node-color: ${darkNodeColor};
 }
 
 ${darkDirectSelector} {
-  --node-color: ${config.darkNodeColor};
+  --node-color: ${darkNodeColor};
 }
 `;
 }
@@ -4705,7 +4729,9 @@ ${selector} {
 
   const presetGroups = new Map();
   const resetTagNames = [];
-  const customTagRules = [];
+  const customTagChipRules = [];
+  const customLinkedBlockRules = [];
+  const customPageTitleRules = [];
 
   managedTagNames.forEach((tagName) => {
     const assignment = getTagColorAssignment(tagName);
@@ -4729,7 +4755,7 @@ ${selector} {
         return;
       }
 
-      customTagRules.push(`
+      customTagChipRules.push(`
 a.tag[data-ref="${escapedTagName}" i],
 a.tag[data-ref="${escapedTagName}" i]:hover {
   background: ${lightTheme.background} !important;
@@ -4751,23 +4777,24 @@ a.tag[data-ref="${escapedTagName}" i]:hover {
   box-shadow: none !important;
   opacity: 1 !important;
 }
+`);
 
-:is(.ls-block > div:first-child, h1.title, .journal-title):has(a.tag[data-ref="${escapedTagName}" i]) {
+      customLinkedBlockRules.push(`
+.ls-block > div:first-child:not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(a.tag[data-ref="${escapedTagName}" i]) {
   --node-color: ${lightGradient};
 }
 
-.ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref="${escapedTagName}" i]) {
-  --node-color: ${lightGradient};
-}
-
-.dark-theme :is(.ls-block > div:first-child, h1.title, .journal-title):has(a.tag[data-ref="${escapedTagName}" i]) {
+.dark-theme .ls-block > div:first-child:not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(a.tag[data-ref="${escapedTagName}" i]) {
   --node-color: ${darkGradient};
 }
 
-.dark-theme .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref="${escapedTagName}" i]) {
-  --node-color: ${darkGradient};
-}
+`);
 
+      customPageTitleRules.push(`
+h1.title:has(a.tag[data-ref="${escapedTagName}" i]),
+.journal-title:has(a.tag[data-ref="${escapedTagName}" i]),
+.ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref="${escapedTagName}" i]),
+.ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref="${escapedTagName}" i]) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container),
 :is(
   .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref="${escapedTagName}" i]),
   .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref="${escapedTagName}" i]),
@@ -4777,6 +4804,10 @@ a.tag[data-ref="${escapedTagName}" i]:hover {
   --node-color: ${lightGradient};
 }
 
+.dark-theme h1.title:has(a.tag[data-ref="${escapedTagName}" i]),
+.dark-theme .journal-title:has(a.tag[data-ref="${escapedTagName}" i]),
+.dark-theme .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref="${escapedTagName}" i]),
+.dark-theme .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref="${escapedTagName}" i]) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container),
 .dark-theme :is(
   .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref="${escapedTagName}" i]),
   .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref="${escapedTagName}" i]),
@@ -4797,31 +4828,43 @@ a.tag[data-ref="${escapedTagName}" i]:hover {
   });
 
   const resetTagRules = resetTagNames.length
-    ? buildGroupedTagRule(resetTagNames, {
+    ? buildGroupedTagChipRule(resetTagNames, {
       lightChipDeclarations: `background: var(--bg-grey) !important;\n  background-color: var(--bg-grey) !important;\n  background-image: none !important;\n  border-color: var(--bd-grey) !important;\n  color: #111 !important;\n  box-shadow: none !important;\n  opacity: 1 !important;`,
       darkChipDeclarations: `background: #374151 !important;\n  background-color: #374151 !important;\n  background-image: none !important;\n  border-color: #4b5563 !important;\n  color: #f3f4f6 !important;\n  box-shadow: none !important;\n  opacity: 1 !important;`,
-      lightNodeColor: "transparent",
-      darkNodeColor: "transparent",
     })
     : "";
 
-  const presetTagRules = Array.from(presetGroups.entries()).map(([token, tagNames]) => {
+  const presetTagChipRules = Array.from(presetGroups.entries()).map(([token, tagNames]) => {
     const preset = getPresetMeta(token);
 
     if (!preset) {
       return "";
     }
 
-    return buildGroupedTagRule(tagNames, {
+    return buildGroupedTagChipRule(tagNames, {
       lightChipDeclarations: `background-color: var(--bg-${token}) !important;\n  border-color: var(--bd-${token}) !important;\n  color: ${preset.lightText} !important;`,
       darkChipDeclarations: `background-color: var(--bg-${token}) !important;\n  border-color: var(--bd-${token}) !important;\n  color: ${preset.darkText} !important;`,
-      lightNodeColor: `var(--grad-${token})`,
-      darkNodeColor: `var(--grad-${token})`,
     });
   }).join("");
 
+  const presetLinkedBlockRules = Array.from(presetGroups.entries()).map(([token, tagNames]) => {
+    if (!COLOR_PRESET_MAP[token]) {
+      return "";
+    }
+
+    return buildGroupedLinkedBlockColorRule(tagNames, `var(--grad-${token})`, `var(--grad-${token})`);
+  }).join("");
+
+  const presetPageTitleRules = Array.from(presetGroups.entries()).map(([token, tagNames]) => {
+    if (!COLOR_PRESET_MAP[token]) {
+      return "";
+    }
+
+    return buildGroupedPageTitleColorRule(tagNames, `var(--grad-${token})`, `var(--grad-${token})`);
+  }).join("");
+
   const sections = {
-    tagColors: `${resetTagRules}${presetTagRules}${customTagRules.join("")}`.trim(),
+    tagColors: `${resetTagRules}${presetTagChipRules}${customTagChipRules.join("")}`.trim(),
     tagChips: `
 a.tag, a.tag:hover, h1 a.tag, h2 a.tag, h3 a.tag, h4 a.tag {
   border-radius: ${controls.tagRadius}px !important;
@@ -4836,6 +4879,10 @@ a.tag:hover {
 }
 `.trim(),
     linkedBlocks: `
+${presetLinkedBlockRules}
+
+${customLinkedBlockRules.join("")}
+
 .ls-block > div:first-child:not(.selected):not(.selected-block):not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(a.tag[data-ref]) {
   background-image: ${nodeGradient} !important;
   background-color: transparent !important;
@@ -4847,6 +4894,10 @@ a.tag:hover {
 }
 `.trim(),
     pageTitles: `
+${presetPageTitleRules}
+
+${customPageTitleRules.join("")}
+
 .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
   --node-color: inherit;
 }
