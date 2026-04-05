@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.0";
+const FALLBACK_PLUGIN_VERSION = "0.3.1";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -2368,6 +2368,18 @@ function parsePersistedPropertyValue(value) {
   } catch (error) {
     return value;
   }
+}
+
+function normalizeGraphSyncRevision(value) {
+  const parsed = parsePersistedPropertyValue(value);
+  const rawValue = parsed && typeof parsed === "object"
+    ? (parsed.value ?? parsed.revision ?? 0)
+    : parsed;
+  const revision = Number(rawValue);
+
+  return Number.isFinite(revision) && revision > 0
+    ? Math.trunc(revision)
+    : 0;
 }
 
 function preferDatascriptGraphReads() {
