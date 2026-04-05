@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.1.49";
+const FALLBACK_PLUGIN_VERSION = "0.1.50";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1695,29 +1695,13 @@ function buildGroupedPageTitleColorRule(tagNames, lightNodeColor, darkNodeColor)
   }
 
   const innerSelector = buildGroupedTagInnerSelector(tagNames);
-  const directSelector = buildGroupedDirectTitleSelector(tagNames);
-  const darkDirectSelector = buildGroupedDirectTitleSelector(tagNames, ".dark-theme ");
 
   return `
-h1.title:has(:is(${innerSelector})),
-.journal-title:has(:is(${innerSelector})),
-.ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(:is(${innerSelector})),
 .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right :is(${innerSelector})) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container) {
   --node-color: ${lightNodeColor};
 }
 
-${directSelector} {
-  --node-color: ${lightNodeColor};
-}
-
-.dark-theme h1.title:has(:is(${innerSelector})),
-.dark-theme .journal-title:has(:is(${innerSelector})),
-.dark-theme .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(:is(${innerSelector})),
 .dark-theme .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right :is(${innerSelector})) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container) {
-  --node-color: ${darkNodeColor};
-}
-
-${darkDirectSelector} {
   --node-color: ${darkNodeColor};
 }
 `;
@@ -4791,29 +4775,12 @@ a.tag[data-ref="${escapedTagName}" i]:hover {
 `);
 
       customPageTitleRules.push(`
-h1.title:has(a.tag[data-ref="${escapedTagName}" i]),
-.journal-title:has(a.tag[data-ref="${escapedTagName}" i]),
-.ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref="${escapedTagName}" i]),
 .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref="${escapedTagName}" i]) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container),
-:is(
-  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref="${escapedTagName}" i]),
-  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref="${escapedTagName}" i]),
-  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref="${escapedTagName}" i]),
-  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref="${escapedTagName}" i])
-) {
+{
   --node-color: ${lightGradient};
 }
 
-.dark-theme h1.title:has(a.tag[data-ref="${escapedTagName}" i]),
-.dark-theme .journal-title:has(a.tag[data-ref="${escapedTagName}" i]),
-.dark-theme .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref="${escapedTagName}" i]),
-.dark-theme .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref="${escapedTagName}" i]) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container),
-.dark-theme :is(
-  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref="${escapedTagName}" i]),
-  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref="${escapedTagName}" i]),
-  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref="${escapedTagName}" i]),
-  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref="${escapedTagName}" i])
-) {
+.dark-theme .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref="${escapedTagName}" i]) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container) {
   --node-color: ${darkGradient};
 }
 `);
@@ -4898,52 +4865,7 @@ ${presetPageTitleRules}
 
 ${customPageTitleRules.join("")}
 
-.ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
-  --node-color: inherit;
-}
-
-:is(
-  h1.title,
-  .journal-title,
-  .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref])
-):has(a.tag[data-ref]),
-.ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]),
 .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref]) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container) {
-  background-image: ${titleGradient} !important;
-  background-color: transparent !important;
-}
-
-.dark-theme .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
-  --node-color: inherit;
-}
-
-.dark-theme :is(
-  h1.title,
-  .journal-title,
-  .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref])
-):has(a.tag[data-ref]),
-.dark-theme .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]),
-.dark-theme .ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref]) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container) {
-  background-image: ${titleGradient} !important;
-  background-color: transparent !important;
-}
-
-:is(
-  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref]),
-  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref]),
-  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref]),
-  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref])
-) {
-  background-image: ${titleGradient} !important;
-  background-color: transparent !important;
-}
-
-.dark-theme :is(
-  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref]),
-  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref]),
-  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref]),
-  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref])
-) {
   background-image: ${titleGradient} !important;
   background-color: transparent !important;
 }
