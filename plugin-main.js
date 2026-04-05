@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.3";
+const FALLBACK_PLUGIN_VERSION = "0.3.4";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -2233,22 +2233,50 @@ function removeLocalPersistedItem(storageKey) {
   }
 }
 
-function syncLocalTagColorMirror() {
+function buildLocalMirrorPayload(value, revision = panelState.lastLocalSyncRevision || panelState.syncRevision) {
+  return JSON.stringify({
+    revision: normalizeGraphSyncRevision(revision),
+    value,
+  });
+}
+
+function parseLocalMirrorValue(saved, mergeValue) {
+  if (saved == null) {
+    return { exists: false, value: null, revision: 0 };
+  }
+
+  const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
+  const wrapped = parsed && typeof parsed === "object" && Object.prototype.hasOwnProperty.call(parsed, "value");
+  const rawValue = wrapped ? parsed.value : parsed;
+  const revision = wrapped ? normalizeGraphSyncRevision(parsed.revision ?? parsed.syncRevision) : 0;
+
+  return {
+    exists: true,
+    value: typeof mergeValue === "function" ? mergeValue(rawValue) : rawValue,
+    revision,
+  };
+}
+
+function shouldPromoteLocalMirrorRevision(localRevision) {
+  return normalizeGraphSyncRevision(localRevision) > normalizeGraphSyncRevision(panelState.syncRevision);
+}
+
+function syncLocalTagColorMirror(revision = panelState.lastLocalSyncRevision || panelState.syncRevision) {
   const normalizedTagColors = mergeStoredTagColors(panelState.tagColorAssignments);
 
   if (Object.keys(normalizedTagColors).length) {
-    writeLocalPersistedItem(TAG_COLOR_STORAGE_KEY, JSON.stringify(normalizedTagColors));
+    writeLocalPersistedItem(TAG_COLOR_STORAGE_KEY, buildLocalMirrorPayload(normalizedTagColors, revision));
   } else {
     removeLocalPersistedItem(TAG_COLOR_STORAGE_KEY);
   }
 }
 
-function syncLocalControlMirror() {
-  writeLocalPersistedItem(CONTROL_STORAGE_KEY, JSON.stringify(panelState.controlState));
+function syncLocalControlMirror(revision = panelState.lastLocalSyncRevision || panelState.syncRevision) {
+  writeLocalPersistedItem(CONTROL_STORAGE_KEY, buildLocalMirrorPayload(panelState.controlState, revision));
 }
 
-function syncLocalGradientMirror() {
-  writeLocalPersistedItem(GRADIENT_STORAGE_KEY, JSON.stringify(panelState.gradientState));
+function syncLocalGradientMirror(revision = panelState.lastLocalSyncRevision || panelState.syncRevision) {
+  writeLocalPersistedItem(GRADIENT_STORAGE_KEY, buildLocalMirrorPayload(panelState.gradientState, revision));
 }
 
 function hasPendingTagColorSync() {
@@ -2577,8 +2605,8 @@ function getNextGraphSyncRevision() {
   return now > panelState.syncRevision ? now : panelState.syncRevision + 1;
 }
 
-async function bumpGraphSyncRevision(reason = "update") {
-  const nextRevision = getNextGraphSyncRevision();
+async function bumpGraphSyncRevision(reason = "update", plannedRevision = null) {
+  const nextRevision = normalizeGraphSyncRevision(plannedRevision) || getNextGraphSyncRevision();
   const saved = await saveGraphBackedPageState(GRAPH_SYNC_REVISION_PROPERTY, nextRevision);
 
   if (saved) {
@@ -2979,11 +3007,7 @@ async function loadLegacyGraphConfigTagColorState() {
 async function saveGraphSyncedTagColors(tagNames = null, options = {}) {
   const normalizedTagColors = mergeStoredTagColors(panelState.tagColorAssignments);
 
-  if (Object.keys(normalizedTagColors).length) {
-    writeLocalPersistedItem(TAG_COLOR_STORAGE_KEY, JSON.stringify(normalizedTagColors));
-  } else {
-    removeLocalPersistedItem(TAG_COLOR_STORAGE_KEY);
-  }
+  syncLocalTagColorMirror(options.localRevision);
 
   if (typeof logseq.Editor?.upsertBlockProperty !== "function") {
     return false;
@@ -3042,35 +3066,33 @@ async function loadStoredControls() {
 
     if (graphBackedState.exists) {
       panelState.controlState = graphBackedState.value;
-      syncLocalControlMirror();
+      syncLocalControlMirror(panelState.syncRevision);
       return;
     }
+
+    const localMirror = parseLocalMirrorValue(await loadStoredItemWithLegacyFallback(CONTROL_STORAGE_KEY), mergeStoredControls);
 
     const settingsValue = readPluginSettingValue(SETTINGS_CONTROL_STATE_KEY);
 
     if (settingsValue != null && hasMeaningfulStoredControls(settingsValue)) {
       panelState.controlState = mergeStoredControls(settingsValue);
-      syncLocalControlMirror();
+      syncLocalControlMirror(localMirror.exists ? localMirror.revision : 0);
+      return;
+    }
+
+    if (!localMirror.exists) {
+      return;
+    }
+
+    panelState.controlState = localMirror.value;
+    syncLocalControlMirror(localMirror.revision);
+
+    if (shouldPromoteLocalMirrorRevision(localMirror.revision)) {
       await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState, {
         suppressReadyErrors: true,
         deferUntilIndexed: true,
       });
-      return;
     }
-
-    const saved = await loadStoredItemWithLegacyFallback(CONTROL_STORAGE_KEY);
-
-    if (!saved) {
-      return;
-    }
-
-    const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
-    panelState.controlState = mergeStoredControls(parsed);
-    syncLocalControlMirror();
-    await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState, {
-      suppressReadyErrors: true,
-      deferUntilIndexed: true,
-    });
   } catch (error) {
     if (isMissingStorageError(error)) {
       return;
@@ -3098,7 +3120,7 @@ async function loadStoredTagColors(options = {}) {
       }
 
       panelState.tagColorAssignments = pageBackedState.tagColors;
-      writeLocalPersistedItem(TAG_COLOR_STORAGE_KEY, JSON.stringify(panelState.tagColorAssignments));
+      syncLocalTagColorMirror(panelState.syncRevision);
 
       if (!panelState.tagColorCleanupChecked) {
         const queryBackedState = await loadQueryBackedTagColorState();
@@ -3141,7 +3163,7 @@ async function loadStoredTagColors(options = {}) {
 
     if (queryBackedState.exists) {
       panelState.tagColorAssignments = queryBackedState.tagColors;
-      writeLocalPersistedItem(TAG_COLOR_STORAGE_KEY, JSON.stringify(panelState.tagColorAssignments));
+      syncLocalTagColorMirror(panelState.syncRevision);
       panelState.tagEntityMap = {
         ...panelState.tagEntityMap,
         ...queryBackedState.tagEntityMap,
@@ -3163,6 +3185,7 @@ async function loadStoredTagColors(options = {}) {
         suppressReadyErrors: true,
         entityMap: queryBackedState.tagEntityMap,
         cleanupTagNames: queryBackedState.tagNames,
+        localRevision: panelState.syncRevision,
       });
       panelState.tagColorCleanupChecked = false;
       return;
@@ -3176,11 +3199,12 @@ async function loadStoredTagColors(options = {}) {
 
       if (entityBackedState.exists) {
         panelState.tagColorAssignments = entityBackedState.tagColors;
-        writeLocalPersistedItem(TAG_COLOR_STORAGE_KEY, JSON.stringify(panelState.tagColorAssignments));
+        syncLocalTagColorMirror(panelState.syncRevision);
         await saveGraphSyncedTagColors(Object.keys(panelState.tagColorAssignments), {
           suppressReadyErrors: true,
           entityMap: tagCatalog.tagEntityMap,
           cleanupTagNames: Object.keys(entityBackedState.tagColors),
+          localRevision: panelState.syncRevision,
         });
         panelState.tagColorCleanupChecked = false;
         return;
@@ -3195,10 +3219,12 @@ async function loadStoredTagColors(options = {}) {
       }
 
       panelState.tagColorAssignments = legacyGraphConfigState.tagColors;
+      syncLocalTagColorMirror(panelState.syncRevision);
 
       if (Object.keys(panelState.tagColorAssignments).length) {
         await saveGraphSyncedTagColors(Object.keys(panelState.tagColorAssignments), {
           suppressReadyErrors: true,
+          localRevision: panelState.syncRevision,
         });
       }
 
@@ -3207,9 +3233,9 @@ async function loadStoredTagColors(options = {}) {
       return;
     }
 
-    const saved = await loadStoredItemWithLegacyFallback(TAG_COLOR_STORAGE_KEY);
+    const localMirror = parseLocalMirrorValue(await loadStoredItemWithLegacyFallback(TAG_COLOR_STORAGE_KEY), mergeStoredTagColors);
 
-    if (!saved) {
+    if (!localMirror.exists) {
       if (fallbackToCurrent && Object.keys(panelState.tagColorAssignments).length) {
         return;
       }
@@ -3218,18 +3244,17 @@ async function loadStoredTagColors(options = {}) {
       return;
     }
 
-    const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
-    const normalizedSavedTagColors = mergeStoredTagColors(parsed);
-
-    if (fallbackToCurrent && !Object.keys(normalizedSavedTagColors).length && hasCurrentTagColors) {
+    if (fallbackToCurrent && !Object.keys(localMirror.value).length && hasCurrentTagColors) {
       return;
     }
 
-    panelState.tagColorAssignments = normalizedSavedTagColors;
+    panelState.tagColorAssignments = localMirror.value;
+    syncLocalTagColorMirror(localMirror.revision);
 
-    if (Object.keys(panelState.tagColorAssignments).length) {
+    if (Object.keys(panelState.tagColorAssignments).length && shouldPromoteLocalMirrorRevision(localMirror.revision)) {
       await saveGraphSyncedTagColors(Object.keys(panelState.tagColorAssignments), {
         suppressReadyErrors: true,
+        localRevision: localMirror.revision,
       });
     }
 
@@ -3249,35 +3274,33 @@ async function loadStoredGradients() {
 
     if (graphBackedState.exists) {
       panelState.gradientState = graphBackedState.value;
-      syncLocalGradientMirror();
+      syncLocalGradientMirror(panelState.syncRevision);
       return;
     }
+
+    const localMirror = parseLocalMirrorValue(await loadStoredItemWithLegacyFallback(GRADIENT_STORAGE_KEY), mergeStoredGradients);
 
     const settingsValue = readPluginSettingValue(SETTINGS_GRADIENT_STATE_KEY);
 
     if (settingsValue != null && hasMeaningfulStoredGradients(settingsValue)) {
       panelState.gradientState = mergeStoredGradients(settingsValue);
-      syncLocalGradientMirror();
+      syncLocalGradientMirror(localMirror.exists ? localMirror.revision : 0);
+      return;
+    }
+
+    if (!localMirror.exists) {
+      return;
+    }
+
+    panelState.gradientState = localMirror.value;
+    syncLocalGradientMirror(localMirror.revision);
+
+    if (shouldPromoteLocalMirrorRevision(localMirror.revision)) {
       await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState, {
         suppressReadyErrors: true,
         deferUntilIndexed: true,
       });
-      return;
     }
-
-    const saved = await loadStoredItemWithLegacyFallback(GRADIENT_STORAGE_KEY);
-
-    if (!saved) {
-      return;
-    }
-
-    const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
-    panelState.gradientState = mergeStoredGradients(parsed);
-    syncLocalGradientMirror();
-    await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState, {
-      suppressReadyErrors: true,
-      deferUntilIndexed: true,
-    });
   } catch (error) {
     if (isMissingStorageError(error)) {
       return;
@@ -3289,7 +3312,8 @@ async function loadStoredGradients() {
 
 function schedulePersistControls() {
   setSyncState("pending");
-  syncLocalControlMirror();
+  const localRevision = getNextGraphSyncRevision();
+  syncLocalControlMirror(localRevision);
 
   void (async () => {
     try {
@@ -3299,7 +3323,7 @@ function schedulePersistControls() {
       });
 
       if (saved) {
-        await bumpGraphSyncRevision("controls");
+        await bumpGraphSyncRevision("controls", localRevision);
         setSyncState("synced");
       } else {
         setSyncState("pending");
@@ -3318,7 +3342,8 @@ function schedulePersistTagColors(tagNames = []) {
     .map((tagName) => getCanonicalTagName(tagName))
     .filter(Boolean);
 
-  syncLocalTagColorMirror();
+  const localRevision = getNextGraphSyncRevision();
+  syncLocalTagColorMirror(localRevision);
 
   if (names.length) {
     panelState.pendingTagPersistKeys = Array.from(new Set([
@@ -3336,6 +3361,7 @@ function schedulePersistTagColors(tagNames = []) {
     try {
       const saved = await saveGraphSyncedTagColors(pendingTagNames, {
         suppressReadyErrors: true,
+        localRevision,
       });
       setSyncState(saved ? "synced" : "pending");
     } catch (error) {
@@ -3349,7 +3375,8 @@ function schedulePersistTagColors(tagNames = []) {
 
 function schedulePersistGradients() {
   setSyncState("pending");
-  syncLocalGradientMirror();
+  const localRevision = getNextGraphSyncRevision();
+  syncLocalGradientMirror(localRevision);
 
   void (async () => {
     try {
@@ -3359,7 +3386,7 @@ function schedulePersistGradients() {
       });
 
       if (saved) {
-        await bumpGraphSyncRevision("gradients");
+        await bumpGraphSyncRevision("gradients", localRevision);
         setSyncState("synced");
       } else {
         setSyncState("pending");
