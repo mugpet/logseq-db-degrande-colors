@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.4";
+const FALLBACK_PLUGIN_VERSION = "0.3.10";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -22,6 +22,10 @@ const TOOLBAR_OBSERVER_KEY = "__degrandeColorsToolbarObserver";
 const TOOLBAR_RENDER_TIMER_KEY = "__degrandeColorsToolbarRenderTimer";
 const HOST_COLOR_SYNC_OBSERVER_KEY = "__degrandeColorsHostColorObserver";
 const HOST_COLOR_SYNC_TIMER_KEY = "__degrandeColorsHostColorSyncTimer";
+const CMDK_STYLE_OBSERVER_KEY = "__degrandeColorsCmdkStyleObserver";
+const CMDK_STYLE_TIMER_KEY = "__degrandeColorsCmdkStyleTimer";
+const SIDEBAR_STYLE_OBSERVER_KEY = "__degrandeColorsSidebarStyleObserver";
+const SIDEBAR_STYLE_TIMER_KEY = "__degrandeColorsSidebarStyleTimer";
 const COMMAND_REGISTRY_KEY = "__degrandeColorsRegisteredCommands";
 const TOOLBAR_REGISTRY_KEY = "__degrandeColorsRegisteredToolbarItems";
 const HOST_SESSION_KEY = "__degrandeColorsHostSession";
@@ -711,6 +715,448 @@ function observeHostColorTargets() {
 
   hostWindow[HOST_COLOR_SYNC_OBSERVER_KEY] = observer;
   scheduleHostColorSync();
+}
+
+function scheduleCmdkTagStyleSync() {
+  const hostDocument = getHostDocument();
+  const hostWindow = hostDocument.defaultView || window;
+
+  if (hostWindow[CMDK_STYLE_TIMER_KEY]) {
+    return;
+  }
+
+  hostWindow[CMDK_STYLE_TIMER_KEY] = hostWindow.setTimeout(() => {
+    hostWindow[CMDK_STYLE_TIMER_KEY] = null;
+    syncCmdkTagStyles();
+  }, 40);
+}
+
+function scheduleSidebarTagStyleSync() {
+  const hostDocument = getHostDocument();
+  const hostWindow = hostDocument.defaultView || window;
+
+  if (hostWindow[SIDEBAR_STYLE_TIMER_KEY]) {
+    return;
+  }
+
+  hostWindow[SIDEBAR_STYLE_TIMER_KEY] = hostWindow.setTimeout(() => {
+    hostWindow[SIDEBAR_STYLE_TIMER_KEY] = null;
+    syncSidebarTagStyles();
+  }, 40);
+}
+
+function getCmdkPrimaryLine(row) {
+  const textColumn = row.querySelector('.flex.flex-1.flex-col');
+
+  if (!textColumn) {
+    return null;
+  }
+
+  return Array.from(textColumn.children).find((child) => child.textContent?.trim()) || textColumn;
+}
+
+function getCmdkTagLabelElement(row) {
+  const primaryLine = getCmdkPrimaryLine(row);
+
+  if (!primaryLine) {
+    return null;
+  }
+
+  return primaryLine.querySelector('.flex.flex-row.items-center.gap-1')
+    || primaryLine.querySelector('[data-testid]')
+    || primaryLine.querySelector('span')
+    || primaryLine;
+}
+
+function getCmdkTagIconElement(row) {
+  return row.querySelector('.ls-icon-hash')?.closest('div');
+}
+
+function clearCmdkTagElementStyles(element, attributeName, propertyNames) {
+  if (!element) {
+    return;
+  }
+
+  element.removeAttribute(attributeName);
+  propertyNames.forEach((propertyName) => {
+    element.style.removeProperty(propertyName);
+  });
+}
+
+function getCmdkTagName(row) {
+  if (!row.querySelector('.ls-icon-hash')) {
+    return "";
+  }
+
+  const candidates = [];
+  row.querySelectorAll('[data-testid]').forEach((element) => {
+    const text = element.textContent?.trim();
+
+    if (text) {
+      candidates.push(text);
+    }
+  });
+
+  const primaryText = getCmdkPrimaryLine(row)?.textContent?.trim();
+
+  if (primaryText) {
+    candidates.push(primaryText);
+  }
+
+  for (const candidate of candidates) {
+    const normalized = normalizeTagName(candidate);
+
+    if (normalized) {
+      return getCanonicalTagName(normalized);
+    }
+  }
+
+  return "";
+}
+
+function getSearchTagGradientColor(tagName) {
+  const assignment = getTagColorAssignment(tagName);
+
+  if (assignment?.type === 'preset' && COLOR_PRESET_MAP[assignment.token]) {
+    return `var(--grad-${assignment.token})`;
+  }
+
+  if (assignment?.type === 'custom') {
+    return getCustomTagGradientColor(assignment, panelState.themeMode) || 'var(--grad-grey)';
+  }
+
+  return 'var(--grad-grey)';
+}
+
+function getCmdkTagThemeState(tagName) {
+  const assignment = getTagColorAssignment(tagName);
+  const theme = getTagChipThemeStyle(assignment);
+  const isDark = panelState.themeMode === 'dark';
+
+  return {
+    theme,
+    gradientColor: getSearchTagGradientColor(tagName),
+    baseShadow: isDark
+      ? 'inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 1px 2px rgba(2, 6, 23, 0.28)'
+      : 'inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 1px 2px rgba(15, 23, 42, 0.08)',
+    hoverShadow: isDark
+      ? 'inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 4px rgba(2, 6, 23, 0.34)'
+      : 'inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 2px 4px rgba(15, 23, 42, 0.12)',
+  };
+}
+
+function isKnownCmdkInlineTag(tagName) {
+  const normalized = String(tagName || '').trim().toLowerCase();
+
+  if (!normalized) {
+    return false;
+  }
+
+  return panelState.tags.some((entry) => entry.toLowerCase() === normalized)
+    || Boolean(panelState.tagColorAssignments[normalized])
+    || Boolean(panelState.baseTagColorMap[normalized]);
+}
+
+function createCmdkInlineTagChip(hostDocument, displayTagName, tagName) {
+  const chip = hostDocument.createElement('span');
+  const chipTheme = getCmdkTagThemeState(tagName);
+
+  chip.setAttribute('data-degrande-inline-tag', tagName);
+  chip.textContent = `#${displayTagName}`;
+  chip.style.setProperty('--degrande-search-chip-bg', chipTheme.theme.background);
+  chip.style.setProperty('--degrande-search-chip-border', chipTheme.theme.borderColor);
+  chip.style.setProperty('--degrande-search-chip-color', chipTheme.theme.color);
+  chip.style.setProperty('--degrande-search-chip-shadow', chipTheme.baseShadow);
+  chip.style.setProperty('--degrande-search-chip-hover-shadow', chipTheme.hoverShadow);
+  chip.style.setProperty('--degrande-search-chip-gradient', chipTheme.gradientColor);
+
+  return chip;
+}
+
+function syncCmdkInlineTagChip(chip) {
+  const tagName = chip.getAttribute('data-degrande-inline-tag') || '';
+
+  if (!tagName) {
+    return;
+  }
+
+  const chipTheme = getCmdkTagThemeState(tagName);
+  chip.style.setProperty('--degrande-search-chip-bg', chipTheme.theme.background);
+  chip.style.setProperty('--degrande-search-chip-border', chipTheme.theme.borderColor);
+  chip.style.setProperty('--degrande-search-chip-color', chipTheme.theme.color);
+  chip.style.setProperty('--degrande-search-chip-shadow', chipTheme.baseShadow);
+  chip.style.setProperty('--degrande-search-chip-hover-shadow', chipTheme.hoverShadow);
+  chip.style.setProperty('--degrande-search-chip-gradient', chipTheme.gradientColor);
+}
+
+function syncInlineTagTextNodes(container) {
+  if (!container) {
+    return;
+  }
+
+  const hostDocument = container.ownerDocument;
+  const hostWindow = hostDocument.defaultView || window;
+  const textNodes = [];
+
+  container.querySelectorAll('[data-degrande-inline-tag]').forEach((chip) => {
+    syncCmdkInlineTagChip(chip);
+  });
+
+  const walker = hostDocument.createTreeWalker(
+    container,
+    hostWindow.NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        const parentElement = node.parentElement;
+
+        if (!node.nodeValue?.includes('#') || !parentElement) {
+          return hostWindow.NodeFilter.FILTER_REJECT;
+        }
+
+        if (parentElement.closest('[data-degrande-inline-tag], [data-degrande-search-tag-label], mark')) {
+          return hostWindow.NodeFilter.FILTER_REJECT;
+        }
+
+        return hostWindow.NodeFilter.FILTER_ACCEPT;
+      },
+    }
+  );
+
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode);
+  }
+
+  const inlineTagPattern = /(^|[\s([{"'])#([^\s#.,;:!?()[\]{}"']+)/gu;
+
+  textNodes.forEach((node) => {
+    const text = node.nodeValue || '';
+    let lastIndex = 0;
+    let match = null;
+    let hasReplacement = false;
+    const fragment = hostDocument.createDocumentFragment();
+
+    while ((match = inlineTagPattern.exec(text))) {
+      const prefix = match[1] || '';
+      const displayTagName = match[2] || '';
+      const tagStart = match.index + prefix.length;
+      const tagEnd = match.index + match[0].length;
+      const canonicalTagName = getCanonicalTagName(displayTagName);
+
+      if (!isKnownCmdkInlineTag(canonicalTagName)) {
+        continue;
+      }
+
+      if (tagStart > lastIndex) {
+        fragment.appendChild(hostDocument.createTextNode(text.slice(lastIndex, tagStart)));
+      }
+
+      fragment.appendChild(createCmdkInlineTagChip(hostDocument, displayTagName, canonicalTagName));
+      lastIndex = tagEnd;
+      hasReplacement = true;
+    }
+
+    if (!hasReplacement) {
+      return;
+    }
+
+    if (lastIndex < text.length) {
+      fragment.appendChild(hostDocument.createTextNode(text.slice(lastIndex)));
+    }
+
+    node.parentNode?.replaceChild(fragment, node);
+  });
+}
+
+function syncCmdkInlineTags(row) {
+  const primaryLine = getCmdkPrimaryLine(row);
+
+  if (!primaryLine) {
+    return;
+  }
+
+  if (row.querySelector('.ls-icon-hash')) {
+    primaryLine.querySelectorAll('[data-degrande-inline-tag]').forEach((chip) => {
+      syncCmdkInlineTagChip(chip);
+    });
+    return;
+  }
+
+  syncInlineTagTextNodes(primaryLine);
+}
+
+function syncCmdkTagRow(row) {
+  clearCmdkTagElementStyles(row, 'data-degrande-search-tag', [
+    '--degrande-search-chip-gradient',
+  ]);
+
+  const labelElement = getCmdkTagLabelElement(row);
+  const iconElement = getCmdkTagIconElement(row);
+
+  clearCmdkTagElementStyles(labelElement, 'data-degrande-search-tag-label', [
+    '--degrande-search-chip-bg',
+    '--degrande-search-chip-border',
+    '--degrande-search-chip-color',
+    '--degrande-search-chip-shadow',
+    '--degrande-search-chip-hover-shadow',
+  ]);
+  clearCmdkTagElementStyles(iconElement, 'data-degrande-search-tag-icon', [
+    '--degrande-search-chip-bg',
+    '--degrande-search-chip-border',
+    '--degrande-search-chip-color',
+    '--degrande-search-chip-shadow',
+  ]);
+
+  const tagName = getCmdkTagName(row);
+
+  if (!tagName || !labelElement) {
+    return;
+  }
+
+  const assignment = getTagColorAssignment(tagName);
+  const chipTheme = getCmdkTagThemeState(tagName);
+
+  row.setAttribute('data-degrande-search-tag', tagName);
+  row.style.setProperty('--degrande-search-chip-gradient', chipTheme.gradientColor);
+  labelElement.setAttribute('data-degrande-search-tag-label', tagName);
+  labelElement.style.setProperty('--degrande-search-chip-bg', chipTheme.theme.background);
+  labelElement.style.setProperty('--degrande-search-chip-border', chipTheme.theme.borderColor);
+  labelElement.style.setProperty('--degrande-search-chip-color', chipTheme.theme.color);
+  labelElement.style.setProperty('--degrande-search-chip-shadow', chipTheme.baseShadow);
+  labelElement.style.setProperty('--degrande-search-chip-hover-shadow', chipTheme.hoverShadow);
+
+  if (iconElement) {
+    iconElement.setAttribute('data-degrande-search-tag-icon', tagName);
+    iconElement.style.setProperty('--degrande-search-chip-bg', chipTheme.theme.background);
+    iconElement.style.setProperty('--degrande-search-chip-border', chipTheme.theme.borderColor);
+    iconElement.style.setProperty('--degrande-search-chip-color', chipTheme.theme.color);
+    iconElement.style.setProperty('--degrande-search-chip-shadow', chipTheme.baseShadow);
+  }
+
+  return assignment;
+}
+
+function syncCmdkTagStyles() {
+  const hostDocument = getHostDocument();
+  const hostWindow = hostDocument.defaultView || window;
+
+  hostDocument.querySelectorAll('.cp__cmdk [data-cmdk-item], .cp__select-main [data-cmdk-item], .cp__palette-main [data-cmdk-item]').forEach((row) => {
+    if (!(row instanceof hostWindow.Element)) {
+      return;
+    }
+
+    syncCmdkTagRow(row);
+    syncCmdkInlineTags(row);
+  });
+}
+
+function nodeTouchesCmdk(node, hostWindow) {
+  const candidate = node instanceof hostWindow.Text ? node.parentElement : node;
+
+  if (!(candidate instanceof hostWindow.Element)) {
+    return false;
+  }
+
+  if (candidate.matches('.cp__cmdk, .cp__select-main, .cp__palette-main')) {
+    return true;
+  }
+
+  if (candidate.closest('.cp__cmdk, .cp__select-main, .cp__palette-main')) {
+    return true;
+  }
+
+  return Boolean(candidate.querySelector('.cp__cmdk, .cp__select-main, .cp__palette-main'));
+}
+
+function syncSidebarTagStyles() {
+  const hostDocument = getHostDocument();
+  const hostWindow = hostDocument.defaultView || window;
+
+  hostDocument.querySelectorAll('.left-sidebar-inner .page-title').forEach((title) => {
+    if (!(title instanceof hostWindow.Element)) {
+      return;
+    }
+
+    syncInlineTagTextNodes(title);
+  });
+}
+
+function nodeTouchesSidebar(node, hostWindow) {
+  const candidate = node instanceof hostWindow.Text ? node.parentElement : node;
+
+  if (!(candidate instanceof hostWindow.Element)) {
+    return false;
+  }
+
+  if (candidate.matches('.left-sidebar-inner')) {
+    return true;
+  }
+
+  if (candidate.closest('.left-sidebar-inner')) {
+    return true;
+  }
+
+  return Boolean(candidate.querySelector('.left-sidebar-inner'));
+}
+
+function observeSidebarTagStyles() {
+  const hostDocument = getHostDocument();
+  const hostWindow = hostDocument.defaultView || window;
+  const HostMutationObserver = hostWindow.MutationObserver || MutationObserver;
+
+  hostWindow[SIDEBAR_STYLE_OBSERVER_KEY]?.disconnect?.();
+
+  const observer = new HostMutationObserver((mutations) => {
+    const touchesSidebar = mutations.some((mutation) => {
+      if (nodeTouchesSidebar(mutation.target, hostWindow)) {
+        return true;
+      }
+
+      return Array.from(mutation.addedNodes || []).some((node) => nodeTouchesSidebar(node, hostWindow));
+    });
+
+    if (touchesSidebar) {
+      scheduleSidebarTagStyleSync();
+    }
+  });
+
+  observer.observe(hostDocument.body || hostDocument.documentElement, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+  });
+
+  hostWindow[SIDEBAR_STYLE_OBSERVER_KEY] = observer;
+  scheduleSidebarTagStyleSync();
+}
+
+function observeCmdkSearchResults() {
+  const hostDocument = getHostDocument();
+  const hostWindow = hostDocument.defaultView || window;
+  const HostMutationObserver = hostWindow.MutationObserver || MutationObserver;
+
+  hostWindow[CMDK_STYLE_OBSERVER_KEY]?.disconnect?.();
+
+  const observer = new HostMutationObserver((mutations) => {
+    const touchesCmdk = mutations.some((mutation) => {
+      if (nodeTouchesCmdk(mutation.target, hostWindow)) {
+        return true;
+      }
+
+      return Array.from(mutation.addedNodes || []).some((node) => nodeTouchesCmdk(node, hostWindow));
+    });
+
+    if (touchesCmdk) {
+      scheduleCmdkTagStyleSync();
+    }
+  });
+
+  observer.observe(hostDocument.body || hostDocument.documentElement, {
+    childList: true,
+    subtree: true,
+  });
+
+  hostWindow[CMDK_STYLE_OBSERVER_KEY] = observer;
+  scheduleCmdkTagStyleSync();
 }
 
 function isDuplicateRegistrationError(error) {
@@ -1665,6 +2111,10 @@ function getManagedOverrideTagNames() {
   )).sort((left, right) => left.localeCompare(right));
 }
 
+function buildSearchTagChipSelector(themePrefix = "") {
+  return `${themePrefix}:where(.cp__cmdk, .cp__select-main, .cp__palette-main) a.tag[data-ref]`;
+}
+
 function buildGroupedTagChipSelectors(tagNames, themePrefix = "") {
   return tagNames.flatMap((tagName) => {
     const escapedTagName = escapeAttributeValue(tagName);
@@ -1672,6 +2122,8 @@ function buildGroupedTagChipSelectors(tagNames, themePrefix = "") {
     return [
       `${themePrefix}a.tag[data-ref="${escapedTagName}" i]`,
       `${themePrefix}a.tag[data-ref="${escapedTagName}" i]:hover`,
+      `${themePrefix}:where(.cp__cmdk, .cp__select-main, .cp__palette-main) a.tag[data-ref="${escapedTagName}" i]`,
+      `${themePrefix}:where(.cp__cmdk, .cp__select-main, .cp__palette-main) a.tag[data-ref="${escapedTagName}" i]:hover`,
     ];
   }).join(",\n");
 }
@@ -5118,6 +5570,14 @@ function buildManagedOverrides() {
   const nodeGradient = buildGradientCss("node", "var(--node-color)");
   const titleGradient = buildGradientCss("title", "var(--node-color)");
   const backgroundGradient = buildGradientCss("background", "var(--ctl-bg-sweep-color)");
+  const cmdkTagFontSize = Math.max(10, controls.tagFontSize - 1);
+  const cmdkTagHeight = Math.max(14, controls.tagHeight - 3);
+  const cmdkTagPaddingX = Math.max(4, controls.tagPaddingX - 2);
+  const cmdkTagRadius = Math.max(4, controls.tagRadius - 1);
+  const tagChipLightBaseShadow = "inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 1px 2px rgba(15, 23, 42, 0.08)";
+  const tagChipDarkBaseShadow = "inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 1px 2px rgba(2, 6, 23, 0.28)";
+  const tagChipLightHoverShadow = "inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 2px 4px rgba(15, 23, 42, 0.12)";
+  const tagChipDarkHoverShadow = "inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 4px rgba(2, 6, 23, 0.34)";
 
   const quoteColorRules = QUOTE_COLOR_RULES.map(({ selector, token }) => `
 ${selector} {
@@ -5246,8 +5706,109 @@ a.tag, a.tag:hover, h1 a.tag, h2 a.tag, h3 a.tag, h4 a.tag {
   border-width: ${controls.tagBorderWidth}px !important;
 }
 
+${buildSearchTagChipSelector()} {
+  display: inline-flex !important;
+  align-items: center !important;
+  vertical-align: middle !important;
+  margin-bottom: 0 !important;
+  text-decoration: none !important;
+  line-height: 1.2 !important;
+  font-weight: 500 !important;
+  background-color: var(--bg-grey) !important;
+  color: #111 !important;
+  border-style: solid !important;
+  border-color: var(--bd-grey) !important;
+  box-shadow: ${tagChipLightBaseShadow} !important;
+  opacity: 1 !important;
+}
+
+${buildSearchTagChipSelector(".dark-theme ")} {
+  background-color: #374151 !important;
+  color: #f3f4f6 !important;
+  border-color: #4b5563 !important;
+  box-shadow: ${tagChipDarkBaseShadow} !important;
+}
+
+${buildSearchTagChipSelector()}::before,
+${buildSearchTagChipSelector()} * {
+  color: inherit !important;
+  font-size: inherit !important;
+}
+
 a.tag:hover {
   transform: translateY(-${controls.tagHoverLift}px) !important;
+}
+
+${buildSearchTagChipSelector()}:hover {
+  transform: translateY(-${controls.tagHoverLift}px) !important;
+  box-shadow: ${tagChipLightHoverShadow} !important;
+}
+
+${buildSearchTagChipSelector(".dark-theme ")}:hover {
+  box-shadow: ${tagChipDarkHoverShadow} !important;
+}
+
+[data-degrande-search-tag-label] {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  pointer-events: none !important;
+  min-height: ${cmdkTagHeight}px !important;
+  padding: 0 ${cmdkTagPaddingX}px !important;
+  border-radius: ${cmdkTagRadius}px !important;
+  border: ${controls.tagBorderWidth}px solid var(--degrande-search-chip-border, var(--bd-grey)) !important;
+  background: var(--degrande-search-chip-bg, var(--bg-grey)) !important;
+  color: var(--degrande-search-chip-color, #111) !important;
+  font-size: ${cmdkTagFontSize}px !important;
+  line-height: 1.2 !important;
+  box-shadow: var(--degrande-search-chip-shadow, ${tagChipLightBaseShadow}) !important;
+}
+
+[data-degrande-search-tag-label]:hover {
+  box-shadow: var(--degrande-search-chip-hover-shadow, ${tagChipLightHoverShadow}) !important;
+  transform: translateY(-${controls.tagHoverLift}px) !important;
+}
+
+[data-degrande-search-tag-label] .ui__icon,
+[data-degrande-search-tag-label] span,
+[data-degrande-search-tag-label] mark {
+  color: inherit !important;
+}
+
+[data-degrande-inline-tag] {
+  display: inline-flex !important;
+  align-items: center !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+  pointer-events: none !important;
+  margin: 0 2px !important;
+  min-height: ${cmdkTagHeight}px !important;
+  padding: 0 ${cmdkTagPaddingX}px !important;
+  border-radius: ${cmdkTagRadius}px !important;
+  border: ${controls.tagBorderWidth}px solid var(--degrande-search-chip-border, var(--bd-grey)) !important;
+  background: var(--degrande-search-chip-bg, var(--bg-grey)) !important;
+  color: var(--degrande-search-chip-color, #111) !important;
+  font-size: ${cmdkTagFontSize}px !important;
+  line-height: 1.2 !important;
+  box-shadow: var(--degrande-search-chip-shadow, ${tagChipLightBaseShadow}) !important;
+}
+
+[data-degrande-inline-tag]:hover {
+  transform: translateY(-${controls.tagHoverLift}px) !important;
+  box-shadow: var(--degrande-search-chip-hover-shadow, ${tagChipLightHoverShadow}) !important;
+}
+
+[data-degrande-search-tag-icon] {
+  color: var(--degrande-search-chip-color, #111) !important;
+  background: var(--degrande-search-chip-bg, var(--bg-grey)) !important;
+  pointer-events: none !important;
+  border: 1px solid var(--degrande-search-chip-border, var(--bd-grey)) !important;
+  box-shadow: var(--degrande-search-chip-shadow, ${tagChipLightBaseShadow}) !important;
+}
+
+[data-degrande-search-tag-icon] .ui__icon,
+[data-degrande-search-tag-icon] svg {
+  color: inherit !important;
 }
 `.trim(),
     linkedBlocks: `
@@ -5881,6 +6442,8 @@ async function applyManagedOverrides(showToast = false, statusMessage = "Updated
   }
 
   syncHostColorVariables();
+  scheduleCmdkTagStyleSync();
+  scheduleSidebarTagStyleSync();
 
   if (panelState.mounted) {
     if (renderMode === "soft") {
@@ -6091,6 +6654,8 @@ async function main() {
 
   await reloadThemeCss(false, false);
   observeHostColorTargets();
+  observeCmdkSearchResults();
+  observeSidebarTagStyles();
 
   logseq.provideModel({
     openThemeLoader,
