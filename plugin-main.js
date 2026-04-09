@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.12";
+const FALLBACK_PLUGIN_VERSION = "0.3.13";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -304,6 +304,18 @@ const panelState = {
 
 function getHostDocument() {
   try {
+    if (typeof logseq?.Experiments?.ensureHostScope === 'function') {
+      const hostScope = logseq.Experiments.ensureHostScope();
+
+      if (hostScope?.document) {
+        return hostScope.document;
+      }
+    }
+  } catch (error) {
+    // Ignore host-scope bridge issues and fall back to direct document access.
+  }
+
+  try {
     if (window.top?.document) {
       return window.top.document;
     }
@@ -323,6 +335,18 @@ function getHostDocument() {
 }
 
 function getHostWindow() {
+  try {
+    if (typeof logseq?.Experiments?.ensureHostScope === 'function') {
+      const hostScope = logseq.Experiments.ensureHostScope();
+
+      if (hostScope?.document) {
+        return hostScope;
+      }
+    }
+  } catch (error) {
+    // Ignore host-scope bridge issues and fall back to direct window access.
+  }
+
   try {
     if (window.top?.document) {
       return window.top;
@@ -354,6 +378,14 @@ function getAccessibleDocumentCandidates() {
     seen.add(candidate);
     candidates.push(candidate);
   };
+
+  try {
+    if (typeof logseq?.Experiments?.ensureHostScope === 'function') {
+      pushDocument(logseq.Experiments.ensureHostScope()?.document);
+    }
+  } catch (error) {
+    // Ignore host-scope bridge issues.
+  }
 
   try {
     pushDocument(window.top?.document);
@@ -398,6 +430,18 @@ function disconnectObserverGroup(registry) {
 }
 
 function canAccessExternalHostDocument() {
+  try {
+    if (typeof logseq?.Experiments?.ensureHostScope === 'function') {
+      const hostScope = logseq.Experiments.ensureHostScope();
+
+      if (hostScope?.document && hostScope.document !== document) {
+        return true;
+      }
+    }
+  } catch (error) {
+    // Ignore host-scope bridge issues and continue with direct checks.
+  }
+
   try {
     if (window.top && window.top !== window && window.top.document && window.top.document !== document) {
       return true;
