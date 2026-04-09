@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.11";
+const FALLBACK_PLUGIN_VERSION = "0.3.12";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -340,6 +340,61 @@ function getHostWindow() {
   }
 
   return window;
+}
+
+function getAccessibleDocumentCandidates() {
+  const candidates = [];
+  const seen = new Set();
+
+  const pushDocument = (candidate) => {
+    if (!candidate || seen.has(candidate)) {
+      return;
+    }
+
+    seen.add(candidate);
+    candidates.push(candidate);
+  };
+
+  try {
+    pushDocument(window.top?.document);
+  } catch (error) {
+    // Ignore cross-frame access issues.
+  }
+
+  try {
+    pushDocument(window.parent?.document);
+  } catch (error) {
+    // Ignore cross-frame access issues.
+  }
+
+  pushDocument(document);
+
+  return candidates.filter((candidate) => candidate?.documentElement);
+}
+
+function getObservableHostDocuments() {
+  const hostLikeDocuments = getAccessibleDocumentCandidates().filter((candidate) => {
+    try {
+      return Boolean(
+        candidate.querySelector('#app-container, #root, .cp__header, .left-sidebar-inner, .cp__sidebar-main-content')
+      );
+    } catch (error) {
+      return false;
+    }
+  });
+
+  return hostLikeDocuments.length ? hostLikeDocuments : [getHostDocument()];
+}
+
+function disconnectObserverGroup(registry) {
+  if (!Array.isArray(registry)) {
+    registry?.disconnect?.();
+    return;
+  }
+
+  registry.forEach((entry) => {
+    entry?.disconnect?.();
+  });
 }
 
 function canAccessExternalHostDocument() {
@@ -718,8 +773,7 @@ function observeHostColorTargets() {
 }
 
 function scheduleCmdkTagStyleSync() {
-  const hostDocument = getHostDocument();
-  const hostWindow = hostDocument.defaultView || window;
+  const hostWindow = getHostWindow();
 
   if (hostWindow[CMDK_STYLE_TIMER_KEY]) {
     return;
@@ -732,8 +786,7 @@ function scheduleCmdkTagStyleSync() {
 }
 
 function scheduleSidebarTagStyleSync() {
-  const hostDocument = getHostDocument();
-  const hostWindow = hostDocument.defaultView || window;
+  const hostWindow = getHostWindow();
 
   if (hostWindow[SIDEBAR_STYLE_TIMER_KEY]) {
     return;
@@ -1036,16 +1089,17 @@ function syncCmdkTagRow(row) {
 }
 
 function syncCmdkTagStyles() {
-  const hostDocument = getHostDocument();
-  const hostWindow = hostDocument.defaultView || window;
+  getObservableHostDocuments().forEach((hostDocument) => {
+    const hostWindow = hostDocument.defaultView || window;
 
-  hostDocument.querySelectorAll('.cp__cmdk [data-cmdk-item], .cp__select-main [data-cmdk-item], .cp__palette-main [data-cmdk-item]').forEach((row) => {
-    if (!(row instanceof hostWindow.Element)) {
-      return;
-    }
+    hostDocument.querySelectorAll('.cp__cmdk [data-cmdk-item], .cp__select-main [data-cmdk-item], .cp__palette-main [data-cmdk-item]').forEach((row) => {
+      if (!(row instanceof hostWindow.Element)) {
+        return;
+      }
 
-    syncCmdkTagRow(row);
-    syncCmdkInlineTags(row);
+      syncCmdkTagRow(row);
+      syncCmdkInlineTags(row);
+    });
   });
 }
 
@@ -1068,15 +1122,16 @@ function nodeTouchesCmdk(node, hostWindow) {
 }
 
 function syncSidebarTagStyles() {
-  const hostDocument = getHostDocument();
-  const hostWindow = hostDocument.defaultView || window;
+  getObservableHostDocuments().forEach((hostDocument) => {
+    const hostWindow = hostDocument.defaultView || window;
 
-  hostDocument.querySelectorAll('.left-sidebar-inner .page-title').forEach((title) => {
-    if (!(title instanceof hostWindow.Element)) {
-      return;
-    }
+    hostDocument.querySelectorAll('.left-sidebar-inner .page-title').forEach((title) => {
+      if (!(title instanceof hostWindow.Element)) {
+        return;
+      }
 
-    syncInlineTagTextNodes(title);
+      syncInlineTagTextNodes(title);
+    });
   });
 }
 
@@ -1099,63 +1154,71 @@ function nodeTouchesSidebar(node, hostWindow) {
 }
 
 function observeSidebarTagStyles() {
-  const hostDocument = getHostDocument();
-  const hostWindow = hostDocument.defaultView || window;
-  const HostMutationObserver = hostWindow.MutationObserver || MutationObserver;
+  const hostWindow = getHostWindow();
+  const documents = getObservableHostDocuments();
 
-  hostWindow[SIDEBAR_STYLE_OBSERVER_KEY]?.disconnect?.();
+  disconnectObserverGroup(hostWindow[SIDEBAR_STYLE_OBSERVER_KEY]);
 
-  const observer = new HostMutationObserver((mutations) => {
-    const touchesSidebar = mutations.some((mutation) => {
-      if (nodeTouchesSidebar(mutation.target, hostWindow)) {
-        return true;
+  hostWindow[SIDEBAR_STYLE_OBSERVER_KEY] = documents.map((hostDocument) => {
+    const documentWindow = hostDocument.defaultView || hostWindow;
+    const HostMutationObserver = documentWindow.MutationObserver || MutationObserver;
+    const observer = new HostMutationObserver((mutations) => {
+      const touchesSidebar = mutations.some((mutation) => {
+        if (nodeTouchesSidebar(mutation.target, documentWindow)) {
+          return true;
+        }
+
+        return Array.from(mutation.addedNodes || []).some((node) => nodeTouchesSidebar(node, documentWindow));
+      });
+
+      if (touchesSidebar) {
+        scheduleSidebarTagStyleSync();
       }
-
-      return Array.from(mutation.addedNodes || []).some((node) => nodeTouchesSidebar(node, hostWindow));
     });
 
-    if (touchesSidebar) {
-      scheduleSidebarTagStyleSync();
-    }
+    observer.observe(hostDocument.body || hostDocument.documentElement, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    return observer;
   });
 
-  observer.observe(hostDocument.body || hostDocument.documentElement, {
-    childList: true,
-    subtree: true,
-    characterData: true,
-  });
-
-  hostWindow[SIDEBAR_STYLE_OBSERVER_KEY] = observer;
   scheduleSidebarTagStyleSync();
 }
 
 function observeCmdkSearchResults() {
-  const hostDocument = getHostDocument();
-  const hostWindow = hostDocument.defaultView || window;
-  const HostMutationObserver = hostWindow.MutationObserver || MutationObserver;
+  const hostWindow = getHostWindow();
+  const documents = getObservableHostDocuments();
 
-  hostWindow[CMDK_STYLE_OBSERVER_KEY]?.disconnect?.();
+  disconnectObserverGroup(hostWindow[CMDK_STYLE_OBSERVER_KEY]);
 
-  const observer = new HostMutationObserver((mutations) => {
-    const touchesCmdk = mutations.some((mutation) => {
-      if (nodeTouchesCmdk(mutation.target, hostWindow)) {
-        return true;
+  hostWindow[CMDK_STYLE_OBSERVER_KEY] = documents.map((hostDocument) => {
+    const documentWindow = hostDocument.defaultView || hostWindow;
+    const HostMutationObserver = documentWindow.MutationObserver || MutationObserver;
+    const observer = new HostMutationObserver((mutations) => {
+      const touchesCmdk = mutations.some((mutation) => {
+        if (nodeTouchesCmdk(mutation.target, documentWindow)) {
+          return true;
+        }
+
+        return Array.from(mutation.addedNodes || []).some((node) => nodeTouchesCmdk(node, documentWindow));
+      });
+
+      if (touchesCmdk) {
+        scheduleCmdkTagStyleSync();
       }
-
-      return Array.from(mutation.addedNodes || []).some((node) => nodeTouchesCmdk(node, hostWindow));
     });
 
-    if (touchesCmdk) {
-      scheduleCmdkTagStyleSync();
-    }
+    observer.observe(hostDocument.body || hostDocument.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+
+    return observer;
   });
 
-  observer.observe(hostDocument.body || hostDocument.documentElement, {
-    childList: true,
-    subtree: true,
-  });
-
-  hostWindow[CMDK_STYLE_OBSERVER_KEY] = observer;
   scheduleCmdkTagStyleSync();
 }
 
