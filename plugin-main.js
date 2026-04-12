@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.19";
+const FALLBACK_PLUGIN_VERSION = "0.3.20";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -71,6 +71,7 @@ const COLOR_PRESETS = [
   { token: "sky", label: "Sky", lightBg: "#e0f2fe", lightBorder: "#38bdf8", darkBg: "#0c4a6e", darkBorder: "#7dd3fc", lightText: "#075985", darkText: "#e0f2fe" },
   { token: "lime", label: "Lime", lightBg: "#f1f9c9", lightBorder: "#84cc16", darkBg: "#365314", darkBorder: "#bef264", lightText: "#3f6212", darkText: "#ecfccb" },
   { token: "slate", label: "Slate", lightBg: "#e2e8f0", lightBorder: "#64748b", darkBg: "#1e293b", darkBorder: "#94a3b8", lightText: "#334155", darkText: "#e2e8f0" },
+  { token: "acc-app-accent", label: "Logseq Accent", lightBg: "color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 15%, transparent)", lightBorder: "color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 60%, transparent)", darkBg: "color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 25%, transparent)", darkBorder: "color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 60%, transparent)", lightText: "color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 90%, black)", darkText: "color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 20%, white)" },
   { token: "acc-lt-blue", label: "Accent Lt Blue", lightBg: "#ebf2fb", lightBorder: "#b0c7ea", darkBg: "#1a2638", darkBorder: "#8aa6d3", lightText: "#4d6890", darkText: "#ebf2fb" },
   { token: "acc-coral", label: "Accent Coral", lightBg: "#feece8", lightBorder: "#f49e8c", darkBg: "#3e1d17", darkBorder: "#de7c68", lightText: "#9f4330", darkText: "#feece8" },
   { token: "acc-salmon", label: "Accent Salmon", lightBg: "#feeeee", lightBorder: "#f49898", darkBg: "#3e1d1d", darkBorder: "#de7a7a", lightText: "#9f4343", darkText: "#feeeee" },
@@ -85,7 +86,6 @@ const COLOR_PRESETS = [
   { token: "acc-teal", label: "Accent Teal", lightBg: "#eef9f7", lightBorder: "#7ecdbe", darkBg: "#14352e", darkBorder: "#59af9c", lightText: "#267261", darkText: "#eef9f7" },
   { token: "acc-sage", label: "Accent Sage", lightBg: "#f2f9f4", lightBorder: "#9fd2af", darkBg: "#1e3828", darkBorder: "#7eb390", lightText: "#36774e", darkText: "#f2f9f4" },
   { token: "acc-apricot", label: "Accent Apricot", lightBg: "#fff5ee", lightBorder: "#fca877", darkBg: "#442413", darkBorder: "#df8a57", lightText: "#ae4b16", darkText: "#fff5ee" },
-  { token: "app-accent", label: "Logseq Accent", lightBg: "color-mix(in srgb, var(--ls-active-primary-color) 15%, transparent)", lightBorder: "color-mix(in srgb, var(--ls-active-primary-color) 60%, transparent)", darkBg: "color-mix(in srgb, var(--ls-active-primary-color) 20%, transparent)", darkBorder: "color-mix(in srgb, var(--ls-active-primary-color) 50%, transparent)", lightText: "color-mix(in srgb, var(--ls-active-primary-color) 90%, black)", darkText: "color-mix(in srgb, var(--ls-active-primary-color) 20%, white)" },
 ];
 
 const COLOR_PRESET_MAP = Object.fromEntries(COLOR_PRESETS.map((preset) => [preset.token, preset]));
@@ -241,6 +241,21 @@ const QUOTE_COLOR_RULES = [
   { selector: 'div[data-node-type="quote"][style*="purple"]', token: 'purple' },
   { selector: 'div[data-node-type="quote"][style*="pink"]', token: 'pink' },
   { selector: 'div[data-node-type="quote"][style*="gray"], div[data-node-type="quote"][style*="grey"]', token: 'grey' },
+  { selector: 'div[data-node-type="quote"][style*="acc-app-accent"]', token: 'acc-app-accent' },
+  { selector: 'div[data-node-type="quote"][style*="acc-lt-blue"]', token: 'acc-lt-blue' },
+  { selector: 'div[data-node-type="quote"][style*="acc-coral"]', token: 'acc-coral' },
+  { selector: 'div[data-node-type="quote"][style*="acc-salmon"]', token: 'acc-salmon' },
+  { selector: 'div[data-node-type="quote"][style*="acc-rose"]', token: 'acc-rose' },
+  { selector: 'div[data-node-type="quote"][style*="acc-blush"]', token: 'acc-blush' },
+  { selector: 'div[data-node-type="quote"][style*="acc-lilac"]', token: 'acc-lilac' },
+  { selector: 'div[data-node-type="quote"][style*="acc-lavender"]', token: 'acc-lavender' },
+  { selector: 'div[data-node-type="quote"][style*="acc-indigo"]', token: 'acc-indigo' },
+  { selector: 'div[data-node-type="quote"][style*="acc-periwinkle"]', token: 'acc-periwinkle' },
+  { selector: 'div[data-node-type="quote"][style*="acc-sky"]', token: 'acc-sky' },
+  { selector: 'div[data-node-type="quote"][style*="acc-cyan"]', token: 'acc-cyan' },
+  { selector: 'div[data-node-type="quote"][style*="acc-teal"]', token: 'acc-teal' },
+  { selector: 'div[data-node-type="quote"][style*="acc-sage"]', token: 'acc-sage' },
+  { selector: 'div[data-node-type="quote"][style*="acc-apricot"]', token: 'acc-apricot' },
 ];
 
 const BACKGROUND_BLOCK_RULES = [
@@ -251,6 +266,21 @@ const BACKGROUND_BLOCK_RULES = [
   { selector: '.with-bg-color:not([data-node-type="quote"])[style*="purple"]', token: 'purple' },
   { selector: '.with-bg-color:not([data-node-type="quote"])[style*="pink"]', token: 'pink' },
   { selector: '.with-bg-color:not([data-node-type="quote"])[style*="gray"], .with-bg-color:not([data-node-type="quote"])[style*="grey"]', token: 'grey' },
+  { selector: '.with-bg-color:not([data-node-type="quote"])[style*="acc-app-accent"]', token: 'acc-app-accent' },
+  { selector: '.with-bg-color:not([data-node-type="quote"])[style*="acc-lt-blue"]', token: 'acc-lt-blue' },
+  { selector: '.with-bg-color:not([data-node-type="quote"])[style*="acc-coral"]', token: 'acc-coral' },
+  { selector: '.with-bg-color:not([data-node-type="quote"])[style*="acc-salmon"]', token: 'acc-salmon' },
+  { selector: '.with-bg-color:not([data-node-type="quote"])[style*="acc-rose"]', token: 'acc-rose' },
+  { selector: '.with-bg-color:not([data-node-type="quote"])[style*="acc-blush"]', token: 'acc-blush' },
+  { selector: '.with-bg-color:not([data-node-type="quote"])[style*="acc-lilac"]', token: 'acc-lilac' },
+  { selector: '.with-bg-color:not([data-node-type="quote"])[style*="acc-lavender"]', token: 'acc-lavender' },
+  { selector: '.with-bg-color:not([data-node-type="quote"])[style*="acc-indigo"]', token: 'acc-indigo' },
+  { selector: '.with-bg-color:not([data-node-type="quote"])[style*="acc-periwinkle"]', token: 'acc-periwinkle' },
+  { selector: '.with-bg-color:not([data-node-type="quote"])[style*="acc-sky"]', token: 'acc-sky' },
+  { selector: '.with-bg-color:not([data-node-type="quote"])[style*="acc-cyan"]', token: 'acc-cyan' },
+  { selector: '.with-bg-color:not([data-node-type="quote"])[style*="acc-teal"]', token: 'acc-teal' },
+  { selector: '.with-bg-color:not([data-node-type="quote"])[style*="acc-sage"]', token: 'acc-sage' },
+  { selector: '.with-bg-color:not([data-node-type="quote"])[style*="acc-apricot"]', token: 'acc-apricot' },
 ];
 
 const panelState = {

@@ -348,6 +348,7 @@ div[data-node-type="quote"] .block-content-inner {
 }
 /* Accent Colors CSS Setup */
 .light-theme, html[data-theme="light"] {
+  --bg-acc-app-accent: color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 15%, transparent); --bd-acc-app-accent: color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 60%, transparent); --grad-acc-app-accent: color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 15%, transparent);
   --bg-acc-lt-blue: #ebf2fb; --bd-acc-lt-blue: #b0c7ea; --grad-acc-lt-blue: #ebf2fb;
   --bg-acc-coral: #feece8; --bd-acc-coral: #f49e8c; --grad-acc-coral: #feece8;
   --bg-acc-salmon: #feeeee; --bd-acc-salmon: #f49898; --grad-acc-salmon: #feeeee;
@@ -362,10 +363,11 @@ div[data-node-type="quote"] .block-content-inner {
   --bg-acc-teal: #eef9f7; --bd-acc-teal: #7ecdbe; --grad-acc-teal: #eef9f7;
   --bg-acc-sage: #f2f9f4; --bd-acc-sage: #9fd2af; --grad-acc-sage: #f2f9f4;
   --bg-acc-apricot: #fff5ee; --bd-acc-apricot: #fca877; --grad-acc-apricot: #fff5ee;
-  --bg-app-accent: color-mix(in srgb, var(--ls-active-primary-color) 15%, transparent); --bd-app-accent: color-mix(in srgb, var(--ls-active-primary-color) 60%, transparent); --grad-app-accent: color-mix(in srgb, var(--ls-active-primary-color) 15%, transparent);
+
 }
 
 .dark-theme, html[data-theme="dark"] {
+  --bg-acc-app-accent: color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 25%, transparent); --bd-acc-app-accent: color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 60%, transparent); --grad-acc-app-accent: color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 25%, transparent);
   --bg-acc-lt-blue: #1a2638; --bd-acc-lt-blue: #8aa6d3; --grad-acc-lt-blue: rgba(176, 199, 234, 0.25);
   --bg-acc-coral: #3e1d17; --bd-acc-coral: #de7c68; --grad-acc-coral: rgba(244, 158, 140, 0.25);
   --bg-acc-salmon: #3e1d1d; --bd-acc-salmon: #de7a7a; --grad-acc-salmon: rgba(244, 152, 152, 0.25);
@@ -380,6 +382,6 @@ div[data-node-type="quote"] .block-content-inner {
   --bg-acc-teal: #14352e; --bd-acc-teal: #59af9c; --grad-acc-teal: rgba(126, 205, 190, 0.25);
   --bg-acc-sage: #1e3828; --bd-acc-sage: #7eb390; --grad-acc-sage: rgba(159, 210, 175, 0.25);
   --bg-acc-apricot: #442413; --bd-acc-apricot: #df8a57; --grad-acc-apricot: rgba(252, 168, 119, 0.25);
-  --bg-app-accent: color-mix(in srgb, var(--ls-active-primary-color) 25%, transparent); --bd-app-accent: color-mix(in srgb, var(--ls-active-primary-color) 60%, transparent); --grad-app-accent: color-mix(in srgb, var(--ls-active-primary-color) 25%, transparent);
+
 }
 
