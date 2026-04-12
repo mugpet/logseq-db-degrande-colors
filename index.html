@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors v0.3.20</title>
-    <meta name="degrande-colors-version" content="0.3.17">
+    <title>Degrande Colors v0.3.21</title>
+    <meta name="degrande-colors-version" content="0.3.21">
     <style>
       :root {
         color-scheme: light;
@@ -820,6 +820,16 @@
         transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
       }
 
+      .ctl-preset-option-special {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+
       .ctl-preset-option:hover {
         transform: translateY(-1px);
         box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
@@ -1333,6 +1343,16 @@
         cursor: pointer;
       }
 
+      .ctl-color-option-special {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+
       .ctl-color-option.is-active {
         outline: 2px solid rgba(15, 118, 110, 0.18);
       }
@@ -1443,7 +1463,7 @@
   </head>
   <body>
     <div id="app"></div>
-    <script src="./lsplugin.user.js?v=0.3.17"></script>
-    <script src="./plugin.js?v=0.3.17"></script>
+    <script src="./lsplugin.user.js?v=0.3.21"></script>
+    <script src="./plugin.js?v=0.3.21"></script>
   </body>
 </html>

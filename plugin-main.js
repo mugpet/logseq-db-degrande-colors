@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.20";
+const FALLBACK_PLUGIN_VERSION = "0.3.21";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -4271,16 +4271,17 @@ function buildColorPaletteMarkup() {
   const renderButtons = (presets) => presets.map((preset) => {
     const isActive = getTagColorToken(panelState.selectedTag) === preset.token;
     const style = getTagChipThemeStyle(preset.token);
+    const isSpecialAccent = preset.token === "acc-app-accent";
 
     return `
       <button
-        class="ctl-color-option${isActive ? " is-active" : ""}"
+        class="ctl-color-option${isActive ? " is-active" : ""}${isSpecialAccent ? " ctl-color-option-special" : ""}"
         type="button"
         data-set-tag-color="${preset.token}"
         aria-label="Set ${escapeHtml(panelState.selectedTag)} to ${preset.label}"
         title="Set ${escapeHtml(panelState.selectedTag)} to ${preset.label}"
         style="background:${style.background};border-color:${style.borderColor};color:${style.color};"
-      ></button>
+      >${isSpecialAccent ? "A" : ""}</button>
     `;
   }).join("");
 
@@ -4582,10 +4583,11 @@ function buildGradientPresetPaletteMarkup(areaKey, stopIndex, selectedStop) {
   const renderButtons = (presets) => presets.map((preset) => {
     const style = getTagChipThemeStyle(preset.token);
     const isActive = selectedStop.source === "preset" && selectedStop.token === preset.token;
+    const isSpecialAccent = preset.token === "acc-app-accent";
 
     return `
       <button
-        class="ctl-preset-option${isActive ? " is-active" : ""}"
+        class="ctl-preset-option${isActive ? " is-active" : ""}${isSpecialAccent ? " ctl-preset-option-special" : ""}"
         type="button"
         data-action="set-gradient-stop-preset"
         data-area-key="${areaKey}"
@@ -4594,7 +4596,7 @@ function buildGradientPresetPaletteMarkup(areaKey, stopIndex, selectedStop) {
         aria-label="Use ${preset.label} for this stop"
         style="background:${style.background};border-color:${style.borderColor};color:${style.color};"
         title="Use ${preset.label} for this stop"
-      ></button>
+      >${isSpecialAccent ? "A" : ""}</button>
     `;
   }).join("");
 
