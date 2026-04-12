@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.14";
+const FALLBACK_PLUGIN_VERSION = "0.3.15";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -6782,12 +6782,6 @@ async function main() {
       `,
     });
   }
-
-  await logseq.UI.showMsg(
-    activationMessage,
-    "success",
-    { timeout: 2500 }
-  );
 
   if (shouldRegisterHostUi) {
     registerCommandPaletteSafely(
