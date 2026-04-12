@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.16";
+const FALLBACK_PLUGIN_VERSION = "0.3.17";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -4237,7 +4237,7 @@ function buildColorPaletteMarkup() {
     return '<div class="ctl-tag-empty">Select a tag to assign one of the preset colors.</div>';
   }
 
-  return COLOR_PRESETS.map((preset) => {
+  const renderButtons = (presets) => presets.map((preset) => {
     const isActive = getTagColorToken(panelState.selectedTag) === preset.token;
     const style = getTagChipThemeStyle(preset.token);
 
@@ -4252,6 +4252,20 @@ function buildColorPaletteMarkup() {
       ></button>
     `;
   }).join("");
+
+  const standardPresets = COLOR_PRESETS.filter((p) => !p.token.startsWith("acc-"));
+  const accentPresets = COLOR_PRESETS.filter((p) => p.token.startsWith("acc-"));
+
+  return `
+    <span class="ctl-gradient-group-label" style="display: block; margin-bottom: 6px;">Preset Colors</span>
+    <div class="ctl-color-grid" style="margin-bottom: 12px;">
+      ${renderButtons(standardPresets)}
+    </div>
+    <span class="ctl-gradient-group-label" style="display: block; margin-bottom: 6px;">Accent Colors</span>
+    <div class="ctl-color-grid">
+      ${renderButtons(accentPresets)}
+    </div>
+  `;
 }
 
 function buildCustomTagColorMarkup() {
@@ -4458,7 +4472,7 @@ function buildTagsPaneMarkup() {
           ${selectedTag ? `<span class="ctl-selected-tag-preview" data-role="selected-tag-preview" style="${buildTagChipStyleAttribute(selectedTag)}">#${escapeHtml(selectedTag)}</span>` : ""}
         </div>
         <div class="ctl-tags-detail-scroll" data-role="tags-detail-scroll">
-          <div class="ctl-color-grid">${buildColorPaletteMarkup()}</div>
+          ${buildColorPaletteMarkup()}
           ${buildCustomTagColorMarkup()}
           <div class="ctl-tags-actions">
             <button class="ctl-button ctl-button-secondary" type="button" data-action="add-random-tag-colors" data-role="add-random-tag-colors-button"${hasUncoloredTags ? "" : " disabled"}>Add Colors To Tags</button>
@@ -4534,7 +4548,7 @@ function buildGradientModeOptionsMarkup(areaKey, stopIndex, selectedStop, areaCo
 }
 
 function buildGradientPresetPaletteMarkup(areaKey, stopIndex, selectedStop) {
-  return COLOR_PRESETS.map((preset) => {
+  const renderButtons = (presets) => presets.map((preset) => {
     const style = getTagChipThemeStyle(preset.token);
     const isActive = selectedStop.source === "preset" && selectedStop.token === preset.token;
 
@@ -4552,6 +4566,20 @@ function buildGradientPresetPaletteMarkup(areaKey, stopIndex, selectedStop) {
       ></button>
     `;
   }).join("");
+
+  const standardPresets = COLOR_PRESETS.filter((p) => !p.token.startsWith("acc-"));
+  const accentPresets = COLOR_PRESETS.filter((p) => p.token.startsWith("acc-"));
+
+  return `
+    <span class="ctl-gradient-group-label" style="display: block; margin-bottom: 6px;">Preset Colors</span>
+    <div class="ctl-preset-grid" style="margin-bottom: 12px;">
+      ${renderButtons(standardPresets)}
+    </div>
+    <span class="ctl-gradient-group-label" style="display: block; margin-bottom: 6px;">Accent Colors</span>
+    <div class="ctl-preset-grid">
+      ${renderButtons(accentPresets)}
+    </div>
+  `;
 }
 
 function buildGradientCustomColorMarkup(areaKey, stopIndex, selectedStop) {
@@ -4652,10 +4680,7 @@ function buildGradientEditorMarkup(areaKey, previewMarkup, controlKeys = []) {
           </div>
         </section>
         <section class="ctl-gradient-group">
-          <span class="ctl-gradient-group-label">Preset Colors</span>
-          <div class="ctl-preset-grid">
-            ${buildGradientPresetPaletteMarkup(areaKey, selectedIndex, selectedStop)}
-          </div>
+          ${buildGradientPresetPaletteMarkup(areaKey, selectedIndex, selectedStop)}
         </section>
         <details class="ctl-gradient-group ctl-gradient-custom-toggle"${selectedStop.source === "custom" ? " open" : ""}>
           <summary class="ctl-gradient-custom-summary">
