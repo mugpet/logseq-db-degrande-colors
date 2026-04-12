@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.15";
+const FALLBACK_PLUGIN_VERSION = "0.3.16";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -71,6 +71,20 @@ const COLOR_PRESETS = [
   { token: "sky", label: "Sky", lightBg: "#e0f2fe", lightBorder: "#38bdf8", darkBg: "#0c4a6e", darkBorder: "#7dd3fc", lightText: "#075985", darkText: "#e0f2fe" },
   { token: "lime", label: "Lime", lightBg: "#f1f9c9", lightBorder: "#84cc16", darkBg: "#365314", darkBorder: "#bef264", lightText: "#3f6212", darkText: "#ecfccb" },
   { token: "slate", label: "Slate", lightBg: "#e2e8f0", lightBorder: "#64748b", darkBg: "#1e293b", darkBorder: "#94a3b8", lightText: "#334155", darkText: "#e2e8f0" },
+  { token: "acc-lt-blue", label: "Accent Lt Blue", lightBg: "#ebf2fb", lightBorder: "#b0c7ea", darkBg: "#1a2638", darkBorder: "#8aa6d3", lightText: "#4d6890", darkText: "#ebf2fb" },
+  { token: "acc-coral", label: "Accent Coral", lightBg: "#feece8", lightBorder: "#f49e8c", darkBg: "#3e1d17", darkBorder: "#de7c68", lightText: "#9f4330", darkText: "#feece8" },
+  { token: "acc-salmon", label: "Accent Salmon", lightBg: "#feeeee", lightBorder: "#f49898", darkBg: "#3e1d1d", darkBorder: "#de7a7a", lightText: "#9f4343", darkText: "#feeeee" },
+  { token: "acc-rose", label: "Accent Rose", lightBg: "#fef0f5", lightBorder: "#f68fbb", darkBg: "#4a182d", darkBorder: "#d96798", lightText: "#a83060", darkText: "#fef0f5" },
+  { token: "acc-blush", label: "Accent Blush", lightBg: "#fdf0f8", lightBorder: "#e992cc", darkBg: "#3c1830", darkBorder: "#d16ead", lightText: "#9e2a73", darkText: "#fdf0f8" },
+  { token: "acc-lilac", label: "Accent Lilac", lightBg: "#fdf3fc", lightBorder: "#e09bec", darkBg: "#34173e", darkBorder: "#c372d3", lightText: "#8a2c9b", darkText: "#fdf3fc" },
+  { token: "acc-lavender", label: "Accent Lavender", lightBg: "#faf3fc", lightBorder: "#c69ee4", darkBg: "#2b1d3d", darkBorder: "#aa7cd1", lightText: "#7844a4", darkText: "#faf3fc" },
+  { token: "acc-indigo", label: "Accent Indigo", lightBg: "#f0ecfe", lightBorder: "#866cee", darkBg: "#23184b", darkBorder: "#6d51d9", lightText: "#4831b0", darkText: "#f0ecfe" },
+  { token: "acc-periwinkle", label: "Accent Periwinkle", lightBg: "#eff2fe", lightBorder: "#93a2f7", darkBg: "#1a2046", darkBorder: "#7889e4", lightText: "#4859bc", darkText: "#eff2fe" },
+  { token: "acc-sky", label: "Accent Sky", lightBg: "#ebf5fe", lightBorder: "#71b2f7", darkBg: "#132642", darkBorder: "#4a90de", lightText: "#215ea8", darkText: "#ebf5fe" },
+  { token: "acc-cyan", label: "Accent Cyan", lightBg: "#ebfafa", lightBorder: "#7acee1", darkBg: "#12333b", darkBorder: "#4caec5", lightText: "#1c7288", darkText: "#ebfafa" },
+  { token: "acc-teal", label: "Accent Teal", lightBg: "#eef9f7", lightBorder: "#7ecdbe", darkBg: "#14352e", darkBorder: "#59af9c", lightText: "#267261", darkText: "#eef9f7" },
+  { token: "acc-sage", label: "Accent Sage", lightBg: "#f2f9f4", lightBorder: "#9fd2af", darkBg: "#1e3828", darkBorder: "#7eb390", lightText: "#36774e", darkText: "#f2f9f4" },
+  { token: "acc-apricot", label: "Accent Apricot", lightBg: "#fff5ee", lightBorder: "#fca877", darkBg: "#442413", darkBorder: "#df8a57", lightText: "#ae4b16", darkText: "#fff5ee" },
 ];
 
 const COLOR_PRESET_MAP = Object.fromEntries(COLOR_PRESETS.map((preset) => [preset.token, preset]));
