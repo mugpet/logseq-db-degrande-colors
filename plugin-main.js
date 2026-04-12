@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.17";
+const FALLBACK_PLUGIN_VERSION = "0.3.19";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -85,6 +85,7 @@ const COLOR_PRESETS = [
   { token: "acc-teal", label: "Accent Teal", lightBg: "#eef9f7", lightBorder: "#7ecdbe", darkBg: "#14352e", darkBorder: "#59af9c", lightText: "#267261", darkText: "#eef9f7" },
   { token: "acc-sage", label: "Accent Sage", lightBg: "#f2f9f4", lightBorder: "#9fd2af", darkBg: "#1e3828", darkBorder: "#7eb390", lightText: "#36774e", darkText: "#f2f9f4" },
   { token: "acc-apricot", label: "Accent Apricot", lightBg: "#fff5ee", lightBorder: "#fca877", darkBg: "#442413", darkBorder: "#df8a57", lightText: "#ae4b16", darkText: "#fff5ee" },
+  { token: "app-accent", label: "Logseq Accent", lightBg: "color-mix(in srgb, var(--ls-active-primary-color) 15%, transparent)", lightBorder: "color-mix(in srgb, var(--ls-active-primary-color) 60%, transparent)", darkBg: "color-mix(in srgb, var(--ls-active-primary-color) 20%, transparent)", darkBorder: "color-mix(in srgb, var(--ls-active-primary-color) 50%, transparent)", lightText: "color-mix(in srgb, var(--ls-active-primary-color) 90%, black)", darkText: "color-mix(in srgb, var(--ls-active-primary-color) 20%, white)" },
 ];
 
 const COLOR_PRESET_MAP = Object.fromEntries(COLOR_PRESETS.map((preset) => [preset.token, preset]));
