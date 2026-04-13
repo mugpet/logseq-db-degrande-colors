@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.21";
+const FALLBACK_PLUGIN_VERSION = "0.3.22";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -22,6 +22,7 @@ const TOOLBAR_OBSERVER_KEY = "__degrandeColorsToolbarObserver";
 const TOOLBAR_RENDER_TIMER_KEY = "__degrandeColorsToolbarRenderTimer";
 const HOST_COLOR_SYNC_OBSERVER_KEY = "__degrandeColorsHostColorObserver";
 const HOST_COLOR_SYNC_TIMER_KEY = "__degrandeColorsHostColorSyncTimer";
+const TAG_NODE_STYLE_OBSERVER_KEY = "__degrandeColorsTagNodeStyleObserver";
 const CMDK_STYLE_OBSERVER_KEY = "__degrandeColorsCmdkStyleObserver";
 const CMDK_STYLE_TIMER_KEY = "__degrandeColorsCmdkStyleTimer";
 const SIDEBAR_STYLE_OBSERVER_KEY = "__degrandeColorsSidebarStyleObserver";
@@ -232,6 +233,18 @@ const APPEARANCE_SECTIONS = [
 ];
 const APPEARANCE_SECTION_MAP = Object.fromEntries(APPEARANCE_SECTIONS.map((section) => [section.key, section]));
 const DEFAULT_APPEARANCE_STATE = Object.fromEntries(APPEARANCE_SECTIONS.map((section) => [section.key, true]));
+const HOST_COLOR_BACKGROUND_SELECTOR = '.with-bg-color:not([data-node-type="quote"])';
+const HOST_COLOR_QUOTE_SELECTOR = 'div[data-node-type="quote"]';
+const HOST_COLOR_TARGET_SELECTOR = `${HOST_COLOR_BACKGROUND_SELECTOR}, ${HOST_COLOR_QUOTE_SELECTOR}`;
+const CMDK_SCOPE_SELECTOR = '.cp__cmdk, .cp__select-main, .cp__palette-main';
+const CMDK_ROW_SELECTOR = `${CMDK_SCOPE_SELECTOR} [data-cmdk-item]`;
+const SIDEBAR_ROOT_SELECTOR = '.left-sidebar-inner';
+const SIDEBAR_TITLE_SELECTOR = `${SIDEBAR_ROOT_SELECTOR} .page-title`;
+const CSS_SECTION_MARKER_1 = '/* --- 1. THE PAINTBOX (COLOR VARIABLES) --- */';
+const CSS_SECTION_MARKER_2 = '/* --- 2. THE ENGINE (SET ONCE & FORGET) --- */';
+const CSS_SECTION_MARKER_6 = '/* --- 6. PAGE REFERENCE STYLING ([[ ]]) --- */';
+const CSS_SECTION_MARKER_7 = '/* --- 7. MODERN QUOTES & CALLOUTS       --- */';
+const CSS_ACCENT_MARKER = '/* Accent Colors CSS Setup */';
 
 const QUOTE_COLOR_RULES = [
   { selector: 'div[data-node-type="quote"][style*="red"]', token: 'red' },
@@ -341,10 +354,16 @@ const panelState = {
   fallbackStyleFlushTimer: null,
   pendingFallbackCssText: "",
   dbStateRefreshTimer: null,
+  tagCatalogRefreshTimer: null,
+  tagNodeStyleSyncTimer: null,
+  pendingTagNodeRoots: new Set(),
   startupSyncTimerIds: [],
   pendingTagPersistKeys: [],
   tagClickTimer: null,
   hostTagContextMenuBound: false,
+  legacyManagedStylesCleaned: false,
+  tagNodeColorMap: {},
+  tagNodePriorityMap: {},
 };
 
 function getHostDocument() {
@@ -839,6 +858,114 @@ function scheduleHostColorSync() {
   }, 40);
 }
 
+function normalizeObservedNode(node) {
+  if (!node) {
+    return null;
+  }
+
+  if (node.nodeType === 3) {
+    return node.parentElement || null;
+  }
+
+  return node;
+}
+
+function getClosestMatchingElement(node, selector, hostWindow) {
+  const candidate = normalizeObservedNode(node);
+
+  if (!(candidate instanceof hostWindow.Element)) {
+    return null;
+  }
+
+  if (candidate.matches(selector)) {
+    return candidate;
+  }
+
+  return candidate.closest(selector);
+}
+
+function collectMatchingElements(root, selector, hostWindow) {
+  const candidate = normalizeObservedNode(root) || root;
+  const matches = [];
+  const closestMatch = getClosestMatchingElement(candidate, selector, hostWindow);
+
+  if (closestMatch) {
+    matches.push(closestMatch);
+  }
+
+  if (candidate && typeof candidate.querySelectorAll === 'function') {
+    candidate.querySelectorAll(selector).forEach((element) => {
+      if (element instanceof hostWindow.Element) {
+        matches.push(element);
+      }
+    });
+  }
+
+  return Array.from(new Set(matches));
+}
+
+function nodeTouchesSelector(node, selector, hostWindow) {
+  const candidate = normalizeObservedNode(node);
+
+  if (!(candidate instanceof hostWindow.Element)) {
+    return false;
+  }
+
+  if (candidate.matches(selector) || candidate.closest(selector)) {
+    return true;
+  }
+
+  return typeof candidate.querySelector === 'function' && Boolean(candidate.querySelector(selector));
+}
+
+function syncHostColorVariableElement(element, hostWindow) {
+  if (!(element instanceof hostWindow.Element)) {
+    return;
+  }
+
+  if (element.matches(HOST_COLOR_BACKGROUND_SELECTOR)) {
+    const gradientColor = getDerivedGradientColor(
+      element.style.backgroundColor || element.style.background,
+      0.72,
+      0.16,
+      0.34
+    );
+
+    syncInlineCssVariable(element, '--ctl-bg-sweep-color', gradientColor);
+    syncInlineCssVariable(element, '--ctl-quote-color', null);
+    return;
+  }
+
+  if (element.matches(HOST_COLOR_QUOTE_SELECTOR)) {
+    const gradientColor = getDerivedGradientColor(
+      element.style.borderLeftColor || element.style.backgroundColor || element.style.background,
+      0.85,
+      0.14,
+      0.42
+    );
+
+    syncInlineCssVariable(element, '--ctl-quote-color', gradientColor);
+    syncInlineCssVariable(element, '--ctl-bg-sweep-color', null);
+    return;
+  }
+
+  syncInlineCssVariable(element, '--ctl-bg-sweep-color', null);
+  syncInlineCssVariable(element, '--ctl-quote-color', null);
+}
+
+function syncHostColorVariablesInSubtree(root, hostDocument = getHostDocument()) {
+  const hostWindow = hostDocument.defaultView || window;
+  const candidate = normalizeObservedNode(root);
+
+  if (candidate instanceof hostWindow.Element) {
+    syncHostColorVariableElement(candidate, hostWindow);
+  }
+
+  collectMatchingElements(root, HOST_COLOR_TARGET_SELECTOR, hostWindow).forEach((element) => {
+    syncHostColorVariableElement(element, hostWindow);
+  });
+}
+
 function observeHostColorTargets() {
   const hostDocument = getHostDocument();
   const hostWindow = hostDocument.defaultView || window;
@@ -846,19 +973,29 @@ function observeHostColorTargets() {
 
   hostWindow[HOST_COLOR_SYNC_OBSERVER_KEY]?.disconnect?.();
 
-  const observer = new HostMutationObserver(() => {
-    scheduleHostColorSync();
+  const observer = new HostMutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.type === 'attributes' && nodeTouchesSelector(mutation.target, HOST_COLOR_TARGET_SELECTOR, hostWindow)) {
+        syncHostColorVariablesInSubtree(mutation.target, hostDocument);
+      }
+
+      Array.from(mutation.addedNodes || []).forEach((node) => {
+        if (nodeTouchesSelector(node, HOST_COLOR_TARGET_SELECTOR, hostWindow)) {
+          syncHostColorVariablesInSubtree(node, hostDocument);
+        }
+      });
+    });
   });
 
   observer.observe(hostDocument.body || hostDocument.documentElement, {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["style", "class"],
+    attributeFilter: ["style"],
   });
 
   hostWindow[HOST_COLOR_SYNC_OBSERVER_KEY] = observer;
-  scheduleHostColorSync();
+  syncHostColorVariables();
 }
 
 function scheduleCmdkTagStyleSync() {
@@ -885,6 +1022,194 @@ function scheduleSidebarTagStyleSync() {
     hostWindow[SIDEBAR_STYLE_TIMER_KEY] = null;
     syncSidebarTagStyles();
   }, 40);
+}
+
+function getAssignedNodeColorForTag(tagName) {
+  const assignment = getTagColorAssignment(tagName);
+
+  if (!assignment) {
+    return "";
+  }
+
+  if (assignment.type === "preset" && COLOR_PRESET_MAP[assignment.token]) {
+    return `var(--grad-${assignment.token})`;
+  }
+
+  if (assignment.type === "custom") {
+    return getCustomTagGradientColor(assignment, panelState.themeMode) || "";
+  }
+
+  return "";
+}
+
+function rebuildTagDrivenNodeStyleState() {
+  const tagNodeColorMap = {};
+  const tagNodePriorityMap = {};
+  let priority = 0;
+
+  getManagedOverrideTagNames().forEach((tagName) => {
+    const nodeColor = getAssignedNodeColorForTag(tagName);
+
+    if (!nodeColor) {
+      return;
+    }
+
+    const normalized = String(tagName || "").toLowerCase();
+    tagNodeColorMap[normalized] = nodeColor;
+    tagNodePriorityMap[normalized] = priority;
+    priority += 1;
+  });
+
+  panelState.tagNodeColorMap = tagNodeColorMap;
+  panelState.tagNodePriorityMap = tagNodePriorityMap;
+}
+
+function resolveTagDrivenNodeColor(tagNames = []) {
+  let bestTagName = "";
+  let bestPriority = -1;
+
+  tagNames.forEach((tagName) => {
+    const normalized = String(tagName || "").toLowerCase();
+    const priority = panelState.tagNodePriorityMap[normalized];
+
+    if (priority == null || priority < bestPriority) {
+      return;
+    }
+
+    bestPriority = priority;
+    bestTagName = normalized;
+  });
+
+  return bestTagName ? panelState.tagNodeColorMap[bestTagName] || "" : "";
+}
+
+function getTagNamesFromElements(elements) {
+  return elements
+    .map((element) => element?.getAttribute?.("data-ref") || "")
+    .map((tagName) => getCanonicalTagName(tagName))
+    .filter(Boolean);
+}
+
+function clearTagDrivenNodeTarget(target, attributeName) {
+  if (!target) {
+    return;
+  }
+
+  target.removeAttribute(attributeName);
+  target.style.removeProperty("--node-color");
+}
+
+function syncTagDrivenStylesForWrapper(wrapper, hostDocument) {
+  const hostWindow = hostDocument.defaultView || window;
+
+  if (!(wrapper instanceof hostWindow.Element)) {
+    return;
+  }
+
+  const isPageTitle = Boolean(wrapper.querySelector(".block-content-or-editor-wrap.ls-page-title-container"));
+  const pageTitleTarget = wrapper.querySelector(".block-main-content");
+
+  if (isPageTitle) {
+    const pageTitleTags = getTagNamesFromElements(Array.from(wrapper.querySelectorAll(".ls-block-right a.tag[data-ref]")));
+    const nodeColor = resolveTagDrivenNodeColor(pageTitleTags);
+
+    clearTagDrivenNodeTarget(wrapper, "data-degrande-linked-node");
+
+    if (!pageTitleTarget) {
+      return;
+    }
+
+    if (nodeColor) {
+      pageTitleTarget.setAttribute("data-degrande-page-title-node", "true");
+      pageTitleTarget.style.setProperty("--node-color", nodeColor);
+    } else {
+      clearTagDrivenNodeTarget(pageTitleTarget, "data-degrande-page-title-node");
+    }
+
+    return;
+  }
+
+  if (pageTitleTarget) {
+    clearTagDrivenNodeTarget(pageTitleTarget, "data-degrande-page-title-node");
+  }
+
+  const linkedBlockTags = getTagNamesFromElements(Array.from(wrapper.querySelectorAll("a.tag[data-ref]")));
+  const nodeColor = resolveTagDrivenNodeColor(linkedBlockTags);
+
+  if (nodeColor) {
+    wrapper.setAttribute("data-degrande-linked-node", "true");
+    wrapper.style.setProperty("--node-color", nodeColor);
+  } else {
+    clearTagDrivenNodeTarget(wrapper, "data-degrande-linked-node");
+  }
+}
+
+function syncTagDrivenNodeStylesInSubtree(root, hostDocument = getHostDocument()) {
+  const hostWindow = hostDocument.defaultView || window;
+  const wrappers = collectMatchingElements(root, ".ls-block > div:first-child", hostWindow);
+
+  wrappers.forEach((wrapper) => {
+    syncTagDrivenStylesForWrapper(wrapper, hostDocument);
+  });
+}
+
+function syncAllTagDrivenNodeStyles() {
+  getObservableHostDocuments().forEach((hostDocument) => {
+    syncTagDrivenNodeStylesInSubtree(hostDocument, hostDocument);
+  });
+}
+
+function queueTagDrivenNodeStyleSync(root, hostDocument = getHostDocument()) {
+  panelState.pendingTagNodeRoots.add(normalizeObservedNode(root) || hostDocument);
+
+  if (panelState.tagNodeStyleSyncTimer) {
+    return;
+  }
+
+  panelState.tagNodeStyleSyncTimer = window.setTimeout(() => {
+    const pendingRoots = Array.from(panelState.pendingTagNodeRoots);
+    panelState.pendingTagNodeRoots.clear();
+    panelState.tagNodeStyleSyncTimer = null;
+
+    pendingRoots.forEach((pendingRoot) => {
+      syncTagDrivenNodeStylesInSubtree(pendingRoot, hostDocument);
+    });
+  }, 40);
+}
+
+function observeTagDrivenNodeStyles() {
+  const hostWindow = getHostWindow();
+  const documents = getObservableHostDocuments();
+
+  disconnectObserverGroup(hostWindow[TAG_NODE_STYLE_OBSERVER_KEY]);
+
+  hostWindow[TAG_NODE_STYLE_OBSERVER_KEY] = documents.map((hostDocument) => {
+    const documentWindow = hostDocument.defaultView || hostWindow;
+    const HostMutationObserver = documentWindow.MutationObserver || MutationObserver;
+    const observer = new HostMutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (nodeTouchesSelector(mutation.target, ".ls-block, .ls-block-right, a.tag[data-ref], .block-main-content", documentWindow)) {
+          queueTagDrivenNodeStyleSync(mutation.target, hostDocument);
+        }
+
+        Array.from(mutation.addedNodes || []).forEach((node) => {
+          if (nodeTouchesSelector(node, ".ls-block, .ls-block-right, a.tag[data-ref], .block-main-content", documentWindow)) {
+            queueTagDrivenNodeStyleSync(node, hostDocument);
+          }
+        });
+      });
+    });
+
+    observer.observe(hostDocument.body || hostDocument.documentElement, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    return observer;
+  });
+
+  syncAllTagDrivenNodeStyles();
 }
 
 function getCmdkPrimaryLine(row) {
@@ -1181,7 +1506,11 @@ function syncCmdkTagStyles() {
   getObservableHostDocuments().forEach((hostDocument) => {
     const hostWindow = hostDocument.defaultView || window;
 
-    hostDocument.querySelectorAll('.cp__cmdk [data-cmdk-item], .cp__select-main [data-cmdk-item], .cp__palette-main [data-cmdk-item]').forEach((row) => {
+    if (!hostDocument.querySelector(CMDK_SCOPE_SELECTOR)) {
+      return;
+    }
+
+    collectMatchingElements(hostDocument, CMDK_ROW_SELECTOR, hostWindow).forEach((row) => {
       if (!(row instanceof hostWindow.Element)) {
         return;
       }
@@ -1189,6 +1518,20 @@ function syncCmdkTagStyles() {
       syncCmdkTagRow(row);
       syncCmdkInlineTags(row);
     });
+  });
+}
+
+function syncCmdkTagStylesInSubtree(root, hostDocument) {
+  const targetDocument = hostDocument || root?.ownerDocument || getHostDocument();
+  const hostWindow = targetDocument.defaultView || window;
+
+  collectMatchingElements(root, CMDK_ROW_SELECTOR, hostWindow).forEach((row) => {
+    if (!(row instanceof hostWindow.Element)) {
+      return;
+    }
+
+    syncCmdkTagRow(row);
+    syncCmdkInlineTags(row);
   });
 }
 
@@ -1214,13 +1557,30 @@ function syncSidebarTagStyles() {
   getObservableHostDocuments().forEach((hostDocument) => {
     const hostWindow = hostDocument.defaultView || window;
 
-    hostDocument.querySelectorAll('.left-sidebar-inner .page-title').forEach((title) => {
+    if (!hostDocument.querySelector(SIDEBAR_ROOT_SELECTOR)) {
+      return;
+    }
+
+    collectMatchingElements(hostDocument, SIDEBAR_TITLE_SELECTOR, hostWindow).forEach((title) => {
       if (!(title instanceof hostWindow.Element)) {
         return;
       }
 
       syncInlineTagTextNodes(title);
     });
+  });
+}
+
+function syncSidebarTagStylesInSubtree(root, hostDocument) {
+  const targetDocument = hostDocument || root?.ownerDocument || getHostDocument();
+  const hostWindow = targetDocument.defaultView || window;
+
+  collectMatchingElements(root, SIDEBAR_TITLE_SELECTOR, hostWindow).forEach((title) => {
+    if (!(title instanceof hostWindow.Element)) {
+      return;
+    }
+
+    syncInlineTagTextNodes(title);
   });
 }
 
@@ -1252,17 +1612,13 @@ function observeSidebarTagStyles() {
     const documentWindow = hostDocument.defaultView || hostWindow;
     const HostMutationObserver = documentWindow.MutationObserver || MutationObserver;
     const observer = new HostMutationObserver((mutations) => {
-      const touchesSidebar = mutations.some((mutation) => {
-        if (nodeTouchesSidebar(mutation.target, documentWindow)) {
-          return true;
-        }
+      mutations.forEach((mutation) => {
+        syncSidebarTagStylesInSubtree(mutation.target, hostDocument);
 
-        return Array.from(mutation.addedNodes || []).some((node) => nodeTouchesSidebar(node, documentWindow));
+        Array.from(mutation.addedNodes || []).forEach((node) => {
+          syncSidebarTagStylesInSubtree(node, hostDocument);
+        });
       });
-
-      if (touchesSidebar) {
-        scheduleSidebarTagStyleSync();
-      }
     });
 
     observer.observe(hostDocument.body || hostDocument.documentElement, {
@@ -1274,7 +1630,7 @@ function observeSidebarTagStyles() {
     return observer;
   });
 
-  scheduleSidebarTagStyleSync();
+  syncSidebarTagStyles();
 }
 
 function observeCmdkSearchResults() {
@@ -1287,17 +1643,13 @@ function observeCmdkSearchResults() {
     const documentWindow = hostDocument.defaultView || hostWindow;
     const HostMutationObserver = documentWindow.MutationObserver || MutationObserver;
     const observer = new HostMutationObserver((mutations) => {
-      const touchesCmdk = mutations.some((mutation) => {
-        if (nodeTouchesCmdk(mutation.target, documentWindow)) {
-          return true;
-        }
+      mutations.forEach((mutation) => {
+        syncCmdkTagStylesInSubtree(mutation.target, hostDocument);
 
-        return Array.from(mutation.addedNodes || []).some((node) => nodeTouchesCmdk(node, documentWindow));
+        Array.from(mutation.addedNodes || []).forEach((node) => {
+          syncCmdkTagStylesInSubtree(node, hostDocument);
+        });
       });
-
-      if (touchesCmdk) {
-        scheduleCmdkTagStyleSync();
-      }
     });
 
     observer.observe(hostDocument.body || hostDocument.documentElement, {
@@ -1308,7 +1660,7 @@ function observeCmdkSearchResults() {
     return observer;
   });
 
-  scheduleCmdkTagStyleSync();
+  syncCmdkTagStyles();
 }
 
 function isDuplicateRegistrationError(error) {
@@ -1374,6 +1726,34 @@ async function loadWorkspaceCss() {
   }
 
   return response.text();
+}
+
+function extractCssSection(cssText, startMarker, endMarker = "") {
+  const startIndex = cssText.indexOf(startMarker);
+
+  if (startIndex === -1) {
+    return "";
+  }
+
+  const sliceStart = startIndex;
+  const endIndex = endMarker ? cssText.indexOf(endMarker, sliceStart + startMarker.length) : -1;
+  return cssText.slice(sliceStart, endIndex === -1 ? cssText.length : endIndex).trim();
+}
+
+function buildStaticBaseCssText(rawCssText) {
+  const variablesSection = extractCssSection(rawCssText, CSS_SECTION_MARKER_1, CSS_SECTION_MARKER_2);
+  const pageReferenceSection = extractCssSection(rawCssText, CSS_SECTION_MARKER_6, CSS_SECTION_MARKER_7);
+  const accentSection = extractCssSection(rawCssText, CSS_ACCENT_MARKER);
+
+  return [
+    variablesSection,
+    `
+.ls-block.selected, .ls-block.selected-block { background-image: none !important; background-color: rgba(59, 130, 246, 0.15) !important; }
+.dark-theme .ls-block.selected, .dark-theme .ls-block.selected-block { background-color: rgba(59, 130, 246, 0.3) !important; }
+`.trim(),
+    pageReferenceSection,
+    accentSection,
+  ].filter(Boolean).join("\n\n");
 }
 
 function setThemeMode(mode) {
@@ -1930,38 +2310,7 @@ function syncInlineCssVariable(element, propertyName, nextValue) {
 }
 
 function syncHostColorVariables() {
-  const hostDocument = getHostDocument();
-  const hostWindow = hostDocument.defaultView || window;
-
-  hostDocument.querySelectorAll('.with-bg-color:not([data-node-type="quote"])').forEach((element) => {
-    if (!(element instanceof hostWindow.Element)) {
-      return;
-    }
-
-    const gradientColor = getDerivedGradientColor(
-      element.style.backgroundColor || element.style.background,
-      0.72,
-      0.16,
-      0.34
-    );
-
-    syncInlineCssVariable(element, "--ctl-bg-sweep-color", gradientColor);
-  });
-
-  hostDocument.querySelectorAll('div[data-node-type="quote"]').forEach((element) => {
-    if (!(element instanceof hostWindow.Element)) {
-      return;
-    }
-
-    const gradientColor = getDerivedGradientColor(
-      element.style.borderLeftColor || element.style.backgroundColor || element.style.background,
-      0.85,
-      0.14,
-      0.42
-    );
-
-    syncInlineCssVariable(element, "--ctl-quote-color", gradientColor);
-  });
+  syncHostColorVariablesInSubtree(getHostDocument(), getHostDocument());
 }
 
 function getRgbLuminance(rgb) {
@@ -4842,11 +5191,13 @@ async function handleCurrentGraphChanged() {
 }
 
 function doesTxDataTouchDegrandeState(txData = []) {
-  const relevantAttributes = new Set([
+  const syncAttributes = new Set([
     ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_CONTROL_PROPERTY),
     ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_GRADIENT_PROPERTY),
     ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_TAG_COLOR_PROPERTY),
     ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_REVISION_PROPERTY),
+  ].filter(Boolean));
+  const tagCatalogAttributes = new Set([
     ":block/title",
     ":block/name",
     ":block/original-name",
@@ -4855,21 +5206,69 @@ function doesTxDataTouchDegrandeState(txData = []) {
     ":block/refs",
   ].filter(Boolean));
 
-  return (txData || []).some((datom) => {
+  let syncStateChanged = false;
+  let tagCatalogChanged = false;
+
+  (txData || []).forEach((datom) => {
     if (!Array.isArray(datom)) {
-      return false;
+      return;
     }
 
     const attribute = String(datom[1] ?? "");
     const value = String(datom[2] ?? "");
 
-    return relevantAttributes.has(attribute)
+    if (
+      syncAttributes.has(attribute)
       || value === GRAPH_SYNC_STORAGE_PAGE_NAME
       || value === GRAPH_SYNC_CONTROL_PROPERTY
       || value === GRAPH_SYNC_GRADIENT_PROPERTY
       || value === GRAPH_SYNC_TAG_COLOR_PROPERTY
-      || value === GRAPH_SYNC_REVISION_PROPERTY;
+      || value === GRAPH_SYNC_REVISION_PROPERTY
+    ) {
+      syncStateChanged = true;
+    }
+
+    if (tagCatalogAttributes.has(attribute)) {
+      tagCatalogChanged = true;
+    }
   });
+
+  return {
+    syncStateChanged,
+    tagCatalogChanged,
+    touched: syncStateChanged || tagCatalogChanged,
+  };
+}
+
+function schedulePersistedAppearanceSync(options = {}) {
+  if (panelState.dbStateRefreshTimer) {
+    clearTimeout(panelState.dbStateRefreshTimer);
+  }
+
+  panelState.dbStateRefreshTimer = window.setTimeout(() => {
+    panelState.dbStateRefreshTimer = null;
+    void syncPersistedAppearance(options);
+  }, 140);
+}
+
+function scheduleTagCatalogRefresh(options = {}) {
+  if (!logseq.isMainUIVisible || panelState.activeTab !== "tags") {
+    return;
+  }
+
+  if (panelState.tagCatalogRefreshTimer) {
+    clearTimeout(panelState.tagCatalogRefreshTimer);
+  }
+
+  panelState.tagCatalogRefreshTimer = window.setTimeout(() => {
+    panelState.tagCatalogRefreshTimer = null;
+    void refreshTags({
+      showToast: false,
+      fallbackToPrevious: true,
+      force: true,
+      ...options,
+    });
+  }, 220);
 }
 
 function buildPersistedAppearanceSnapshot() {
@@ -4888,6 +5287,7 @@ async function syncPersistedAppearance(options = {}) {
     forceRender = false,
     fallbackToPrevious = true,
     renderMode = "soft",
+    refreshTagCatalog = false,
   } = options;
   const previousRevision = panelState.syncRevision;
   const previousSnapshot = buildPersistedAppearanceSnapshot();
@@ -4900,7 +5300,10 @@ async function syncPersistedAppearance(options = {}) {
   await loadStoredControls();
   await loadStoredGradients();
   await loadStoredTagColors({ allowEntityFallback: false, fallbackToCurrent: true });
-  await refreshTags({ showToast: false, fallbackToPrevious });
+
+  if (refreshTagCatalog) {
+    await refreshTags({ showToast: false, fallbackToPrevious });
+  }
 
   const nextSnapshot = buildPersistedAppearanceSnapshot();
   const changed = previousSnapshot !== nextSnapshot
@@ -5760,6 +6163,7 @@ function buildManagedOverrides() {
 
   const quoteColorRules = QUOTE_COLOR_RULES.map(({ selector, token }) => `
 ${selector} {
+  border-left-color: var(--bd-${token}) !important;
   --ctl-quote-color: var(--grad-${token});
   background-image: ${buildGradientCss("quote", "var(--ctl-quote-color)")} !important;
 }
@@ -5853,26 +6257,6 @@ ${selector} {
     lightChipDeclarations: `background: ${lightTheme.background} !important;\n  background-color: ${lightTheme.background} !important;\n  background-image: none !important;\n  border-color: ${lightTheme.borderColor} !important;\n  color: ${lightTheme.color} !important;\n  box-shadow: none !important;\n  opacity: 1 !important;`,
     darkChipDeclarations: `background: ${darkTheme.background} !important;\n  background-color: ${darkTheme.background} !important;\n  background-image: none !important;\n  border-color: ${darkTheme.borderColor} !important;\n  color: ${darkTheme.color} !important;\n  box-shadow: none !important;\n  opacity: 1 !important;`,
   })).join("");
-
-  const presetLinkedBlockRules = Array.from(presetGroups.entries()).map(([token, tagNames]) => {
-    if (!COLOR_PRESET_MAP[token]) {
-      return "";
-    }
-
-    return buildGroupedLinkedBlockColorRule(tagNames, `var(--grad-${token})`, `var(--grad-${token})`);
-  }).join("");
-
-  const presetPageTitleRules = Array.from(presetGroups.entries()).map(([token, tagNames]) => {
-    if (!COLOR_PRESET_MAP[token]) {
-      return "";
-    }
-
-    return buildGroupedPageTitleColorRule(tagNames, `var(--grad-${token})`, `var(--grad-${token})`);
-  }).join("");
-
-  const customLinkedBlockRules = customEntries.map(({ tagNames, lightGradient, darkGradient }) => buildGroupedLinkedBlockColorRule(tagNames, lightGradient, darkGradient)).join("");
-
-  const customPageTitleRules = customEntries.map(({ tagNames, lightGradient, darkGradient }) => buildGroupedPageTitleColorRule(tagNames, lightGradient, darkGradient)).join("");
 
   const sections = {
     tagColors: `${resetTagRules}${presetTagChipRules}${customTagChipRules}`.trim(),
@@ -5991,21 +6375,13 @@ ${buildSearchTagChipSelector(".dark-theme ")}:hover {
 }
 `.trim(),
     linkedBlocks: `
-${presetLinkedBlockRules}
-
-${customLinkedBlockRules}
-
-.ls-block > div:first-child:not(.selected):not(.selected-block):not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(a.tag[data-ref]) {
+.ls-block > div:first-child[data-degrande-linked-node="true"]:not(.selected):not(.selected-block) {
   background-image: ${nodeGradient} !important;
   background-color: transparent !important;
 }
 `.trim(),
     pageTitles: `
-${presetPageTitleRules}
-
-${customPageTitleRules}
-
-.ls-block > div:first-child:has(.block-content-or-editor-wrap.ls-page-title-container):has(.ls-block-right a.tag[data-ref]) .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container) {
+.block-main-content[data-degrande-page-title-node="true"] {
   background-image: ${titleGradient} !important;
   background-color: transparent !important;
 }
@@ -6014,14 +6390,26 @@ ${customPageTitleRules}
 div[data-node-type="quote"] {
   --ctl-quote-color: rgba(99, 102, 241, ${controls.quoteLightOpacity});
   border-left-width: ${controls.quoteBorderWidth}px !important;
+  border-left-style: solid !important;
+  border-left-color: #6366f1 !important;
   border-radius: 0 ${controls.quoteRadius}px ${controls.quoteRadius}px 0 !important;
   padding: ${controls.quotePaddingY}px ${controls.quotePaddingX}px !important;
   background-image: ${buildGradientCss("quote", "var(--ctl-quote-color)")} !important;
+  background-color: transparent !important;
+}
+
+div[data-node-type="quote"] .block-content-inner {
+  color: #334155 !important;
 }
 
 .dark-theme div[data-node-type="quote"] {
   --ctl-quote-color: rgba(99, 102, 241, ${controls.quoteDarkOpacity});
+  border-left-color: #818cf8 !important;
   background-image: ${buildGradientCss("quote", "var(--ctl-quote-color)")} !important;
+}
+
+.dark-theme div[data-node-type="quote"] .block-content-inner {
+  color: #e2e8f0 !important;
 }
 
 ${quoteColorRules}
@@ -6604,10 +6992,17 @@ async function applyManagedOverrides(showToast = false, statusMessage = "Updated
   const managedOverrides = buildManagedOverrides();
   const shouldApplyCss = hasEnabledAppearanceSections();
 
+  rebuildTagDrivenNodeStyleState();
+
   panelState.cssText = buildEffectiveCssText(managedOverrides.cssText);
   panelState.cssStats = buildCssStats(panelState.baseCssText, managedOverrides.cssText, managedOverrides.sections);
   panelState.lastAppliedAt = new Date();
-  cleanupLegacyManagedStyles();
+
+  if (!panelState.legacyManagedStylesCleaned) {
+    cleanupLegacyManagedStyles();
+    panelState.legacyManagedStylesCleaned = true;
+  }
+
   setHostStyleText(BASE_STYLE_ELEMENT_ID, shouldApplyCss ? panelState.baseCssText : "");
   setHostStyleText(MANAGED_STYLE_ELEMENT_ID, managedOverrides.cssText);
 
@@ -6621,6 +7016,7 @@ async function applyManagedOverrides(showToast = false, statusMessage = "Updated
   }
 
   syncHostColorVariables();
+  syncAllTagDrivenNodeStyles();
   scheduleCmdkTagStyleSync();
   scheduleSidebarTagStyleSync();
 
@@ -6672,6 +7068,7 @@ async function openThemeLoader() {
       forceRender: true,
       fallbackToPrevious: false,
       renderMode: "soft",
+      refreshTagCatalog: true,
     });
   } catch (error) {
     console.error("[Degrande Colors] Failed to refresh local state when opening panel", error);
@@ -6699,8 +7096,9 @@ function toggleThemeLoader() {
 }
 
 async function reloadThemeCss(showToast = false, reopenUI = !!logseq.isMainUIVisible) {
-  panelState.baseCssText = await loadWorkspaceCss();
-  panelState.baseTagColorMap = parseBaseTagColorMap(panelState.baseCssText);
+  const rawCssText = await loadWorkspaceCss();
+  panelState.baseTagColorMap = parseBaseTagColorMap(rawCssText);
+  panelState.baseCssText = buildStaticBaseCssText(rawCssText);
   setHostStyleText(BASE_STYLE_ELEMENT_ID, panelState.baseCssText);
 
   await applyManagedOverrides(showToast, "Reloaded base styles and re-applied controls");
@@ -6786,6 +7184,8 @@ async function main() {
   setThemeMode(userConfigs?.preferredThemeMode);
   logseq.App.onThemeModeChanged(({ mode }) => {
     setThemeMode(mode);
+    rebuildTagDrivenNodeStyleState();
+    syncAllTagDrivenNodeStyles();
     renderPanel(`Logseq theme: ${mode}`);
   });
 
@@ -6809,6 +7209,7 @@ async function main() {
           reason: "Reloaded synced graph appearance",
           fallbackToPrevious: false,
           forceRender: true,
+          refreshTagCatalog: Boolean(logseq.isMainUIVisible && panelState.activeTab === "tags"),
         });
       })();
     });
@@ -6820,19 +7221,29 @@ async function main() {
         return;
       }
 
-      if (!doesTxDataTouchDegrandeState(txData)) {
+      const changeSummary = doesTxDataTouchDegrandeState(txData);
+
+      if (!changeSummary.touched) {
         return;
       }
 
-      void syncPersistedAppearance({
-        reason: "Updated synced graph appearance",
-        fallbackToPrevious: false,
-      });
+      if (changeSummary.syncStateChanged) {
+        schedulePersistedAppearanceSync({
+          reason: "Updated synced graph appearance",
+          fallbackToPrevious: false,
+          refreshTagCatalog: false,
+        });
+      }
+
+      if (changeSummary.tagCatalogChanged) {
+        scheduleTagCatalogRefresh();
+      }
     });
   }
 
   await reloadThemeCss(false, false);
   observeHostColorTargets();
+  observeTagDrivenNodeStyles();
   observeCmdkSearchResults();
   observeSidebarTagStyles();
 
@@ -6896,6 +7307,7 @@ async function main() {
         showToast: true,
         forceRender: true,
         fallbackToPrevious: false,
+        refreshTagCatalog: true,
       })
     );
 
