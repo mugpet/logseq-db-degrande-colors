@@ -238,7 +238,15 @@
       }
 
       .ctl-control-highlight-range {
-        gap: 10px;
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 14px;
+      }
+
+      .ctl-control-highlight-range > .ctl-control-header {
+        grid-column: 1 / -1;
+        margin-bottom: 2px;
       }
 
       .ctl-control-highlight-boundary {
@@ -1490,7 +1498,7 @@
   </head>
   <body>
     <div id="app"></div>
-    <script src="./lsplugin.user.js?v=0.4.10"></script>
-    <script src="./plugin.js?v=0.4.10"></script>
+    <script src="./lsplugin.user.js?v=0.4.11"></script>
+    <script src="./plugin.js?v=0.4.11"></script>
   </body>
 </html>
