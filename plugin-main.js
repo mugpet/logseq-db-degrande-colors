@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.28";
+const FALLBACK_PLUGIN_VERSION = "0.3.29";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -208,10 +208,10 @@ const CONTROL_SECTIONS = [
   },
   {
     title: "Highlights",
-    description: "Vertical offsets for inline mark highlights.",
+    description: "Select the visible highlight band from top to bottom.",
     controls: [
-      { key: "highlightTopOffset", label: "Start Top", min: -20, max: 24, step: 1, unit: "px", defaultValue: 0 },
-      { key: "highlightBottomOffset", label: "End Bottom", min: -20, max: 24, step: 1, unit: "px", defaultValue: 0 },
+      { key: "highlightStartPercent", label: "Start", min: 0, max: 100, step: 1, unit: "%", defaultValue: 0 },
+      { key: "highlightEndPercent", label: "Stop", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
     ],
   },
   {
@@ -5034,12 +5034,69 @@ function renderTagsPane() {
 }
 
 function buildNumericControlsMarkup(controlKeys) {
+  const renderedKeys = new Set();
+
   return controlKeys.map((key) => {
+    if (renderedKeys.has(key)) {
+      return "";
+    }
+
+    if (key === "highlightStartPercent" && controlKeys.includes("highlightEndPercent")) {
+      renderedKeys.add("highlightStartPercent");
+      renderedKeys.add("highlightEndPercent");
+
+      const startControl = CONTROL_MAP.highlightStartPercent;
+      const endControl = CONTROL_MAP.highlightEndPercent;
+      const startValue = panelState.controlState.highlightStartPercent;
+      const endValue = panelState.controlState.highlightEndPercent;
+
+      return `
+        <div class="ctl-control ctl-control-highlight-range">
+          <div class="ctl-control-header">
+            <span class="ctl-control-label">Highlight Band</span>
+            <strong class="ctl-control-value" data-role="highlight-range-summary">${formatControlValue(startControl, startValue)} -> ${formatControlValue(endControl, endValue)}</strong>
+          </div>
+          <div class="ctl-range-pair-labels">
+            <span>Start</span>
+            <span>Stop</span>
+          </div>
+          <div class="ctl-range-pair" data-role="highlight-range" style="--ctl-range-start:${startValue}%; --ctl-range-end:${endValue}%;">
+            <input
+              class="ctl-range ctl-range-pair-input"
+              id="ctl-${startControl.key}"
+              type="range"
+              data-control-key="${startControl.key}"
+              min="${startControl.min}"
+              max="${startControl.max}"
+              step="${startControl.step}"
+              value="${startValue}"
+            >
+            <input
+              class="ctl-range ctl-range-pair-input"
+              id="ctl-${endControl.key}"
+              type="range"
+              data-control-key="${endControl.key}"
+              min="${endControl.min}"
+              max="${endControl.max}"
+              step="${endControl.step}"
+              value="${endValue}"
+            >
+          </div>
+          <div class="ctl-range-pair-values">
+            <strong data-control-value-for="${startControl.key}">${formatControlValue(startControl, startValue)}</strong>
+            <strong data-control-value-for="${endControl.key}">${formatControlValue(endControl, endValue)}</strong>
+          </div>
+        </div>
+      `;
+    }
+
     const control = CONTROL_MAP[key];
 
     if (!control) {
       return "";
     }
+
+    renderedKeys.add(key);
 
     return `
       <label class="ctl-control" for="ctl-${control.key}">
@@ -5552,19 +5609,39 @@ function buildControlGroupMarkup(sectionTitle, cardClass = "") {
   `;
 }
 
+function syncHighlightRangeControl() {
+  const startControl = CONTROL_MAP.highlightStartPercent;
+  const endControl = CONTROL_MAP.highlightEndPercent;
+
+  if (!startControl || !endControl) {
+    return;
+  }
+
+  const startValue = panelState.controlState.highlightStartPercent;
+  const endValue = panelState.controlState.highlightEndPercent;
+
+  document.querySelectorAll('[data-role="highlight-range"]').forEach((element) => {
+    element.style.setProperty('--ctl-range-start', `${startValue}%`);
+    element.style.setProperty('--ctl-range-end', `${endValue}%`);
+  });
+
+  document.querySelectorAll('[data-role="highlight-range-summary"]').forEach((element) => {
+    element.textContent = `${formatControlValue(startControl, startValue)} -> ${formatControlValue(endControl, endValue)}`;
+  });
+}
+
 function syncControlInputs() {
   for (const control of ALL_CONTROLS) {
-    const input = document.querySelector(`[data-control-key="${control.key}"]`);
-    const value = document.querySelector(`[data-control-value-for="${control.key}"]`);
-
-    if (input) {
+    document.querySelectorAll(`[data-control-key="${control.key}"]`).forEach((input) => {
       input.value = panelState.controlState[control.key];
-    }
+    });
 
-    if (value) {
+    document.querySelectorAll(`[data-control-value-for="${control.key}"]`).forEach((value) => {
       value.textContent = formatControlValue(control, panelState.controlState[control.key]);
-    }
+    });
   }
+
+  syncHighlightRangeControl();
 }
 
 function buildEffectiveCssText(managedOverrides) {
@@ -5657,7 +5734,7 @@ function buildPreviewMarkup() {
         ${buildGradientStripMarkup("highlight", getGradientArea("highlight"), GRADIENT_AREAS.highlight, getSelectedGradientStopIndex("highlight"))}
       </div>
     `,
-    ["highlightTopOffset", "highlightBottomOffset"]
+    ["highlightStartPercent", "highlightEndPercent"]
   );
   const quotePreview = buildGradientEditorMarkup(
     "quote",
@@ -5817,8 +5894,8 @@ function syncPreviewStyles() {
   setPreviewElementStyle(document.querySelector('[data-role="preview-highlight-mark"]'), {
     backgroundImage: highlightEnabled ? buildGradientCss("highlight", highlightPreviewLinkedColor, "preview") : "none",
     backgroundColor: "transparent",
-    backgroundPosition: `0 ${controls.highlightTopOffset}px`,
-    backgroundSize: `100% calc(100% - ${controls.highlightTopOffset}px - ${controls.highlightBottomOffset}px)`,
+    backgroundPosition: `0 ${controls.highlightStartPercent}%`,
+    backgroundSize: `100% ${Math.max(0, controls.highlightEndPercent - controls.highlightStartPercent)}%`,
     backgroundRepeat: "no-repeat",
     color: "inherit",
     borderRadius: "0.35em",
@@ -6595,8 +6672,8 @@ ${highlightMarkSelector} {
   color: inherit !important;
   background-image: ${highlightGradient} !important;
   background-color: transparent !important;
-  background-position: 0 ${controls.highlightTopOffset}px !important;
-  background-size: 100% calc(100% - ${controls.highlightTopOffset}px - ${controls.highlightBottomOffset}px) !important;
+  background-position: 0 ${controls.highlightStartPercent}% !important;
+  background-size: 100% ${Math.max(0, controls.highlightEndPercent - controls.highlightStartPercent)}% !important;
   background-repeat: no-repeat !important;
   border-radius: 0.35em;
   padding: 0 0.18em;
@@ -7149,7 +7226,16 @@ function mountPanel() {
       return;
     }
 
-    panelState.controlState[controlKey] = Number(input.value);
+    const nextValue = Number(input.value);
+
+    if (controlKey === "highlightStartPercent") {
+      panelState.controlState.highlightStartPercent = Math.min(nextValue, panelState.controlState.highlightEndPercent);
+    } else if (controlKey === "highlightEndPercent") {
+      panelState.controlState.highlightEndPercent = Math.max(nextValue, panelState.controlState.highlightStartPercent);
+    } else {
+      panelState.controlState[controlKey] = nextValue;
+    }
+
     void applyManagedOverrides(false, `Adjusted ${control.label}`, "soft");
   });
 
