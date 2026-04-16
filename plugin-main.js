@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.3";
+const FALLBACK_PLUGIN_VERSION = "0.4.4";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -5917,24 +5917,29 @@ function syncPreviewStyles() {
   });
 
   setPreviewElementStyle(document.querySelector('[data-role="preview-highlight-mark"]'), {
-    backgroundImage: highlightEnabled
-      ? buildGradientCss("highlight", highlightPreviewLinkedColor, "preview")
-      : "none",
-    WebkitMaskImage: highlightEnabled
-      ? buildHighlightBandMaskCss(controls.highlightStartPercent, controls.highlightEndPercent)
-      : "none",
-    maskImage: highlightEnabled
-      ? buildHighlightBandMaskCss(controls.highlightStartPercent, controls.highlightEndPercent)
-      : "none",
-    WebkitMaskRepeat: "no-repeat",
-    maskRepeat: "no-repeat",
+    backgroundImage: "none",
     backgroundColor: "transparent",
     color: "inherit",
+    position: "relative",
+    isolation: "isolate",
     borderRadius: "0.35em",
     padding: "0 0.18em",
     boxDecorationBreak: "clone",
     WebkitBoxDecorationBreak: "clone",
   });
+
+  const previewHighlightMark = document.querySelector('[data-role="preview-highlight-mark"]');
+
+  if (previewHighlightMark) {
+    previewHighlightMark.style.setProperty(
+      "--ctl-preview-highlight-gradient",
+      highlightEnabled ? buildGradientCss("highlight", highlightPreviewLinkedColor, "preview") : "none"
+    );
+    previewHighlightMark.style.setProperty(
+      "--ctl-preview-highlight-mask",
+      highlightEnabled ? buildHighlightBandMaskCss(controls.highlightStartPercent, controls.highlightEndPercent) : "none"
+    );
+  }
 
   setPreviewElementStyle(document.querySelector('[data-role="preview-quote"]'), {
     opacity: quoteEnabled ? "1" : "0.65",
@@ -5967,19 +5972,23 @@ function syncGradientEditorState() {
     const preview = document.querySelector(`[data-gradient-preview="${areaKey}"]`);
 
     if (preview) {
-      preview.style.backgroundImage = buildGradientCss(areaKey, getGradientPreviewLinkedColor(areaKey), "preview");
-
       if (areaKey === "highlight") {
+        preview.style.backgroundImage = "none";
+        preview.style.setProperty(
+          "--ctl-preview-highlight-gradient",
+          buildGradientCss("highlight", getGradientPreviewLinkedColor("highlight"), "preview")
+        );
+
         const highlightMask = buildHighlightBandMaskCss(
           panelState.controlState.highlightStartPercent,
           panelState.controlState.highlightEndPercent
         );
 
-        preview.style.WebkitMaskImage = highlightMask;
-        preview.style.maskImage = highlightMask;
-        preview.style.WebkitMaskRepeat = "no-repeat";
-        preview.style.maskRepeat = "no-repeat";
+        preview.style.setProperty("--ctl-preview-highlight-mask", highlightMask);
       } else {
+        preview.style.backgroundImage = buildGradientCss(areaKey, getGradientPreviewLinkedColor(areaKey), "preview");
+        preview.style.removeProperty("--ctl-preview-highlight-gradient");
+        preview.style.removeProperty("--ctl-preview-highlight-mask");
         preview.style.WebkitMaskImage = "none";
         preview.style.maskImage = "none";
         preview.style.WebkitMaskRepeat = "";
@@ -6719,16 +6728,29 @@ ${buildSearchTagChipSelector(".dark-theme ")}:hover {
 ${highlightMarkSelector} {
   --ctl-highlight-color: ${lightHighlightColor};
   color: inherit !important;
+  position: relative !important;
+  isolation: isolate !important;
+  background-image: none !important;
+  background-color: transparent !important;
+  border-radius: 0.35em;
+  padding: 0 0.18em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+${highlightMarkSelector}::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
   background-image: ${highlightGradient} !important;
   background-color: transparent !important;
   -webkit-mask-image: ${buildHighlightBandMaskCss(controls.highlightStartPercent, controls.highlightEndPercent)} !important;
   mask-image: ${buildHighlightBandMaskCss(controls.highlightStartPercent, controls.highlightEndPercent)} !important;
   -webkit-mask-repeat: no-repeat !important;
   mask-repeat: no-repeat !important;
-  border-radius: 0.35em;
-  padding: 0 0.18em;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
 }
 
 ${darkHighlightMarkSelector} {
