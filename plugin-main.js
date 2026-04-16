@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.24";
+const FALLBACK_PLUGIN_VERSION = "0.3.25";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -96,11 +96,13 @@ const GRADIENT_AREAS = {
   node: {
     label: "Tagged Block Gradient",
     linkedLabel: "Linked Tag Color",
+    previewTagName: "Project",
     previewLinkedColor: "rgba(16, 185, 129, 0.24)",
   },
   title: {
     label: "Page Title Gradient",
     linkedLabel: "Linked Tag Color",
+    previewTagName: "Journal",
     previewLinkedColor: "rgba(245, 158, 11, 0.24)",
   },
   quote: {
@@ -4475,6 +4477,79 @@ function getGradientPositionFromClientX(areaKey, clientX) {
   return Math.round(Math.min(100, Math.max(0, (relativeX / Math.max(rect.width, 1)) * 100)));
 }
 
+function getPreviewGradientFallbackColor(token) {
+  const preset = getPresetMeta(token);
+
+  if (!preset) {
+    return "transparent";
+  }
+
+  if (panelState.themeMode === "dark") {
+    const rgb = hexToRgb(preset.darkBorder);
+    return rgb ? rgbToCss(rgb, 0.25) : preset.darkBorder;
+  }
+
+  return preset.lightBg;
+}
+
+function resolvePreviewGradientColor(colorValue, fallback = "") {
+  const trimmed = String(colorValue || "").trim();
+
+  if (!trimmed) {
+    return fallback || "transparent";
+  }
+
+  const variableMatch = trimmed.match(/^var\((--[^),\s]+).*\)$/);
+
+  if (!variableMatch) {
+    return trimmed;
+  }
+
+  try {
+    const hostDocument = getHostDocument();
+    const resolved = hostDocument?.documentElement
+      ? hostDocument.defaultView?.getComputedStyle(hostDocument.documentElement).getPropertyValue(variableMatch[1]).trim()
+      : "";
+
+    return resolved || fallback || trimmed;
+  } catch (error) {
+    return fallback || trimmed;
+  }
+}
+
+function getActivePageTitleLinkedPreviewColor() {
+  try {
+    const hostDocument = getHostDocument();
+    const pageTitleNode = hostDocument.querySelector('.block-main-content[data-degrande-page-title-node="true"]');
+    return String(pageTitleNode?.style?.getPropertyValue("--node-color") || "").trim();
+  } catch (error) {
+    return "";
+  }
+}
+
+function getGradientPreviewLinkedColor(areaKey) {
+  const areaConfig = GRADIENT_AREAS[areaKey] || {};
+  const previewFallback = areaConfig.previewLinkedColor || "transparent";
+
+  if (areaKey === "title") {
+    const activePageTitleColor = getActivePageTitleLinkedPreviewColor();
+
+    if (activePageTitleColor) {
+      return resolvePreviewGradientColor(activePageTitleColor, previewFallback);
+    }
+  }
+
+  if (areaConfig.previewTagName) {
+    const assignedPreviewColor = getAssignedNodeColorForTag(areaConfig.previewTagName);
+
+    if (assignedPreviewColor) {
+      return resolvePreviewGradientColor(assignedPreviewColor, previewFallback);
+    }
+  }
+
+  return previewFallback;
+}
+
 function getGradientStopColor(stop, linkedColor, mode = "runtime") {
   if (!stop) {
     return "transparent";
@@ -4493,8 +4568,7 @@ function getGradientStopColor(stop, linkedColor, mode = "runtime") {
       return `var(--grad-${stop.token})`;
     }
 
-    const preset = COLOR_PRESET_MAP[stop.token];
-    return panelState.themeMode === "dark" ? preset.darkBorder : preset.lightBorder;
+    return resolvePreviewGradientColor(`var(--grad-${stop.token})`, getPreviewGradientFallbackColor(stop.token));
   }
 
   if (stop.source === "custom" && stop.color) {
@@ -5043,10 +5117,12 @@ function buildGradientCustomColorMarkup(areaKey, stopIndex, selectedStop) {
 }
 
 function buildGradientStripMarkup(areaKey, area, areaConfig, selectedIndex) {
+  const previewLinkedColor = getGradientPreviewLinkedColor(areaKey);
+
   return `
     <div class="ctl-gradient-strip" data-gradient-strip data-area-key="${areaKey}" title="Click to add a stop, and right-click to remove a stop">
       ${area.stops.map((stop, index) => {
-        const swatchColor = getGradientStopColor(stop, areaConfig.previewLinkedColor, "preview");
+        const swatchColor = getGradientStopColor(stop, previewLinkedColor, "preview");
         const isTransparent = stop.source === "transparent";
         const style = isTransparent
           ? `left: calc(${stop.position}% - 9px);`
@@ -5638,12 +5714,16 @@ function syncTabState() {
 
 function syncPreviewStyles() {
   const controls = panelState.controlState;
-  const isDark = panelState.themeMode === "dark";
   const chipsEnabled = isAppearanceSectionEnabled("tagChips");
   const nodeEnabled = isAppearanceSectionEnabled("linkedBlocks");
   const titleEnabled = isAppearanceSectionEnabled("pageTitles");
   const quoteEnabled = isAppearanceSectionEnabled("quotes");
   const backgroundEnabled = isAppearanceSectionEnabled("backgroundBlocks");
+  const nodePreviewLinkedColor = getGradientPreviewLinkedColor("node");
+  const titlePreviewLinkedColor = getGradientPreviewLinkedColor("title");
+  const quotePreviewLinkedColor = getGradientPreviewLinkedColor("quote");
+  const backgroundPreviewLinkedColor = getGradientPreviewLinkedColor("background");
+  const isDark = panelState.themeMode === "dark";
 
   const tagBase = {
     borderRadius: `${controls.tagRadius}px`,
@@ -5673,13 +5753,13 @@ function syncPreviewStyles() {
 
   setPreviewElementStyle(document.querySelector('[data-role="preview-block"]'), {
     opacity: nodeEnabled ? "1" : "0.65",
-    backgroundImage: nodeEnabled ? buildGradientCss("node", isDark ? "rgba(52, 211, 153, 0.28)" : "rgba(16, 185, 129, 0.2)", "preview") : "none",
+    backgroundImage: nodeEnabled ? buildGradientCss("node", nodePreviewLinkedColor, "preview") : "none",
     backgroundColor: isDark ? "rgba(15, 23, 42, 0.68)" : "rgba(255, 255, 255, 0.82)",
   });
 
   setPreviewElementStyle(document.querySelector('[data-role="preview-title-card"]'), {
     opacity: titleEnabled ? "1" : "0.65",
-    backgroundImage: titleEnabled ? buildGradientCss("title", isDark ? "rgba(251, 191, 36, 0.28)" : "rgba(245, 158, 11, 0.2)", "preview") : "none",
+    backgroundImage: titleEnabled ? buildGradientCss("title", titlePreviewLinkedColor, "preview") : "none",
     backgroundColor: isDark ? "rgba(15, 23, 42, 0.72)" : "rgba(255, 255, 255, 0.84)",
   });
 
@@ -5690,7 +5770,7 @@ function syncPreviewStyles() {
     borderLeftColor: isDark ? "rgba(129, 140, 248, 0.8)" : "rgba(99, 102, 241, 0.58)",
     borderRadius: `0 ${controls.quoteRadius}px ${controls.quoteRadius}px 0`,
     padding: `${controls.quotePaddingY}px ${controls.quotePaddingX}px`,
-    backgroundImage: quoteEnabled ? buildGradientCss("quote", isDark ? `rgba(99, 102, 241, ${controls.quoteDarkOpacity})` : `rgba(99, 102, 241, ${controls.quoteLightOpacity})`, "preview") : "none",
+    backgroundImage: quoteEnabled ? buildGradientCss("quote", quotePreviewLinkedColor, "preview") : "none",
     backgroundColor: isDark ? "rgba(15, 23, 42, 0.72)" : "rgba(255, 255, 255, 0.82)",
   });
 
@@ -5698,7 +5778,7 @@ function syncPreviewStyles() {
     opacity: backgroundEnabled ? "1" : "0.65",
     borderRadius: `${controls.bgRadius}px`,
     padding: `${controls.bgPaddingY}px ${controls.bgPaddingX}px`,
-    backgroundImage: backgroundEnabled ? buildGradientCss("background", isDark ? "rgba(244, 114, 182, 0.24)" : "rgba(244, 114, 182, 0.16)", "preview") : "none",
+    backgroundImage: backgroundEnabled ? buildGradientCss("background", backgroundPreviewLinkedColor, "preview") : "none",
     backgroundColor: isDark ? "rgba(30, 41, 59, 0.8)" : "rgba(255, 255, 255, 0.85)",
   });
 }
@@ -5714,7 +5794,7 @@ function syncGradientEditorState() {
     const preview = document.querySelector(`[data-gradient-preview="${areaKey}"]`);
 
     if (preview) {
-      preview.style.backgroundImage = buildGradientCss(areaKey, areaConfig.previewLinkedColor, "preview");
+      preview.style.backgroundImage = buildGradientCss(areaKey, getGradientPreviewLinkedColor(areaKey), "preview");
     }
 
     const angleValue = document.querySelector(`[data-gradient-angle-value="${areaKey}"]`);
@@ -5759,7 +5839,7 @@ function syncGradientEditorState() {
         return;
       }
 
-      const swatchColor = getGradientStopColor(stop, areaConfig.previewLinkedColor, "preview");
+      const swatchColor = getGradientStopColor(stop, getGradientPreviewLinkedColor(areaKey), "preview");
       handle.style.left = `calc(${stop.position}% - 9px)`;
 
       if (stop.source === "transparent") {
