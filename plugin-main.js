@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.5";
+const FALLBACK_PLUGIN_VERSION = "0.4.6";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -261,6 +261,9 @@ const HOST_COLOR_BACKGROUND_SELECTOR = '.with-bg-color:not([data-node-type="quot
 const HOST_COLOR_QUOTE_SELECTOR = 'div[data-node-type="quote"]';
 const HOST_COLOR_TARGET_SELECTOR = `${HOST_COLOR_BACKGROUND_SELECTOR}, ${HOST_COLOR_QUOTE_SELECTOR}`;
 const HOST_HIGHLIGHT_MARK_SELECTORS = [
+  '.ls-block mark',
+  '.ls-block .editor-inner mark',
+  '.ls-block .block-content mark',
   '.ls-block .block-title-wrap mark',
   '.ls-block .block-content-inner mark',
   '.ls-block h1.title mark',
@@ -6728,6 +6731,12 @@ ${buildSearchTagChipSelector(".dark-theme ")}:hover {
 ${highlightMarkSelector} {
   --ctl-highlight-color: ${lightHighlightColor};
   color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
+  text-decoration: none !important;
+  background-clip: border-box !important;
+  -webkit-background-clip: border-box !important;
+  box-shadow: none !important;
+  overflow: visible !important;
   display: inline-block !important;
   max-width: 100% !important;
   vertical-align: baseline !important;
