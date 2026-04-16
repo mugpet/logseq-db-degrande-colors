@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.8";
+const FALLBACK_PLUGIN_VERSION = "0.4.9";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -5918,11 +5918,8 @@ function syncPreviewStyles() {
   });
 
   setPreviewElementStyle(document.querySelector('[data-role="preview-highlight-mark"]'), {
-    backgroundImage: "none",
     backgroundColor: "transparent",
     color: "inherit",
-    position: "relative",
-    isolation: "isolate",
     borderRadius: "0.35em",
     padding: "0 0.18em",
     boxDecorationBreak: "clone",
@@ -5978,7 +5975,7 @@ function syncGradientEditorState() {
 
     if (preview) {
       if (areaKey === "highlight") {
-        preview.style.backgroundImage = "none";
+        preview.style.removeProperty("background-image");
         preview.style.setProperty(
           "--ctl-preview-highlight-gradient",
           buildGradientCss("highlight", getGradientPreviewLinkedColor("highlight"), "preview")
