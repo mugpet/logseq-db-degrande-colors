@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.7";
+const FALLBACK_PLUGIN_VERSION = "0.4.8";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -4626,16 +4626,25 @@ function buildGradientCss(areaKey, linkedColor, mode = "runtime") {
   return `linear-gradient(${area.angle}deg, ${stops})`;
 }
 
-function buildHighlightBandClipPathCss(rangeStart, rangeEnd) {
+function buildHighlightBandBackgroundSizeCss(rangeStart, rangeEnd) {
   const start = clamp(Number(rangeStart) || 0, 0, 100);
   const end = clamp(Number(rangeEnd) || 0, start, 100);
-  const bottom = clamp(100 - end, 0, 100);
+  const height = clamp(end - start, 0, 100);
 
-  if (end <= start) {
-    return "inset(100% 0 0 0)";
+  return `100% ${height}%`;
+}
+
+function buildHighlightBandBackgroundPositionCss(rangeStart, rangeEnd) {
+  const start = clamp(Number(rangeStart) || 0, 0, 100);
+  const end = clamp(Number(rangeEnd) || 0, start, 100);
+  const height = clamp(end - start, 0, 100);
+
+  if (height === 100 || height === 0) {
+    return "0% 0%";
   }
 
-  return `inset(${start}% 0 ${bottom}% 0)`;
+  const yPos = (start / (100 - height)) * 100;
+  return `0% ${yPos}%`;
 }
 
 function updateGradientStop(areaKey, stopIndex, patch) {
@@ -5928,8 +5937,12 @@ function syncPreviewStyles() {
       highlightEnabled ? buildGradientCss("highlight", highlightPreviewLinkedColor, "preview") : "none"
     );
     previewHighlightMark.style.setProperty(
-      "--ctl-preview-highlight-clip",
-      highlightEnabled ? buildHighlightBandClipPathCss(controls.highlightStartPercent, controls.highlightEndPercent) : "inset(100% 0 0 0)"
+      "--ctl-preview-highlight-size",
+      highlightEnabled ? buildHighlightBandBackgroundSizeCss(controls.highlightStartPercent, controls.highlightEndPercent) : "100% 0%"
+    );
+    previewHighlightMark.style.setProperty(
+      "--ctl-preview-highlight-position",
+      highlightEnabled ? buildHighlightBandBackgroundPositionCss(controls.highlightStartPercent, controls.highlightEndPercent) : "0% 0%"
     );
   }
 
@@ -5971,16 +5984,22 @@ function syncGradientEditorState() {
           buildGradientCss("highlight", getGradientPreviewLinkedColor("highlight"), "preview")
         );
 
-        const highlightClip = buildHighlightBandClipPathCss(
+        const highlightSize = buildHighlightBandBackgroundSizeCss(
+          panelState.controlState.highlightStartPercent,
+          panelState.controlState.highlightEndPercent
+        );
+        const highlightPosition = buildHighlightBandBackgroundPositionCss(
           panelState.controlState.highlightStartPercent,
           panelState.controlState.highlightEndPercent
         );
 
-        preview.style.setProperty("--ctl-preview-highlight-clip", highlightClip);
+        preview.style.setProperty("--ctl-preview-highlight-size", highlightSize);
+        preview.style.setProperty("--ctl-preview-highlight-position", highlightPosition);
       } else {
         preview.style.backgroundImage = buildGradientCss(areaKey, getGradientPreviewLinkedColor(areaKey), "preview");
         preview.style.removeProperty("--ctl-preview-highlight-gradient");
-        preview.style.removeProperty("--ctl-preview-highlight-clip");
+        preview.style.removeProperty("--ctl-preview-highlight-size");
+        preview.style.removeProperty("--ctl-preview-highlight-position");
         preview.style.clipPath = "";
       }
     }
@@ -6722,32 +6741,16 @@ ${highlightMarkSelector} {
   background-clip: border-box !important;
   -webkit-background-clip: border-box !important;
   box-shadow: none !important;
-  overflow: visible !important;
-  display: inline-block !important;
-  max-width: 100% !important;
-  vertical-align: baseline !important;
-  line-height: inherit !important;
-  white-space: normal !important;
-  position: relative !important;
-  isolation: isolate !important;
-  background-image: none !important;
   background-color: transparent !important;
-  border-radius: 0.35em;
-  padding: 0 0.18em;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-}
+  border-radius: 0.35em !important;
+  padding: 0 0.18em !important;
+  box-decoration-break: clone !important;
+  -webkit-box-decoration-break: clone !important;
 
-${highlightMarkSelector}::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  border-radius: inherit;
   background-image: ${highlightGradient} !important;
-  background-color: transparent !important;
-  clip-path: ${buildHighlightBandClipPathCss(controls.highlightStartPercent, controls.highlightEndPercent)} !important;
+  background-size: ${buildHighlightBandBackgroundSizeCss(controls.highlightStartPercent, controls.highlightEndPercent)} !important;
+  background-position: ${buildHighlightBandBackgroundPositionCss(controls.highlightStartPercent, controls.highlightEndPercent)} !important;
+  background-repeat: no-repeat !important;
 }
 
 ${darkHighlightMarkSelector} {

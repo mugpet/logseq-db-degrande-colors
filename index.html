@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Degrande Colors v0.4.7</title>
-    <meta name="degrande-colors-version" content="0.4.7">
+    <meta name="degrande-colors-version" content="0.4.8">
     <style>
       :root {
         color-scheme: light;
@@ -602,30 +602,18 @@
 
       .ctl-preview-highlight-line mark {
         color: inherit;
-        display: inline-block;
-        max-width: 100%;
-        vertical-align: baseline;
-        line-height: inherit;
-        white-space: normal;
-        position: relative;
-        isolation: isolate;
-        background: transparent;
+        -webkit-text-fill-color: currentColor;
+        text-decoration: none;
+        background-color: transparent;
         border-radius: 0.35em;
         padding: 0 0.18em;
         -webkit-box-decoration-break: clone;
         box-decoration-break: clone;
-      }
 
-      .ctl-preview-highlight-line mark::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        z-index: -1;
-        pointer-events: none;
-        border-radius: inherit;
         background-image: var(--ctl-preview-highlight-gradient, none);
-        background-color: transparent;
-        clip-path: var(--ctl-preview-highlight-clip, inset(100% 0 0 0));
+        background-size: var(--ctl-preview-highlight-size, 100% 100%);
+        background-position: var(--ctl-preview-highlight-position, 0% 0%);
+        background-repeat: no-repeat;
       }
 
       .ctl-section-inline {
@@ -1502,7 +1490,7 @@
   </head>
   <body>
     <div id="app"></div>
-    <script src="./lsplugin.user.js?v=0.4.7"></script>
-    <script src="./plugin.js?v=0.4.7"></script>
+    <script src="./lsplugin.user.js?v=0.4.8"></script>
+    <script src="./plugin.js?v=0.4.8"></script>
   </body>
 </html>
