@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.6";
+const FALLBACK_PLUGIN_VERSION = "0.4.7";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -4626,27 +4626,16 @@ function buildGradientCss(areaKey, linkedColor, mode = "runtime") {
   return `linear-gradient(${area.angle}deg, ${stops})`;
 }
 
-function buildHighlightBandMaskCss(rangeStart, rangeEnd) {
+function buildHighlightBandClipPathCss(rangeStart, rangeEnd) {
   const start = clamp(Number(rangeStart) || 0, 0, 100);
   const end = clamp(Number(rangeEnd) || 0, start, 100);
+  const bottom = clamp(100 - end, 0, 100);
 
   if (end <= start) {
-    return "linear-gradient(180deg, transparent 0%, transparent 100%)";
+    return "inset(100% 0 0 0)";
   }
 
-  const stops = [];
-
-  if (start > 0) {
-    stops.push(`transparent 0%`, `transparent ${start}%`);
-  }
-
-  stops.push(`rgba(0, 0, 0, 1) ${start}%`, `rgba(0, 0, 0, 1) ${end}%`);
-
-  if (end < 100) {
-    stops.push(`transparent ${end}%`, `transparent 100%`);
-  }
-
-  return `linear-gradient(180deg, ${stops.join(", ")})`;
+  return `inset(${start}% 0 ${bottom}% 0)`;
 }
 
 function updateGradientStop(areaKey, stopIndex, patch) {
@@ -5939,8 +5928,8 @@ function syncPreviewStyles() {
       highlightEnabled ? buildGradientCss("highlight", highlightPreviewLinkedColor, "preview") : "none"
     );
     previewHighlightMark.style.setProperty(
-      "--ctl-preview-highlight-mask",
-      highlightEnabled ? buildHighlightBandMaskCss(controls.highlightStartPercent, controls.highlightEndPercent) : "none"
+      "--ctl-preview-highlight-clip",
+      highlightEnabled ? buildHighlightBandClipPathCss(controls.highlightStartPercent, controls.highlightEndPercent) : "inset(100% 0 0 0)"
     );
   }
 
@@ -5982,20 +5971,17 @@ function syncGradientEditorState() {
           buildGradientCss("highlight", getGradientPreviewLinkedColor("highlight"), "preview")
         );
 
-        const highlightMask = buildHighlightBandMaskCss(
+        const highlightClip = buildHighlightBandClipPathCss(
           panelState.controlState.highlightStartPercent,
           panelState.controlState.highlightEndPercent
         );
 
-        preview.style.setProperty("--ctl-preview-highlight-mask", highlightMask);
+        preview.style.setProperty("--ctl-preview-highlight-clip", highlightClip);
       } else {
         preview.style.backgroundImage = buildGradientCss(areaKey, getGradientPreviewLinkedColor(areaKey), "preview");
         preview.style.removeProperty("--ctl-preview-highlight-gradient");
-        preview.style.removeProperty("--ctl-preview-highlight-mask");
-        preview.style.WebkitMaskImage = "none";
-        preview.style.maskImage = "none";
-        preview.style.WebkitMaskRepeat = "";
-        preview.style.maskRepeat = "";
+        preview.style.removeProperty("--ctl-preview-highlight-clip");
+        preview.style.clipPath = "";
       }
     }
 
@@ -6761,10 +6747,7 @@ ${highlightMarkSelector}::before {
   border-radius: inherit;
   background-image: ${highlightGradient} !important;
   background-color: transparent !important;
-  -webkit-mask-image: ${buildHighlightBandMaskCss(controls.highlightStartPercent, controls.highlightEndPercent)} !important;
-  mask-image: ${buildHighlightBandMaskCss(controls.highlightStartPercent, controls.highlightEndPercent)} !important;
-  -webkit-mask-repeat: no-repeat !important;
-  mask-repeat: no-repeat !important;
+  clip-path: ${buildHighlightBandClipPathCss(controls.highlightStartPercent, controls.highlightEndPercent)} !important;
 }
 
 ${darkHighlightMarkSelector} {
