@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.11";
+const FALLBACK_PLUGIN_VERSION = "0.4.12";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -4517,11 +4517,10 @@ function getPreviewGradientFallbackColor(token) {
   }
 
   if (panelState.themeMode === "dark") {
-    const rgb = hexToRgb(preset.darkBorder);
-    return rgb ? rgbToCss(rgb, 0.25) : preset.darkBorder;
+    return preset.darkBorder;
   }
 
-  return preset.lightBg;
+  return preset.lightBorder;
 }
 
 function resolvePreviewGradientColor(colorValue, fallback = "") {

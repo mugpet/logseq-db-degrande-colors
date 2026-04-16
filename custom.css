@@ -23,22 +23,22 @@
   --bg-slate: #f8fafc;     --bd-slate: #e2e8f0;
 
   /* LIGHT MODE GRADIENTS (Matches Tag Colors) */
-  --grad-red: var(--bg-red);
-  --grad-orange: var(--bg-orange);
-  --grad-yellow: var(--bg-yellow);
-  --grad-green: var(--bg-green);
-  --grad-teal: var(--bg-teal);
-  --grad-blue: var(--bg-blue);
-  --grad-indigo: var(--bg-indigo);
-  --grad-purple: var(--bg-purple);
-  --grad-pink: var(--bg-pink);
-  --grad-grey: var(--bg-grey);
-  --grad-mint: var(--bg-mint);
-  --grad-rose: var(--bg-rose);
-  --grad-amber: var(--bg-amber);
-  --grad-sky: var(--bg-sky);
-  --grad-lime: var(--bg-lime);
-  --grad-slate: var(--bg-slate);
+  --grad-red: var(--bd-red);
+  --grad-orange: var(--bd-orange);
+  --grad-yellow: var(--bd-yellow);
+  --grad-green: var(--bd-green);
+  --grad-teal: var(--bd-teal);
+  --grad-blue: var(--bd-blue);
+  --grad-indigo: var(--bd-indigo);
+  --grad-purple: var(--bd-purple);
+  --grad-pink: var(--bd-pink);
+  --grad-grey: var(--bd-grey);
+  --grad-mint: var(--bd-mint);
+  --grad-rose: var(--bd-rose);
+  --grad-amber: var(--bd-amber);
+  --grad-sky: var(--bd-sky);
+  --grad-lime: var(--bd-lime);
+  --grad-slate: var(--bd-slate);
 }
 
 .dark-theme {
@@ -61,22 +61,22 @@
   --bg-slate: #1e293b;     --bd-slate: #475569;
 
   /* DARK MODE GRADIENTS (Soft, transparent neon glows) */
-  --grad-red: rgba(252, 165, 165, 0.25);
-  --grad-orange: rgba(253, 186, 116, 0.25);
-  --grad-yellow: rgba(253, 224, 71, 0.25);
-  --grad-green: rgba(134, 239, 172, 0.25);
-  --grad-teal: rgba(94, 234, 212, 0.25);
-  --grad-blue: rgba(147, 197, 253, 0.25);
-  --grad-indigo: rgba(165, 180, 252, 0.25);
-  --grad-purple: rgba(216, 180, 254, 0.25);
-  --grad-pink: rgba(249, 168, 212, 0.25);
-  --grad-grey: rgba(209, 213, 219, 0.25);
-  --grad-mint: rgba(187, 247, 208, 0.25);
-  --grad-rose: rgba(254, 205, 211, 0.25);
-  --grad-amber: rgba(252, 211, 77, 0.25);
-  --grad-sky: rgba(186, 230, 253, 0.25);
-  --grad-lime: rgba(217, 249, 157, 0.25);
-  --grad-slate: rgba(226, 232, 240, 0.25);
+  --grad-red: var(--bd-red);
+  --grad-orange: var(--bd-orange);
+  --grad-yellow: var(--bd-yellow);
+  --grad-green: var(--bd-green);
+  --grad-teal: var(--bd-teal);
+  --grad-blue: var(--bd-blue);
+  --grad-indigo: var(--bd-indigo);
+  --grad-purple: var(--bd-purple);
+  --grad-pink: var(--bd-pink);
+  --grad-grey: var(--bd-grey);
+  --grad-mint: var(--bd-mint);
+  --grad-rose: var(--bd-rose);
+  --grad-amber: var(--bd-amber);
+  --grad-sky: var(--bd-sky);
+  --grad-lime: var(--bd-lime);
+  --grad-slate: var(--bd-slate);
 }
 
 /* ========================================= */
@@ -348,40 +348,40 @@ div[data-node-type="quote"] .block-content-inner {
 }
 /* Accent Colors CSS Setup */
 .light-theme, html[data-theme="light"] {
-  --bg-acc-app-accent: color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 15%, transparent); --bd-acc-app-accent: color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 60%, transparent); --grad-acc-app-accent: color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 15%, transparent);
-  --bg-acc-lt-blue: #ebf2fb; --bd-acc-lt-blue: #b0c7ea; --grad-acc-lt-blue: #ebf2fb;
-  --bg-acc-coral: #feece8; --bd-acc-coral: #f49e8c; --grad-acc-coral: #feece8;
-  --bg-acc-salmon: #feeeee; --bd-acc-salmon: #f49898; --grad-acc-salmon: #feeeee;
-  --bg-acc-rose: #fef0f5; --bd-acc-rose: #f68fbb; --grad-acc-rose: #fef0f5;
-  --bg-acc-blush: #fdf0f8; --bd-acc-blush: #e992cc; --grad-acc-blush: #fdf0f8;
-  --bg-acc-lilac: #fdf3fc; --bd-acc-lilac: #e09bec; --grad-acc-lilac: #fdf3fc;
-  --bg-acc-lavender: #faf3fc; --bd-acc-lavender: #c69ee4; --grad-acc-lavender: #faf3fc;
-  --bg-acc-indigo: #f0ecfe; --bd-acc-indigo: #866cee; --grad-acc-indigo: #f0ecfe;
-  --bg-acc-periwinkle: #eff2fe; --bd-acc-periwinkle: #93a2f7; --grad-acc-periwinkle: #eff2fe;
-  --bg-acc-sky: #ebf5fe; --bd-acc-sky: #71b2f7; --grad-acc-sky: #ebf5fe;
-  --bg-acc-cyan: #ebfafa; --bd-acc-cyan: #7acee1; --grad-acc-cyan: #ebfafa;
-  --bg-acc-teal: #eef9f7; --bd-acc-teal: #7ecdbe; --grad-acc-teal: #eef9f7;
-  --bg-acc-sage: #f2f9f4; --bd-acc-sage: #9fd2af; --grad-acc-sage: #f2f9f4;
-  --bg-acc-apricot: #fff5ee; --bd-acc-apricot: #fca877; --grad-acc-apricot: #fff5ee;
+  --bg-acc-app-accent: color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 15%, transparent); --bd-acc-app-accent: color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 60%, transparent); --grad-acc-app-accent: var(--bd-acc-app-accent);
+  --bg-acc-lt-blue: #ebf2fb; --bd-acc-lt-blue: #b0c7ea; --grad-acc-lt-blue: var(--bd-acc-lt-blue);
+  --bg-acc-coral: #feece8; --bd-acc-coral: #f49e8c; --grad-acc-coral: var(--bd-acc-coral);
+  --bg-acc-salmon: #feeeee; --bd-acc-salmon: #f49898; --grad-acc-salmon: var(--bd-acc-salmon);
+  --bg-acc-rose: #fef0f5; --bd-acc-rose: #f68fbb; --grad-acc-rose: var(--bd-acc-rose);
+  --bg-acc-blush: #fdf0f8; --bd-acc-blush: #e992cc; --grad-acc-blush: var(--bd-acc-blush);
+  --bg-acc-lilac: #fdf3fc; --bd-acc-lilac: #e09bec; --grad-acc-lilac: var(--bd-acc-lilac);
+  --bg-acc-lavender: #faf3fc; --bd-acc-lavender: #c69ee4; --grad-acc-lavender: var(--bd-acc-lavender);
+  --bg-acc-indigo: #f0ecfe; --bd-acc-indigo: #866cee; --grad-acc-indigo: var(--bd-acc-indigo);
+  --bg-acc-periwinkle: #eff2fe; --bd-acc-periwinkle: #93a2f7; --grad-acc-periwinkle: var(--bd-acc-periwinkle);
+  --bg-acc-sky: #ebf5fe; --bd-acc-sky: #71b2f7; --grad-acc-sky: var(--bd-acc-sky);
+  --bg-acc-cyan: #ebfafa; --bd-acc-cyan: #7acee1; --grad-acc-cyan: var(--bd-acc-cyan);
+  --bg-acc-teal: #eef9f7; --bd-acc-teal: #7ecdbe; --grad-acc-teal: var(--bd-acc-teal);
+  --bg-acc-sage: #f2f9f4; --bd-acc-sage: #9fd2af; --grad-acc-sage: var(--bd-acc-sage);
+  --bg-acc-apricot: #fff5ee; --bd-acc-apricot: #fca877; --grad-acc-apricot: var(--bd-acc-apricot);
 
 }
 
 .dark-theme, html[data-theme="dark"] {
-  --bg-acc-app-accent: color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 25%, transparent); --bd-acc-app-accent: color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 60%, transparent); --grad-acc-app-accent: color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 25%, transparent);
-  --bg-acc-lt-blue: #1a2638; --bd-acc-lt-blue: #8aa6d3; --grad-acc-lt-blue: rgba(176, 199, 234, 0.25);
-  --bg-acc-coral: #3e1d17; --bd-acc-coral: #de7c68; --grad-acc-coral: rgba(244, 158, 140, 0.25);
-  --bg-acc-salmon: #3e1d1d; --bd-acc-salmon: #de7a7a; --grad-acc-salmon: rgba(244, 152, 152, 0.25);
-  --bg-acc-rose: #4a182d; --bd-acc-rose: #d96798; --grad-acc-rose: rgba(246, 143, 187, 0.25);
-  --bg-acc-blush: #3c1830; --bd-acc-blush: #d16ead; --grad-acc-blush: rgba(233, 146, 204, 0.25);
-  --bg-acc-lilac: #34173e; --bd-acc-lilac: #c372d3; --grad-acc-lilac: rgba(224, 155, 236, 0.25);
-  --bg-acc-lavender: #2b1d3d; --bd-acc-lavender: #aa7cd1; --grad-acc-lavender: rgba(198, 158, 228, 0.25);
-  --bg-acc-indigo: #23184b; --bd-acc-indigo: #6d51d9; --grad-acc-indigo: rgba(134, 108, 238, 0.25);
-  --bg-acc-periwinkle: #1a2046; --bd-acc-periwinkle: #7889e4; --grad-acc-periwinkle: rgba(147, 162, 247, 0.25);
-  --bg-acc-sky: #132642; --bd-acc-sky: #4a90de; --grad-acc-sky: rgba(113, 178, 247, 0.25);
-  --bg-acc-cyan: #12333b; --bd-acc-cyan: #4caec5; --grad-acc-cyan: rgba(122, 206, 225, 0.25);
-  --bg-acc-teal: #14352e; --bd-acc-teal: #59af9c; --grad-acc-teal: rgba(126, 205, 190, 0.25);
-  --bg-acc-sage: #1e3828; --bd-acc-sage: #7eb390; --grad-acc-sage: rgba(159, 210, 175, 0.25);
-  --bg-acc-apricot: #442413; --bd-acc-apricot: #df8a57; --grad-acc-apricot: rgba(252, 168, 119, 0.25);
+  --bg-acc-app-accent: color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 25%, transparent); --bd-acc-app-accent: color-mix(in srgb, var(--ls-active-primary-color, var(--ls-link-text-color, #10b981)) 60%, transparent); --grad-acc-app-accent: var(--bd-acc-app-accent);
+  --bg-acc-lt-blue: #1a2638; --bd-acc-lt-blue: #8aa6d3; --grad-acc-lt-blue: var(--bd-acc-lt-blue);
+  --bg-acc-coral: #3e1d17; --bd-acc-coral: #de7c68; --grad-acc-coral: var(--bd-acc-coral);
+  --bg-acc-salmon: #3e1d1d; --bd-acc-salmon: #de7a7a; --grad-acc-salmon: var(--bd-acc-salmon);
+  --bg-acc-rose: #4a182d; --bd-acc-rose: #d96798; --grad-acc-rose: var(--bd-acc-rose);
+  --bg-acc-blush: #3c1830; --bd-acc-blush: #d16ead; --grad-acc-blush: var(--bd-acc-blush);
+  --bg-acc-lilac: #34173e; --bd-acc-lilac: #c372d3; --grad-acc-lilac: var(--bd-acc-lilac);
+  --bg-acc-lavender: #2b1d3d; --bd-acc-lavender: #aa7cd1; --grad-acc-lavender: var(--bd-acc-lavender);
+  --bg-acc-indigo: #23184b; --bd-acc-indigo: #6d51d9; --grad-acc-indigo: var(--bd-acc-indigo);
+  --bg-acc-periwinkle: #1a2046; --bd-acc-periwinkle: #7889e4; --grad-acc-periwinkle: var(--bd-acc-periwinkle);
+  --bg-acc-sky: #132642; --bd-acc-sky: #4a90de; --grad-acc-sky: var(--bd-acc-sky);
+  --bg-acc-cyan: #12333b; --bd-acc-cyan: #4caec5; --grad-acc-cyan: var(--bd-acc-cyan);
+  --bg-acc-teal: #14352e; --bd-acc-teal: #59af9c; --grad-acc-teal: var(--bd-acc-teal);
+  --bg-acc-sage: #1e3828; --bd-acc-sage: #7eb390; --grad-acc-sage: var(--bd-acc-sage);
+  --bg-acc-apricot: #442413; --bd-acc-apricot: #df8a57; --grad-acc-apricot: var(--bd-acc-apricot);
 
 }
 
