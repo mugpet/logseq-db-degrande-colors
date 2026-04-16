@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.26";
+const FALLBACK_PLUGIN_VERSION = "0.3.27";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -105,6 +105,12 @@ const GRADIENT_AREAS = {
     previewTagName: "Journal",
     previewLinkedColor: "rgba(245, 158, 11, 0.24)",
   },
+  highlight: {
+    label: "Highlight Gradient",
+    linkedLabel: "Default Highlight",
+    linkedCaption: "Uses the default mark highlight tone.",
+    previewLinkedColor: "rgba(250, 204, 21, 0.32)",
+  },
   quote: {
     label: "Quote Gradient",
     linkedLabel: "Quote Color",
@@ -133,6 +139,13 @@ function createDefaultGradientState() {
         { source: "transparent", position: 0 },
         { source: "linked", position: 30 },
         { source: "transparent", position: 60 },
+      ],
+    },
+    highlight: {
+      angle: 90,
+      stops: [
+        { source: "linked", position: 0 },
+        { source: "linked", position: 100 },
       ],
     },
     quote: {
@@ -230,6 +243,7 @@ const APPEARANCE_SECTIONS = [
   { key: "tagChips", label: "Tag Chips", description: "Inline chip sizing, borders, and hover lift." },
   { key: "linkedBlocks", label: "Linked Blocks", description: "Tag-driven gradients on ordinary linked blocks." },
   { key: "pageTitles", label: "Page Titles", description: "Gradient accents on page and journal title rows." },
+  { key: "highlights", label: "Highlights", description: "Gradient color treatment for inline mark highlights." },
   { key: "quotes", label: "Quotes", description: "Quote edge glow, padding, and gradient fills." },
   { key: "backgroundBlocks", label: "Background Blocks", description: "Gradient sweeps on non-quote colored blocks." },
 ];
@@ -238,6 +252,12 @@ const DEFAULT_APPEARANCE_STATE = Object.fromEntries(APPEARANCE_SECTIONS.map((sec
 const HOST_COLOR_BACKGROUND_SELECTOR = '.with-bg-color:not([data-node-type="quote"])';
 const HOST_COLOR_QUOTE_SELECTOR = 'div[data-node-type="quote"]';
 const HOST_COLOR_TARGET_SELECTOR = `${HOST_COLOR_BACKGROUND_SELECTOR}, ${HOST_COLOR_QUOTE_SELECTOR}`;
+const HOST_HIGHLIGHT_MARK_SELECTORS = [
+  '.ls-block .block-title-wrap mark',
+  '.ls-block .block-content-inner mark',
+  '.ls-block h1.title mark',
+  '.ls-block .journal-title mark',
+];
 const CMDK_SCOPE_SELECTOR = '.cp__cmdk, .cp__select-main, .cp__palette-main';
 const CMDK_ROW_SELECTOR = `${CMDK_SCOPE_SELECTOR} [data-cmdk-item]`;
 const SIDEBAR_ROOT_SELECTOR = '.left-sidebar-inner';
@@ -5036,7 +5056,7 @@ function buildNumericControlsMarkup(controlKeys) {
 
 function buildGradientModeOptionsMarkup(areaKey, stopIndex, selectedStop, areaConfig) {
   const options = [
-    { mode: "linked", title: areaConfig.linkedLabel, caption: "Follows the live graph color" },
+    { mode: "linked", title: areaConfig.linkedLabel, caption: areaConfig.linkedCaption || "Follows the live graph color" },
     { mode: "transparent", title: "Transparent", caption: "Leaves the stop clear" },
   ];
 
@@ -5620,6 +5640,16 @@ function buildPreviewMarkup() {
       </div>
     `
   );
+  const highlightPreview = buildGradientEditorMarkup(
+    "highlight",
+    `
+      <div class="ctl-preview-highlight" data-role="preview-highlight">
+        <div class="ctl-preview-meta">Inline Highlight</div>
+        <p class="ctl-preview-highlight-line">Når Snapshot ikke <mark class="ctl-preview-highlight-mark ctl-gradient-preview-surface" data-role="preview-highlight-mark" data-gradient-preview="highlight">findes vises Live rapport</mark>.</p>
+        ${buildGradientStripMarkup("highlight", getGradientArea("highlight"), GRADIENT_AREAS.highlight, getSelectedGradientStopIndex("highlight"))}
+      </div>
+    `
+  );
   const quotePreview = buildGradientEditorMarkup(
     "quote",
     `
@@ -5679,6 +5709,12 @@ function buildPreviewMarkup() {
           </div>
         </article>
         <article class="ctl-preview-card">
+          ${buildPreviewCardHeadMarkup("highlights", "Highlights", "Inline mark fill")}
+          <div class="ctl-preview-card-body">
+            ${highlightPreview}
+          </div>
+        </article>
+        <article class="ctl-preview-card">
           ${buildPreviewCardHeadMarkup("quotes", "Quotes", "Edge glow")}
           <div class="ctl-preview-card-body">
             ${quotePreview}
@@ -5717,10 +5753,12 @@ function syncPreviewStyles() {
   const chipsEnabled = isAppearanceSectionEnabled("tagChips");
   const nodeEnabled = isAppearanceSectionEnabled("linkedBlocks");
   const titleEnabled = isAppearanceSectionEnabled("pageTitles");
+  const highlightEnabled = isAppearanceSectionEnabled("highlights");
   const quoteEnabled = isAppearanceSectionEnabled("quotes");
   const backgroundEnabled = isAppearanceSectionEnabled("backgroundBlocks");
   const nodePreviewLinkedColor = getGradientPreviewLinkedColor("node");
   const titlePreviewLinkedColor = getGradientPreviewLinkedColor("title");
+  const highlightPreviewLinkedColor = getGradientPreviewLinkedColor("highlight");
   const quotePreviewLinkedColor = getGradientPreviewLinkedColor("quote");
   const backgroundPreviewLinkedColor = getGradientPreviewLinkedColor("background");
   const isDark = panelState.themeMode === "dark";
@@ -5761,6 +5799,20 @@ function syncPreviewStyles() {
     opacity: titleEnabled ? "1" : "0.65",
     backgroundImage: titleEnabled ? buildGradientCss("title", titlePreviewLinkedColor, "preview") : "none",
     backgroundColor: isDark ? "rgba(15, 23, 42, 0.72)" : "rgba(255, 255, 255, 0.84)",
+  });
+
+  setPreviewElementStyle(document.querySelector('[data-role="preview-highlight"]'), {
+    opacity: highlightEnabled ? "1" : "0.65",
+  });
+
+  setPreviewElementStyle(document.querySelector('[data-role="preview-highlight-mark"]'), {
+    backgroundImage: highlightEnabled ? buildGradientCss("highlight", highlightPreviewLinkedColor, "preview") : "none",
+    backgroundColor: "transparent",
+    color: "inherit",
+    borderRadius: "0.35em",
+    padding: "0 0.18em",
+    boxDecorationBreak: "clone",
+    WebkitBoxDecorationBreak: "clone",
   });
 
   setPreviewElementStyle(document.querySelector('[data-role="preview-quote"]'), {
@@ -6285,7 +6337,12 @@ function buildManagedOverrides() {
   const managedTagNames = getManagedOverrideTagNames();
   const nodeGradient = buildGradientCss("node", "var(--node-color)");
   const titleGradient = buildGradientCss("title", "var(--node-color)");
+  const highlightGradient = buildGradientCss("highlight", "var(--ctl-highlight-color)");
   const backgroundGradient = buildGradientCss("background", "var(--ctl-bg-sweep-color)");
+  const lightHighlightColor = "rgba(250, 204, 21, 0.32)";
+  const darkHighlightColor = "rgba(250, 204, 21, 0.24)";
+  const highlightMarkSelector = HOST_HIGHLIGHT_MARK_SELECTORS.join(",\n");
+  const darkHighlightMarkSelector = HOST_HIGHLIGHT_MARK_SELECTORS.map((selector) => `.dark-theme ${selector}`).join(",\n");
   const cmdkTagFontSize = Math.max(10, controls.tagFontSize - 1);
   const cmdkTagHeight = Math.max(14, controls.tagHeight - 3);
   const cmdkTagPaddingX = Math.max(4, controls.tagPaddingX - 2);
@@ -6518,6 +6575,22 @@ ${buildSearchTagChipSelector(".dark-theme ")}:hover {
 .block-main-content[data-degrande-page-title-node="true"] {
   background-image: ${titleGradient} !important;
   background-color: transparent !important;
+}
+`.trim(),
+    highlights: `
+${highlightMarkSelector} {
+  --ctl-highlight-color: ${lightHighlightColor};
+  color: inherit !important;
+  background-image: ${highlightGradient} !important;
+  background-color: transparent !important;
+  border-radius: 0.35em;
+  padding: 0 0.18em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+${darkHighlightMarkSelector} {
+  --ctl-highlight-color: ${darkHighlightColor};
 }
 `.trim(),
     quotes: `

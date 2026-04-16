@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors v0.3.26</title>
-    <meta name="degrande-colors-version" content="0.3.26">
+    <title>Degrande Colors v0.3.27</title>
+    <meta name="degrande-colors-version" content="0.3.27">
     <style>
       :root {
         color-scheme: light;
@@ -550,6 +550,7 @@
 
       .ctl-preview-block,
       .ctl-preview-title-card,
+      .ctl-preview-highlight,
       .ctl-preview-quote,
       .ctl-preview-background {
         min-height: 104px;
@@ -559,6 +560,7 @@
 
       .ctl-preview-block,
       .ctl-preview-title-card,
+      .ctl-preview-highlight,
       .ctl-preview-background {
         border: 1px solid var(--ctl-border);
         border-radius: 18px;
@@ -582,11 +584,16 @@
       }
 
       .ctl-preview-block p,
+      .ctl-preview-highlight-line,
       .ctl-preview-background,
       .ctl-preview-quote {
         margin: 8px 0 0;
         font-size: 12px;
         line-height: 1.5;
+      }
+
+      .ctl-preview-highlight-line mark {
+        color: inherit;
       }
 
       .ctl-section-inline {
@@ -1463,7 +1470,7 @@
   </head>
   <body>
     <div id="app"></div>
-    <script src="./lsplugin.user.js?v=0.3.26"></script>
-    <script src="./plugin.js?v=0.3.26"></script>
+    <script src="./lsplugin.user.js?v=0.3.27"></script>
+    <script src="./plugin.js?v=0.3.27"></script>
   </body>
 </html>
