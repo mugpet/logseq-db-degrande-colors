@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.4";
+const FALLBACK_PLUGIN_VERSION = "0.4.5";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -6728,6 +6728,11 @@ ${buildSearchTagChipSelector(".dark-theme ")}:hover {
 ${highlightMarkSelector} {
   --ctl-highlight-color: ${lightHighlightColor};
   color: inherit !important;
+  display: inline-block !important;
+  max-width: 100% !important;
+  vertical-align: baseline !important;
+  line-height: inherit !important;
+  white-space: normal !important;
   position: relative !important;
   isolation: isolate !important;
   background-image: none !important;
