@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.9";
+const FALLBACK_PLUGIN_VERSION = "0.4.10";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -208,10 +208,11 @@ const CONTROL_SECTIONS = [
   },
   {
     title: "Highlights",
-    description: "Select the visible highlight band from top to bottom.",
+    description: "Shape the highlight mark and adjust the visible color band.",
     controls: [
       { key: "highlightStartPercent", label: "Start", min: 0, max: 100, step: 1, unit: "%", defaultValue: 0 },
       { key: "highlightEndPercent", label: "Stop", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
+      { key: "highlightRadius", label: "Radius", min: 0, max: 12, step: 1, unit: "px", defaultValue: 4 },
     ],
   },
   {
@@ -5760,7 +5761,7 @@ function buildPreviewMarkup() {
         ${buildGradientStripMarkup("highlight", getGradientArea("highlight"), GRADIENT_AREAS.highlight, getSelectedGradientStopIndex("highlight"))}
       </div>
     `,
-    ["highlightStartPercent", "highlightEndPercent"]
+    ["highlightStartPercent", "highlightEndPercent", "highlightRadius"]
   );
   const quotePreview = buildGradientEditorMarkup(
     "quote",
@@ -5920,7 +5921,7 @@ function syncPreviewStyles() {
   setPreviewElementStyle(document.querySelector('[data-role="preview-highlight-mark"]'), {
     backgroundColor: "transparent",
     color: "inherit",
-    borderRadius: "0.35em",
+    borderRadius: `${controls.highlightRadius}px`,
     padding: "0 0.18em",
     boxDecorationBreak: "clone",
     WebkitBoxDecorationBreak: "clone",
@@ -6739,7 +6740,7 @@ ${highlightMarkSelector} {
   -webkit-background-clip: border-box !important;
   box-shadow: none !important;
   background-color: transparent !important;
-  border-radius: 0.35em !important;
+  border-radius: ${controls.highlightRadius}px !important;
   padding: 0 0.18em !important;
   box-decoration-break: clone !important;
   -webkit-box-decoration-break: clone !important;
