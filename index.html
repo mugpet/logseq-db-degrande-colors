@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors v0.3.29</title>
-    <meta name="degrande-colors-version" content="0.3.29">
+    <title>Degrande Colors v0.3.30</title>
+    <meta name="degrande-colors-version" content="0.3.30">
     <style>
       :root {
         color-scheme: light;
@@ -241,24 +241,13 @@
         gap: 10px;
       }
 
-      .ctl-range-pair-labels,
-      .ctl-range-pair-values {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        font-size: 11px;
-        color: var(--ctl-text-muted);
-      }
-
-      .ctl-range-pair-values strong {
-        font-size: 11px;
-        color: var(--ctl-accent);
+      .ctl-control-highlight-boundary {
+        margin-top: 0;
       }
 
       .ctl-range-pair {
         position: relative;
-        height: 24px;
+        height: 10px;
         --ctl-range-start: 0%;
         --ctl-range-end: 100%;
       }
@@ -285,50 +274,6 @@
         border-radius: 999px;
         transform: translateY(-50%);
         background: var(--ctl-accent);
-      }
-
-      .ctl-range-pair-input {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        appearance: none;
-        background: transparent;
-        pointer-events: none;
-      }
-
-      .ctl-range-pair-input::-webkit-slider-runnable-track {
-        height: 24px;
-        background: transparent;
-      }
-
-      .ctl-range-pair-input::-webkit-slider-thumb {
-        appearance: none;
-        width: 16px;
-        height: 16px;
-        margin-top: 4px;
-        border: 2px solid var(--ctl-bg, #fff);
-        border-radius: 999px;
-        background: var(--ctl-accent);
-        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
-        pointer-events: auto;
-        cursor: pointer;
-      }
-
-      .ctl-range-pair-input::-moz-range-track {
-        height: 24px;
-        background: transparent;
-        border: 0;
-      }
-
-      .ctl-range-pair-input::-moz-range-thumb {
-        width: 16px;
-        height: 16px;
-        border: 2px solid var(--ctl-bg, #fff);
-        border-radius: 999px;
-        background: var(--ctl-accent);
-        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
-        pointer-events: auto;
-        cursor: pointer;
       }
 
       .ctl-toolbar-actions {
@@ -1564,7 +1509,7 @@
   </head>
   <body>
     <div id="app"></div>
-    <script src="./lsplugin.user.js?v=0.3.29"></script>
-    <script src="./plugin.js?v=0.3.29"></script>
+    <script src="./lsplugin.user.js?v=0.3.30"></script>
+    <script src="./plugin.js?v=0.3.30"></script>
   </body>
 </html>

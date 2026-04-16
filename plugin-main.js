@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.29";
+const FALLBACK_PLUGIN_VERSION = "0.3.30";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -5056,13 +5056,15 @@ function buildNumericControlsMarkup(controlKeys) {
             <span class="ctl-control-label">Highlight Band</span>
             <strong class="ctl-control-value" data-role="highlight-range-summary">${formatControlValue(startControl, startValue)} -> ${formatControlValue(endControl, endValue)}</strong>
           </div>
-          <div class="ctl-range-pair-labels">
-            <span>Start</span>
-            <span>Stop</span>
-          </div>
           <div class="ctl-range-pair" data-role="highlight-range" style="--ctl-range-start:${startValue}%; --ctl-range-end:${endValue}%;">
+          </div>
+          <label class="ctl-control ctl-control-highlight-boundary" for="ctl-${startControl.key}">
+            <div class="ctl-control-header">
+              <span class="ctl-control-label">Start</span>
+              <strong class="ctl-control-value" data-control-value-for="${startControl.key}">${formatControlValue(startControl, startValue)}</strong>
+            </div>
             <input
-              class="ctl-range ctl-range-pair-input"
+              class="ctl-range"
               id="ctl-${startControl.key}"
               type="range"
               data-control-key="${startControl.key}"
@@ -5071,8 +5073,14 @@ function buildNumericControlsMarkup(controlKeys) {
               step="${startControl.step}"
               value="${startValue}"
             >
+          </label>
+          <label class="ctl-control ctl-control-highlight-boundary" for="ctl-${endControl.key}">
+            <div class="ctl-control-header">
+              <span class="ctl-control-label">Stop</span>
+              <strong class="ctl-control-value" data-control-value-for="${endControl.key}">${formatControlValue(endControl, endValue)}</strong>
+            </div>
             <input
-              class="ctl-range ctl-range-pair-input"
+              class="ctl-range"
               id="ctl-${endControl.key}"
               type="range"
               data-control-key="${endControl.key}"
@@ -5081,11 +5089,7 @@ function buildNumericControlsMarkup(controlKeys) {
               step="${endControl.step}"
               value="${endValue}"
             >
-          </div>
-          <div class="ctl-range-pair-values">
-            <strong data-control-value-for="${startControl.key}">${formatControlValue(startControl, startValue)}</strong>
-            <strong data-control-value-for="${endControl.key}">${formatControlValue(endControl, endValue)}</strong>
-          </div>
+          </label>
         </div>
       `;
     }
