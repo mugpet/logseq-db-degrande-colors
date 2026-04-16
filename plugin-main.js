@@ -126,7 +126,7 @@ const GRADIENT_AREAS = {
 function createDefaultGradientState() {
   return {
     node: {
-      angle: 90,
+      angle: 45,
       stops: [
         { source: "transparent", position: 0 },
         { source: "linked", position: 50 },
@@ -134,7 +134,7 @@ function createDefaultGradientState() {
       ],
     },
     title: {
-      angle: 90,
+      angle: 45,
       stops: [
         { source: "transparent", position: 0 },
         { source: "linked", position: 30 },
@@ -142,14 +142,14 @@ function createDefaultGradientState() {
       ],
     },
     highlight: {
-      angle: 180,
+      angle: 45,
       stops: [
         { source: "linked", position: 0 },
         { source: "linked", position: 100 },
       ],
     },
     quote: {
-      angle: 130,
+      angle: 45,
       stops: [
         { source: "linked", position: 0 },
         { source: "transparent", position: 40 },
@@ -158,7 +158,7 @@ function createDefaultGradientState() {
       ],
     },
     background: {
-      angle: 170,
+      angle: 45,
       stops: [
         { source: "linked", position: 0 },
         { source: "transparent", position: 30 },
@@ -7719,4 +7719,8 @@ async function main() {
 
 window.__degrandeColorsMain = main;
 })();
+
+
+
+
 
