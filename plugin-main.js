@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.30";
+const FALLBACK_PLUGIN_VERSION = "0.4.0";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -4623,6 +4623,44 @@ function buildGradientCss(areaKey, linkedColor, mode = "runtime") {
   return `linear-gradient(${area.angle}deg, ${stops})`;
 }
 
+function buildRangedGradientCss(areaKey, linkedColor, rangeStart, rangeEnd, mode = "runtime") {
+  const area = getGradientArea(areaKey);
+
+  if (!area) {
+    return "none";
+  }
+
+  const start = clamp(Number(rangeStart) || 0, 0, 100);
+  const end = clamp(Number(rangeEnd) || 0, start, 100);
+
+  if (end <= start) {
+    return `linear-gradient(${area.angle}deg, transparent 0%, transparent 100%)`;
+  }
+
+  const span = end - start;
+  const shiftedStops = area.stops
+    .slice()
+    .sort((left, right) => left.position - right.position)
+    .map((stop) => {
+      const nextPosition = start + ((span * stop.position) / 100);
+      return `${getGradientStopColor(stop, linkedColor, mode)} ${nextPosition}%`;
+    });
+
+  const stops = [];
+
+  if (start > 0) {
+    stops.push(`transparent 0%`, `transparent ${start}%`);
+  }
+
+  stops.push(...shiftedStops);
+
+  if (end < 100) {
+    stops.push(`transparent ${end}%`, `transparent 100%`);
+  }
+
+  return `linear-gradient(${area.angle}deg, ${stops.join(", ")})`;
+}
+
 function updateGradientStop(areaKey, stopIndex, patch) {
   const area = getGradientArea(areaKey);
   const stop = area?.stops?.[stopIndex];
@@ -5734,7 +5772,7 @@ function buildPreviewMarkup() {
     `
       <div class="ctl-preview-highlight" data-role="preview-highlight">
         <div class="ctl-preview-meta">Inline Highlight</div>
-        <p class="ctl-preview-highlight-line">Når Snapshot ikke <mark class="ctl-preview-highlight-mark ctl-gradient-preview-surface" data-role="preview-highlight-mark" data-gradient-preview="highlight">findes vises Live rapport</mark>.</p>
+        <p class="ctl-preview-highlight-line">This sample uses a <mark class="ctl-preview-highlight-mark ctl-gradient-preview-surface" data-role="preview-highlight-mark" data-gradient-preview="highlight">highlighted phrase</mark> inside ordinary text.</p>
         ${buildGradientStripMarkup("highlight", getGradientArea("highlight"), GRADIENT_AREAS.highlight, getSelectedGradientStopIndex("highlight"))}
       </div>
     `,
@@ -5896,11 +5934,16 @@ function syncPreviewStyles() {
   });
 
   setPreviewElementStyle(document.querySelector('[data-role="preview-highlight-mark"]'), {
-    backgroundImage: highlightEnabled ? buildGradientCss("highlight", highlightPreviewLinkedColor, "preview") : "none",
+    backgroundImage: highlightEnabled
+      ? buildRangedGradientCss(
+        "highlight",
+        highlightPreviewLinkedColor,
+        controls.highlightStartPercent,
+        controls.highlightEndPercent,
+        "preview"
+      )
+      : "none",
     backgroundColor: "transparent",
-    backgroundPosition: `0 ${controls.highlightStartPercent}%`,
-    backgroundSize: `100% ${Math.max(0, controls.highlightEndPercent - controls.highlightStartPercent)}%`,
-    backgroundRepeat: "no-repeat",
     color: "inherit",
     borderRadius: "0.35em",
     padding: "0 0.18em",
@@ -6674,11 +6717,13 @@ ${buildSearchTagChipSelector(".dark-theme ")}:hover {
 ${highlightMarkSelector} {
   --ctl-highlight-color: ${lightHighlightColor};
   color: inherit !important;
-  background-image: ${highlightGradient} !important;
+  background-image: ${buildRangedGradientCss(
+    "highlight",
+    "var(--ctl-highlight-color)",
+    controls.highlightStartPercent,
+    controls.highlightEndPercent
+  )} !important;
   background-color: transparent !important;
-  background-position: 0 ${controls.highlightStartPercent}% !important;
-  background-size: 100% ${Math.max(0, controls.highlightEndPercent - controls.highlightStartPercent)}% !important;
-  background-repeat: no-repeat !important;
   border-radius: 0.35em;
   padding: 0 0.18em;
   box-decoration-break: clone;
