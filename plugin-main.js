@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.1";
+const FALLBACK_PLUGIN_VERSION = "0.4.2";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -142,7 +142,7 @@ function createDefaultGradientState() {
       ],
     },
     highlight: {
-      angle: 90,
+      angle: 180,
       stops: [
         { source: "linked", position: 0 },
         { source: "linked", position: 100 },
@@ -4632,10 +4632,9 @@ function buildRangedGradientCss(areaKey, linkedColor, rangeStart, rangeEnd, mode
 
   const start = clamp(Number(rangeStart) || 0, 0, 100);
   const end = clamp(Number(rangeEnd) || 0, start, 100);
-  const gradientAngle = areaKey === "highlight" ? 180 : area.angle;
 
   if (end <= start) {
-    return `linear-gradient(${gradientAngle}deg, transparent 0%, transparent 100%)`;
+    return `linear-gradient(${area.angle}deg, transparent 0%, transparent 100%)`;
   }
 
   const span = end - start;
@@ -4659,7 +4658,7 @@ function buildRangedGradientCss(areaKey, linkedColor, rangeStart, rangeEnd, mode
     stops.push(`transparent ${end}%`, `transparent 100%`);
   }
 
-  return `linear-gradient(${gradientAngle}deg, ${stops.join(", ")})`;
+  return `linear-gradient(${area.angle}deg, ${stops.join(", ")})`;
 }
 
 function updateGradientStop(areaKey, stopIndex, patch) {
@@ -5283,7 +5282,6 @@ function buildGradientEditorMarkup(areaKey, previewMarkup, controlKeys = []) {
   const areaConfig = GRADIENT_AREAS[areaKey];
   const selectedIndex = getSelectedGradientStopIndex(areaKey);
   const selectedStop = area.stops[selectedIndex];
-  const showAngleControl = areaKey !== "highlight";
   const selectedLabel = selectedStop.source === "linked"
     ? areaConfig.linkedLabel
     : selectedStop.source === "preset"
@@ -5296,7 +5294,7 @@ function buildGradientEditorMarkup(areaKey, previewMarkup, controlKeys = []) {
     <section class="ctl-section ctl-section-inline ctl-gradient-editor">
       <div class="ctl-gradient-column ctl-gradient-column-main">
         ${previewMarkup}
-        ${showAngleControl ? `<div class="ctl-gradient-toolbar">
+        <div class="ctl-gradient-toolbar">
           <label class="ctl-control ctl-control-tight ctl-gradient-angle" for="gradient-angle-${areaKey}">
             <div class="ctl-control-header">
               <span class="ctl-control-label">Angle</span>
@@ -5304,7 +5302,7 @@ function buildGradientEditorMarkup(areaKey, previewMarkup, controlKeys = []) {
             </div>
             <input class="ctl-range" id="gradient-angle-${areaKey}" type="range" min="0" max="360" step="1" value="${area.angle}" data-gradient-angle="${areaKey}">
           </label>
-        </div>` : ""}
+        </div>
         ${controlKeys.length ? `<div class="ctl-gradient-extra">${buildNumericControlsMarkup(controlKeys)}</div>` : ""}
       </div>
       <aside class="ctl-gradient-inspector ctl-gradient-column ctl-gradient-column-side">
@@ -5982,7 +5980,15 @@ function syncGradientEditorState() {
     const preview = document.querySelector(`[data-gradient-preview="${areaKey}"]`);
 
     if (preview) {
-      preview.style.backgroundImage = buildGradientCss(areaKey, getGradientPreviewLinkedColor(areaKey), "preview");
+      preview.style.backgroundImage = areaKey === "highlight"
+        ? buildRangedGradientCss(
+          "highlight",
+          getGradientPreviewLinkedColor("highlight"),
+          panelState.controlState.highlightStartPercent,
+          panelState.controlState.highlightEndPercent,
+          "preview"
+        )
+        : buildGradientCss(areaKey, getGradientPreviewLinkedColor(areaKey), "preview");
     }
 
     const angleValue = document.querySelector(`[data-gradient-angle-value="${areaKey}"]`);
