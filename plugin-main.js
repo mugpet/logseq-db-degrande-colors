@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.23";
+const FALLBACK_PLUGIN_VERSION = "0.3.24";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -658,7 +658,8 @@ function getToolbarStyle() {
 }
 
 .ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] a,
-.ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] a.button {
+.ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] a.button,
+.ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -673,8 +674,14 @@ function getToolbarStyle() {
 }
 
 .ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] a:hover,
-.ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] a.button:hover {
+.ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] a.button:hover,
+.ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] button:hover {
   opacity: 1;
+}
+
+.ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] :is(a, a.button, button)[aria-pressed="true"] {
+  opacity: 1;
+  color: var(--ls-link-text-color, var(--ls-active-primary-color, var(--ls-primary-text-color, currentColor)));
 }
 
 .ui-items-container[data-type="toolbar"] [data-injected-ui="custom-theme-loader-open"] :is(.ti, .tie) {
@@ -728,6 +735,28 @@ function createToolbarButton(hostDocument) {
   return wrapper;
 }
 
+function syncThemeLoaderToggleState() {
+  const hostDocument = getHostDocument();
+  const isOpen = Boolean(logseq.isMainUIVisible);
+  const buttonLabel = isOpen ? "Close Degrande Colors" : "Open Degrande Colors";
+  const buttonState = isOpen ? "true" : "false";
+  const selectors = [
+    `#${TOOLBAR_BUTTON_ID}`,
+    '[data-injected-ui="custom-theme-loader-open"] a',
+    '[data-injected-ui="custom-theme-loader-open"] a.button',
+    '[data-injected-ui="custom-theme-loader-open"] button',
+  ];
+
+  for (const selector of selectors) {
+    hostDocument.querySelectorAll(selector).forEach((element) => {
+      element.setAttribute("aria-label", buttonLabel);
+      element.setAttribute("title", buttonLabel);
+      element.setAttribute("aria-pressed", buttonState);
+      element.dataset.panelOpen = buttonState;
+    });
+  }
+}
+
 function ensureFloatingLauncherButton() {
   const hostDocument = getHostDocument();
   setHostStyleText(TOOLBAR_STYLE_ELEMENT_ID, getToolbarStyle());
@@ -754,6 +783,8 @@ function ensureFloatingLauncherButton() {
   if (button.parentElement !== hostDocument.body) {
     hostDocument.body.appendChild(button);
   }
+
+  syncThemeLoaderToggleState();
 }
 
 function ensureToolbarButton() {
@@ -774,6 +805,8 @@ function ensureToolbarButton() {
     if (fallback.parentElement !== hostDocument.body) {
       hostDocument.body.appendChild(fallback);
     }
+
+    syncThemeLoaderToggleState();
 
     return false;
   }
@@ -806,6 +839,8 @@ function ensureToolbarButton() {
       toolbarHost.appendChild(button);
     }
   }
+
+  syncThemeLoaderToggleState();
 
   return true;
 }
@@ -4016,15 +4051,24 @@ async function saveGraphSyncedTagColors(tagNames = null, options = {}) {
 
 async function loadStoredControls() {
   try {
+    const localMirror = parseLocalMirrorValue(await loadStoredItemWithLegacyFallback(CONTROL_STORAGE_KEY), mergeStoredControls);
     const graphBackedState = await loadGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, mergeStoredControls);
+
+    if (localMirror.exists && shouldPromoteLocalMirrorRevision(localMirror.revision)) {
+      panelState.controlState = localMirror.value;
+      syncLocalControlMirror(localMirror.revision);
+      await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState, {
+        suppressReadyErrors: true,
+        deferUntilIndexed: true,
+      });
+      return;
+    }
 
     if (graphBackedState.exists) {
       panelState.controlState = graphBackedState.value;
       syncLocalControlMirror(panelState.syncRevision);
       return;
     }
-
-    const localMirror = parseLocalMirrorValue(await loadStoredItemWithLegacyFallback(CONTROL_STORAGE_KEY), mergeStoredControls);
 
     const settingsValue = readPluginSettingValue(SETTINGS_CONTROL_STATE_KEY);
 
@@ -4224,15 +4268,24 @@ async function loadStoredTagColors(options = {}) {
 
 async function loadStoredGradients() {
   try {
+    const localMirror = parseLocalMirrorValue(await loadStoredItemWithLegacyFallback(GRADIENT_STORAGE_KEY), mergeStoredGradients);
     const graphBackedState = await loadGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, mergeStoredGradients);
+
+    if (localMirror.exists && shouldPromoteLocalMirrorRevision(localMirror.revision)) {
+      panelState.gradientState = localMirror.value;
+      syncLocalGradientMirror(localMirror.revision);
+      await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState, {
+        suppressReadyErrors: true,
+        deferUntilIndexed: true,
+      });
+      return;
+    }
 
     if (graphBackedState.exists) {
       panelState.gradientState = graphBackedState.value;
       syncLocalGradientMirror(panelState.syncRevision);
       return;
     }
-
-    const localMirror = parseLocalMirrorValue(await loadStoredItemWithLegacyFallback(GRADIENT_STORAGE_KEY), mergeStoredGradients);
 
     const settingsValue = readPluginSettingValue(SETTINGS_GRADIENT_STATE_KEY);
 
@@ -7062,6 +7115,7 @@ async function openThemeLoader() {
   logseq.setMainUIInlineStyle(MAIN_UI_INLINE_STYLE);
   renderPanel("Loading synced graph state...");
   logseq.showMainUI({ autoFocus: true });
+  syncThemeLoaderToggleState();
 
   try {
     await syncPersistedAppearance({
@@ -7086,6 +7140,7 @@ function closeThemeLoader() {
   setPanelRootVisibility(false);
   logseq.setMainUIInlineStyle({});
   logseq.hideMainUI({ restoreEditingCursor: true });
+  syncThemeLoaderToggleState();
 }
 
 function toggleThemeLoader() {
@@ -7260,12 +7315,14 @@ async function main() {
     registerToolbarItemSafely({
       key: "custom-theme-loader-open",
       template: `
-        <a class="button" data-on-click="toggleThemeLoader" title="Open Degrande Colors" aria-label="Open Degrande Colors">
+        <a class="button" data-on-click="toggleThemeLoader" title="Open Degrande Colors" aria-label="Open Degrande Colors" aria-pressed="false">
           <i class="ti ti-palette" aria-hidden="true"></i>
         </a>
       `,
     });
   }
+
+  syncThemeLoaderToggleState();
 
   if (shouldRegisterHostUi) {
     registerCommandPaletteSafely(
