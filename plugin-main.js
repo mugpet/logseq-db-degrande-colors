@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.22";
+const FALLBACK_PLUGIN_VERSION = "0.3.23";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -3643,11 +3643,6 @@ async function saveGraphBackedPageState(propertyKey, value, options = {}) {
 
   await primeGraphIndexedState();
 
-  if (!canWriteGraphSyncState() && (options.deferUntilIndexed || options.suppressReadyErrors)) {
-    queueDeferredGraphPageState(propertyKey, value);
-    return false;
-  }
-
   try {
     const ensured = await ensureGraphSyncProperty(propertyKey);
 
@@ -3662,9 +3657,15 @@ async function saveGraphBackedPageState(propertyKey, value, options = {}) {
     }
 
     await logseq.Editor.upsertBlockProperty(page.uuid, propertyKey, value, { reset: true });
+    panelState.graphIndexed = true;
     await resolveGraphSyncPropertyIdent(propertyKey);
     return true;
   } catch (error) {
+    if (options.deferUntilIndexed && isRecoverableGraphSyncWriteError(error)) {
+      queueDeferredGraphPageState(propertyKey, value);
+      return false;
+    }
+
     if (options.suppressReadyErrors && isRecoverableGraphSyncWriteError(error)) {
       return false;
     }
