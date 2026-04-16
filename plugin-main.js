@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.3.27";
+const FALLBACK_PLUGIN_VERSION = "0.3.28";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -204,6 +204,14 @@ const CONTROL_SECTIONS = [
       { key: "titleFadeEnd", label: "Light Fade End", min: 10, max: 100, step: 1, unit: "%", defaultValue: 60 },
       { key: "darkTitlePeak", label: "Dark Peak", min: 0, max: 100, step: 1, unit: "%", defaultValue: 3 },
       { key: "darkTitleFadeEnd", label: "Dark Fade End", min: 10, max: 100, step: 1, unit: "%", defaultValue: 35 },
+    ],
+  },
+  {
+    title: "Highlights",
+    description: "Vertical offsets for inline mark highlights.",
+    controls: [
+      { key: "highlightTopOffset", label: "Start Top", min: -20, max: 24, step: 1, unit: "px", defaultValue: 0 },
+      { key: "highlightBottomOffset", label: "End Bottom", min: -20, max: 24, step: 1, unit: "px", defaultValue: 0 },
     ],
   },
   {
@@ -5648,7 +5656,8 @@ function buildPreviewMarkup() {
         <p class="ctl-preview-highlight-line">Når Snapshot ikke <mark class="ctl-preview-highlight-mark ctl-gradient-preview-surface" data-role="preview-highlight-mark" data-gradient-preview="highlight">findes vises Live rapport</mark>.</p>
         ${buildGradientStripMarkup("highlight", getGradientArea("highlight"), GRADIENT_AREAS.highlight, getSelectedGradientStopIndex("highlight"))}
       </div>
-    `
+    `,
+    ["highlightTopOffset", "highlightBottomOffset"]
   );
   const quotePreview = buildGradientEditorMarkup(
     "quote",
@@ -5808,6 +5817,9 @@ function syncPreviewStyles() {
   setPreviewElementStyle(document.querySelector('[data-role="preview-highlight-mark"]'), {
     backgroundImage: highlightEnabled ? buildGradientCss("highlight", highlightPreviewLinkedColor, "preview") : "none",
     backgroundColor: "transparent",
+    backgroundPosition: `0 ${controls.highlightTopOffset}px`,
+    backgroundSize: `100% calc(100% - ${controls.highlightTopOffset}px - ${controls.highlightBottomOffset}px)`,
+    backgroundRepeat: "no-repeat",
     color: "inherit",
     borderRadius: "0.35em",
     padding: "0 0.18em",
@@ -6583,6 +6595,9 @@ ${highlightMarkSelector} {
   color: inherit !important;
   background-image: ${highlightGradient} !important;
   background-color: transparent !important;
+  background-position: 0 ${controls.highlightTopOffset}px !important;
+  background-size: 100% calc(100% - ${controls.highlightTopOffset}px - ${controls.highlightBottomOffset}px) !important;
+  background-repeat: no-repeat !important;
   border-radius: 0.35em;
   padding: 0 0.18em;
   box-decoration-break: clone;
