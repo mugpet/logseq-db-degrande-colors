@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.14";
+const FALLBACK_PLUGIN_VERSION = "0.4.15";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -7248,11 +7248,8 @@ function mountPanel() {
       const index = getSelectedGradientStopIndex(areaKey);
       
       updateGradientStop(areaKey, index, { alpha: Number(gradientAlphaInput.value) });
-      const valueLabel = document.querySelector(`[data-gradient-alpha-value="${areaKey}"]`);
-      if (valueLabel) {
-        valueLabel.textContent = `${gradientAlphaInput.value}%`;
-      }
-      void applyManagedOverrides(false, `Adjusted stop opacity`, "preview");
+      syncGradientEditorState();
+      void applyManagedOverrides(false, `Adjusted stop opacity`, "soft");
       return;
     }
 
