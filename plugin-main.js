@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.15";
+const FALLBACK_PLUGIN_VERSION = "0.4.16";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -3113,16 +3113,10 @@ function normalizeGradientStop(stop) {
     }
   }
 
-  return normalized;
-}
+    if (typeof stop.alpha === "number" && !isNaN(stop.alpha)) {
+      normalized.alpha = Math.min(100, Math.max(0, stop.alpha));
+    }
 
-function mergeStoredGradients(saved) {
-  const merged = createDefaultGradientState();
-
-  for (const areaKey of Object.keys(merged)) {
-    const savedArea = saved?.[areaKey];
-
-    if (!savedArea || typeof savedArea !== "object") {
       continue;
     }
 
