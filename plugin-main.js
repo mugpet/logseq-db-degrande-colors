@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.17";
+const FALLBACK_PLUGIN_VERSION = "0.4.18";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -3652,6 +3652,9 @@ async function loadGraphBackedPageState(propertyKey, mergeValue) {
     return { exists: false, value: null };
   }
 
+  // Ensure property schema is registered so cross-installation sync resolves the correct ident
+  await ensureGraphSyncProperty(propertyKey);
+
   try {
     const propertyIdent = await resolveGraphSyncPropertyIdent(propertyKey);
 
@@ -3772,6 +3775,9 @@ async function loadPageBackedTagColorState() {
   if (typeof logseq.DB?.datascriptQuery !== "function" && typeof logseq.Editor?.getBlockProperty !== "function") {
     return { exists: false, tagColors: {} };
   }
+
+  // Ensure property schema is registered so cross-installation sync resolves the correct ident
+  await ensureGraphSyncTagColorProperty();
 
   try {
     const propertyIdent = await resolveGraphSyncPropertyIdent(GRAPH_SYNC_TAG_COLOR_PROPERTY);
@@ -3909,6 +3915,9 @@ async function loadQueryBackedTagColorState() {
   if (typeof logseq.DB?.datascriptQuery !== "function") {
     return { exists: false, tagColors: {}, tagNames: [], tagEntityMap: {}, tagSourceMap: {} };
   }
+
+  // Ensure property schema is registered so cross-installation sync resolves the correct ident
+  await ensureGraphSyncTagColorProperty();
 
   const propertyIdent = await resolveGraphSyncPropertyIdent(GRAPH_SYNC_TAG_COLOR_PROPERTY);
 
