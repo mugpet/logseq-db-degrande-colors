@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.16";
+const FALLBACK_PLUGIN_VERSION = "0.4.17";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -3090,6 +3090,37 @@ function mergeStoredTagColors(saved) {
   return merged;
 }
 
+function mergeStoredGradients(saved) {
+  const merged = createDefaultGradientState();
+
+  for (const areaKey of Object.keys(merged)) {
+    const savedArea = saved?.[areaKey];
+
+    if (!savedArea || typeof savedArea !== "object") {
+      continue;
+    }
+
+    const nextAngle = Number(savedArea.angle);
+
+    if (Number.isFinite(nextAngle)) {
+      merged[areaKey].angle = Math.min(360, Math.max(0, nextAngle));
+    }
+
+    if (Array.isArray(savedArea.stops)) {
+      const stops = savedArea.stops
+        .map(normalizeGradientStop)
+        .filter(Boolean)
+        .sort((left, right) => left.position - right.position);
+
+      if (stops.length >= 2) {
+        merged[areaKey].stops = stops;
+      }
+    }
+  }
+
+  return merged;
+}
+
 function normalizeGradientStop(stop) {
   if (!stop || typeof stop !== "object") {
     return null;
@@ -3113,32 +3144,11 @@ function normalizeGradientStop(stop) {
     }
   }
 
-    if (typeof stop.alpha === "number" && !isNaN(stop.alpha)) {
-      normalized.alpha = Math.min(100, Math.max(0, stop.alpha));
-    }
-
-      continue;
-    }
-
-    const nextAngle = Number(savedArea.angle);
-
-    if (Number.isFinite(nextAngle)) {
-      merged[areaKey].angle = Math.min(360, Math.max(0, nextAngle));
-    }
-
-    if (Array.isArray(savedArea.stops)) {
-      const stops = savedArea.stops
-        .map(normalizeGradientStop)
-        .filter(Boolean)
-        .sort((left, right) => left.position - right.position);
-
-      if (stops.length >= 2) {
-        merged[areaKey].stops = stops;
-      }
-    }
+  if (typeof stop.alpha === "number" && !isNaN(stop.alpha)) {
+    normalized.alpha = Math.min(100, Math.max(0, stop.alpha));
   }
 
-  return merged;
+  return normalized;
 }
 
 function isMissingStorageError(error) {
