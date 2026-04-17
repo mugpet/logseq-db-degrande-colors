@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.12";
+const FALLBACK_PLUGIN_VERSION = "0.4.14";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -4586,28 +4586,22 @@ function getGradientStopColor(stop, linkedColor, mode = "runtime") {
     return "transparent";
   }
 
+  let color = "transparent";
+
   if (stop.source === "linked") {
-    return linkedColor;
-  }
-
-  if (stop.source === "transparent") {
-    return "transparent";
-  }
-
-  if (stop.source === "preset" && stop.token && COLOR_PRESET_MAP[stop.token]) {
-    if (mode === "runtime") {
-      return `var(--grad-${stop.token})`;
-    }
-
-    return resolvePreviewGradientColor(`var(--grad-${stop.token})`, getPreviewGradientFallbackColor(stop.token));
-  }
-
-  if (stop.source === "custom" && stop.color) {
+    color = linkedColor;
+  } else if (stop.source === "preset" && stop.token && COLOR_PRESET_MAP[stop.token]) {
+    color = mode === "runtime" ? `var(--grad-${stop.token})` : resolvePreviewGradientColor(`var(--grad-${stop.token})`, getPreviewGradientFallbackColor(stop.token));
+  } else if (stop.source === "custom" && stop.color) {
     const rgb = hexToRgb(stop.color);
-    return rgb ? rgbToCss(rgb) : stop.color;
+    color = rgb ? rgbToCss(rgb) : stop.color;
   }
 
-  return "transparent";
+  if (color !== "transparent" && typeof stop.alpha === "number" && stop.alpha < 100) {
+    return `color-mix(in srgb, ${color} ${Math.round(stop.alpha)}%, transparent)`;
+  }
+
+  return color;
 }
 
 function buildGradientCss(areaKey, linkedColor, mode = "runtime") {
@@ -5296,6 +5290,15 @@ function buildGradientEditorMarkup(areaKey, previewMarkup, controlKeys = []) {
           <strong data-gradient-selected-index="${areaKey}">Stop ${selectedIndex + 1}</strong>
           <span data-gradient-selected-label="${areaKey}">${selectedLabel} · ${Math.round(selectedStop.position)}%</span>
         </div>
+        <section class="ctl-gradient-group">
+          <label class="ctl-control ctl-control-tight" for="gradient-alpha-${areaKey}">
+            <div class="ctl-control-header">
+              <span class="ctl-control-label">Stop Opacity</span>
+              <strong class="ctl-control-value" data-gradient-alpha-value="${areaKey}">${typeof selectedStop.alpha === "number" ? selectedStop.alpha : 100}%</strong>
+            </div>
+            <input class="ctl-range" id="gradient-alpha-${areaKey}" type="range" min="0" max="100" step="1" value="${typeof selectedStop.alpha === "number" ? selectedStop.alpha : 100}" data-gradient-alpha="${areaKey}">
+          </label>
+        </section>
         <section class="ctl-gradient-group">
           <span class="ctl-gradient-group-label">Quick Modes</span>
           <div class="ctl-mode-grid">
@@ -6012,6 +6015,15 @@ function syncGradientEditorState() {
 
     if (!selectedStop) {
       continue;
+    }
+
+    const alphaValue = document.querySelector(`[data-gradient-alpha-value="${areaKey}"]`);
+    const alphaInput = document.querySelector(`[data-gradient-alpha="${areaKey}"]`);
+    if (alphaInput) {
+      alphaInput.value = typeof selectedStop.alpha === "number" ? selectedStop.alpha : 100;
+    }
+    if (alphaValue) {
+      alphaValue.textContent = `${typeof selectedStop.alpha === "number" ? selectedStop.alpha : 100}%`;
     }
 
     const selectedLabel = selectedStop.source === "linked"
@@ -7229,6 +7241,21 @@ function mountPanel() {
       return;
     }
 
+    const gradientAlphaInput = event.target.closest("[data-gradient-alpha]");
+
+    if (gradientAlphaInput) {
+      const areaKey = gradientAlphaInput.dataset.gradientAlpha;
+      const index = getSelectedGradientStopIndex(areaKey);
+      
+      updateGradientStop(areaKey, index, { alpha: Number(gradientAlphaInput.value) });
+      const valueLabel = document.querySelector(`[data-gradient-alpha-value="${areaKey}"]`);
+      if (valueLabel) {
+        valueLabel.textContent = `${gradientAlphaInput.value}%`;
+      }
+      void applyManagedOverrides(false, `Adjusted stop opacity`, "preview");
+      return;
+    }
+
     const inlineColorHexInput = event.target.closest("[data-inline-color-hex]");
 
     if (inlineColorHexInput) {
@@ -7330,6 +7357,13 @@ function mountPanel() {
     const gradientAngleInput = event.target.closest("[data-gradient-angle]");
 
     if (gradientAngleInput) {
+      schedulePersistGradients();
+      return;
+    }
+
+    const gradientAlphaInput = event.target.closest("[data-gradient-alpha]");
+
+    if (gradientAlphaInput) {
       schedulePersistGradients();
       return;
     }
