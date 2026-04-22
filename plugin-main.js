@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.42";
+const FALLBACK_PLUGIN_VERSION = "0.4.43";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -5544,7 +5544,7 @@ function buildGradientCustomColorMarkup(areaKey, stopIndex, selectedStop) {
     : panelState.tagCustomColorDraft;
 
   return `
-    <div class="ctl-gradient-custom-card${selectedStop.source === "custom" ? " is-active" : ""}">
+    <div class="ctl-gradient-custom-card${selectedStop.source === "custom" ? " is-active" : ""}" data-gradient-custom-card data-area-key="${areaKey}">
       <div class="ctl-gradient-custom-head">
         <span class="ctl-gradient-custom-swatch" style="background:${escapeHtml(customColor)};"></span>
         <div>
@@ -6538,6 +6538,18 @@ function syncGradientEditorState() {
       button.classList.toggle("is-active", isActive);
       button.dataset.stopIndex = String(selectedIndex);
     });
+
+    // Sync the gradient custom-color picker so it reflects the current draft
+    // (e.g. after clicking a preset, the picker shows that preset's hex).
+    const customColorForPicker = selectedStop.source === "custom"
+      ? (selectedStop.color || "#14b8a6")
+      : panelState.tagCustomColorDraft;
+    const customSwatch = document.querySelector(`[data-gradient-custom-card][data-area-key="${areaKey}"] .ctl-gradient-custom-swatch`);
+    if (customSwatch) {
+      customSwatch.style.background = customColorForPicker;
+    }
+    const customEditor = document.querySelector(`[data-inline-color-editor][data-color-scope="gradient-stop"][data-area-key="${areaKey}"]`);
+    syncInlineColorEditor(customEditor, customColorForPicker);
   }
 }
 
@@ -7567,6 +7579,14 @@ function mountPanel() {
     }
 
     if (action === "set-gradient-stop-preset") {
+      const presetMeta = getPresetMeta(target.dataset.stopToken);
+      if (presetMeta) {
+        const presetHex = panelState.themeMode === "dark" ? presetMeta.darkBorder : presetMeta.lightBorder;
+        const normalized = normalizeHexColor(presetHex);
+        if (normalized) {
+          panelState.tagCustomColorDraft = normalized;
+        }
+      }
       updateGradientStop(
         target.dataset.areaKey,
         Number(target.dataset.stopIndex),
