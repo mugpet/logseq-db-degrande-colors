@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.20";
+const FALLBACK_PLUGIN_VERSION = "0.4.21";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -270,6 +270,12 @@ const HOST_HIGHLIGHT_MARK_SELECTORS = [
   '.ls-block h1.title mark',
   '.ls-block .journal-title mark',
 ];
+const CMDK_HASH_ICON_SELECTOR = [
+  '.ls-icon-hash',
+  '.ti-hash',
+  '.icon-tabler-hash',
+  '[data-icon="hash"]',
+].join(', ');
 const CMDK_SCOPE_SELECTOR = '.cp__cmdk, .cp__select-main, .cp__palette-main';
 const CMDK_ROW_SELECTOR = `${CMDK_SCOPE_SELECTOR} [data-cmdk-item]`;
 const SIDEBAR_ROOT_SELECTOR = '.left-sidebar-inner';
@@ -1299,13 +1305,19 @@ function getCmdkTagLabelElement(row) {
   }
 
   return primaryLine.querySelector('.flex.flex-row.items-center.gap-1')
+    || primaryLine.querySelector('.flex.items-center.gap-2.flex-wrap')
+    || primaryLine.querySelector('.flex.items-center.gap-2')
     || primaryLine.querySelector('[data-testid]')
     || primaryLine.querySelector('span')
     || primaryLine;
 }
 
+function getCmdkHashIconNode(row) {
+  return row.querySelector(CMDK_HASH_ICON_SELECTOR);
+}
+
 function getCmdkTagIconElement(row) {
-  return row.querySelector('.ls-icon-hash')?.closest('div');
+  return getCmdkHashIconNode(row)?.closest('div');
 }
 
 function clearCmdkTagElementStyles(element, attributeName, propertyNames) {
@@ -1320,7 +1332,7 @@ function clearCmdkTagElementStyles(element, attributeName, propertyNames) {
 }
 
 function getCmdkTagName(row) {
-  if (!row.querySelector('.ls-icon-hash')) {
+  if (!getCmdkHashIconNode(row)) {
     return "";
   }
 
@@ -1510,7 +1522,7 @@ function syncCmdkInlineTags(row) {
     return;
   }
 
-  if (row.querySelector('.ls-icon-hash')) {
+  if (getCmdkHashIconNode(row)) {
     primaryLine.querySelectorAll('[data-degrande-inline-tag]').forEach((chip) => {
       syncCmdkInlineTagChip(chip);
     });
