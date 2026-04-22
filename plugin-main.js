@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.22";
+const FALLBACK_PLUGIN_VERSION = "0.4.23";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1450,6 +1450,35 @@ function getCmdkInlineTagCandidates() {
     .sort((left, right) => right.length - left.length);
 }
 
+function getGenericCmdkInlineTagEnd(text, startIndex) {
+  let index = startIndex + 1;
+  let lastNonWhitespaceIndex = startIndex + 1;
+
+  while (index < text.length) {
+    const character = text[index];
+
+    if (character === '#') {
+      break;
+    }
+
+    if (/[,.;:!?()[\]{}"']/u.test(character)) {
+      break;
+    }
+
+    if (character === '|' && /\s/u.test(text[index - 1] || '') && /\s/u.test(text[index + 1] || '')) {
+      break;
+    }
+
+    if (!/\s/u.test(character)) {
+      lastNonWhitespaceIndex = index + 1;
+    }
+
+    index += 1;
+  }
+
+  return lastNonWhitespaceIndex;
+}
+
 function collectCmdkInlineTagMatches(text) {
   const matches = [];
   const loweredText = String(text || '').toLowerCase();
@@ -1481,6 +1510,20 @@ function collectCmdkInlineTagMatches(text) {
     });
 
     if (!match) {
+      const fallbackEnd = getGenericCmdkInlineTagEnd(text, index);
+      const fallbackDisplayTagName = text.slice(index + 1, fallbackEnd).trim();
+
+      if (!fallbackDisplayTagName) {
+        continue;
+      }
+
+      matches.push({
+        start: index,
+        end: fallbackEnd,
+        displayTagName: fallbackDisplayTagName,
+        canonicalTagName: getCanonicalTagName(fallbackDisplayTagName),
+      });
+      index = fallbackEnd - 1;
       continue;
     }
 
@@ -1580,7 +1623,7 @@ function syncInlineTagTextNodes(container) {
     return;
   }
 
-  const matches = collectCmdkInlineTagMatches(combinedText).filter((match) => isKnownCmdkInlineTag(match.canonicalTagName));
+  const matches = collectCmdkInlineTagMatches(combinedText);
 
   if (!matches.length) {
     return;
