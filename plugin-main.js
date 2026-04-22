@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.31";
+const FALLBACK_PLUGIN_VERSION = "0.4.32";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -276,8 +276,8 @@ const CMDK_HASH_ICON_SELECTOR = [
   '.icon-tabler-hash',
   '[data-icon="hash"]',
 ].join(', ');
-const CMDK_SCOPE_SELECTOR = '.cp__cmdk, .cp__select-main, .cp__palette-main';
-const CMDK_ROW_SELECTOR = '.cp__cmdk [data-cmdk-item], .cp__select-main [data-cmdk-item], .cp__palette-main [data-cmdk-item]';
+const CMDK_SCOPE_SELECTOR = '.cp__cmdk, .cp__select-main, .cp__palette-main, [data-editor-popup-ref="page-search"]';
+const CMDK_ROW_SELECTOR = '.cp__cmdk [data-cmdk-item], .cp__select-main [data-cmdk-item], .cp__palette-main [data-cmdk-item], [data-editor-popup-ref="page-search"] .menu-link';
 const SIDEBAR_ROOT_SELECTOR = '.left-sidebar-inner';
 const SIDEBAR_TITLE_SELECTOR = `${SIDEBAR_ROOT_SELECTOR} .page-title`;
 const CSS_SECTION_MARKER_1 = '/* --- 1. THE PAINTBOX (COLOR VARIABLES) --- */';
@@ -1303,15 +1303,13 @@ function getCmdkPrimaryLine(row) {
 function getCmdkInlineTagScanRoot(row) {
   return row.querySelector('.text-sm.font-medium.text-gray-12')
     || row.querySelector('.text-sm.font-medium')
-    || getCmdkPrimaryLine(row);
+    || getCmdkPrimaryLine(row)
+    || row.querySelector('.flex-1')
+    || row;
 }
 
 function getCmdkTagLabelElement(row) {
-  const primaryLine = getCmdkPrimaryLine(row);
-
-  if (!primaryLine) {
-    return null;
-  }
+  const primaryLine = getCmdkPrimaryLine(row) || row.querySelector('.flex-1') || row;
 
   return primaryLine.querySelector('.flex.flex-row.items-center.gap-1')
     || primaryLine.querySelector('.flex.items-center.gap-2.flex-wrap')
