@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.34";
+const FALLBACK_PLUGIN_VERSION = "0.4.35";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1913,15 +1913,15 @@ function nodeTouchesCmdk(node, hostWindow) {
     return false;
   }
 
-  if (candidate.matches('.cp__cmdk, .cp__select-main, .cp__palette-main')) {
+  if (candidate.matches(CMDK_SCOPE_SELECTOR)) {
     return true;
   }
 
-  if (candidate.closest('.cp__cmdk, .cp__select-main, .cp__palette-main')) {
+  if (candidate.closest(CMDK_SCOPE_SELECTOR)) {
     return true;
   }
 
-  return Boolean(candidate.querySelector('.cp__cmdk, .cp__select-main, .cp__palette-main'));
+  return Boolean(candidate.querySelector(CMDK_SCOPE_SELECTOR));
 }
 
 function syncSidebarTagStyles() {
