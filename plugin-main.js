@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.35";
+const FALLBACK_PLUGIN_VERSION = "0.4.36";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -5506,13 +5506,19 @@ function buildGradientPresetPaletteMarkup(areaKey, stopIndex, selectedStop) {
   const accentPresets = COLOR_PRESETS.filter((p) => p.token.startsWith("acc-"));
 
   return `
-    <span class="ctl-gradient-group-label" style="display: block; margin-bottom: 6px;">Preset Colors</span>
-    <div class="ctl-preset-grid" style="margin-bottom: 12px;">
-      ${renderButtons(standardPresets)}
-    </div>
-    <span class="ctl-gradient-group-label" style="display: block; margin-bottom: 6px;">Accent Colors</span>
-    <div class="ctl-preset-grid">
-      ${renderButtons(accentPresets)}
+    <div class="ctl-preset-row">
+      <div class="ctl-preset-column">
+        <span class="ctl-gradient-group-label">Preset Colors</span>
+        <div class="ctl-preset-grid">
+          ${renderButtons(standardPresets)}
+        </div>
+      </div>
+      <div class="ctl-preset-column">
+        <span class="ctl-gradient-group-label">Accent Colors</span>
+        <div class="ctl-preset-grid">
+          ${renderButtons(accentPresets)}
+        </div>
+      </div>
     </div>
   `;
 }

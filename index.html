@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors v0.4.35</title>
-    <meta name="degrande-colors-version" content="0.4.35">
+    <title>Degrande Colors v0.4.36</title>
+    <meta name="degrande-colors-version" content="0.4.36">
     <style>
       :root {
         color-scheme: light;
@@ -640,8 +640,22 @@
 
       .ctl-preview-card .ctl-section-inline.ctl-gradient-editor {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+        grid-template-columns: 1fr;
         gap: 18px;
+      }
+
+      .ctl-preset-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        align-items: start;
+      }
+
+      .ctl-preset-column {
+        display: grid;
+        gap: 6px;
+        align-content: start;
+        min-width: 0;
       }
 
       .ctl-preview-card .ctl-section-inline .ctl-section-head {
@@ -1498,8 +1512,8 @@
   </head>
   <body>
     <div id="app"></div>
-    <script src="./lsplugin.user.js?v=0.4.35"></script>
-    <script src="./plugin.js?v=0.4.35"></script>
+    <script src="./lsplugin.user.js?v=0.4.36"></script>
+    <script src="./plugin.js?v=0.4.36"></script>
   </body>
 </html>
 
