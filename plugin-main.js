@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.26";
+const FALLBACK_PLUGIN_VERSION = "0.4.27";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1881,13 +1881,23 @@ function observeCmdkSearchResults() {
     const documentWindow = hostDocument.defaultView || hostWindow;
     const HostMutationObserver = documentWindow.MutationObserver || MutationObserver;
     const observer = new HostMutationObserver((mutations) => {
+      let shouldSync = false;
+
       mutations.forEach((mutation) => {
-        syncCmdkTagStylesInSubtree(mutation.target, hostDocument);
+        if (!shouldSync && nodeTouchesCmdk(mutation.target, documentWindow)) {
+          shouldSync = true;
+        }
 
         Array.from(mutation.addedNodes || []).forEach((node) => {
-          syncCmdkTagStylesInSubtree(node, hostDocument);
+          if (!shouldSync && nodeTouchesCmdk(node, documentWindow)) {
+            shouldSync = true;
+          }
         });
       });
+
+      if (shouldSync) {
+        scheduleCmdkTagStyleSync();
+      }
     });
 
     observer.observe(hostDocument.body || hostDocument.documentElement, {
