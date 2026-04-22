@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.28";
+const FALLBACK_PLUGIN_VERSION = "0.4.29";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1288,22 +1288,22 @@ function observeTagDrivenNodeStyles() {
 }
 
 function getCmdkPrimaryLine(row) {
-  const directPrimary = row.querySelector('.text-sm.font-medium.text-gray-12')
-    || row.querySelector('.text-sm.font-medium');
+  const textColumn = row.querySelector('.flex.flex-1.flex-col');
 
-  if (directPrimary) {
-    return directPrimary;
+  if (!textColumn) {
+    return null;
   }
 
-  const textColumn = row.querySelector('.flex.flex-1.flex-col')
-    || row.querySelector('.flex.flex-col')
-    || row;
-
   return textColumn.querySelector('.text-sm.font-medium.text-gray-12')
-    || textColumn.querySelector('.text-sm.font-medium')
-    || Array.from(textColumn.children || []).find((child) => child.matches?.('.text-sm'))
-    || Array.from(textColumn.children || []).find((child) => child.textContent?.trim())
+    || Array.from(textColumn.children).find((child) => child.matches?.('.text-sm.font-medium, .text-sm'))
+    || Array.from(textColumn.children).find((child) => child.textContent?.trim())
     || textColumn;
+}
+
+function getCmdkInlineTagScanRoot(row) {
+  return row.querySelector('.text-sm.font-medium.text-gray-12')
+    || row.querySelector('.text-sm.font-medium')
+    || getCmdkPrimaryLine(row);
 }
 
 function getCmdkTagLabelElement(row) {
@@ -1679,20 +1679,20 @@ function syncInlineTagTextNodes(container) {
 }
 
 function syncCmdkInlineTags(row) {
-  const primaryLine = getCmdkPrimaryLine(row);
+  const scanRoot = getCmdkInlineTagScanRoot(row);
 
-  if (!primaryLine) {
+  if (!scanRoot) {
     return;
   }
 
   if (getCmdkHashIconNode(row)) {
-    primaryLine.querySelectorAll('[data-degrande-inline-tag]').forEach((chip) => {
+    scanRoot.querySelectorAll('[data-degrande-inline-tag]').forEach((chip) => {
       syncCmdkInlineTagChip(chip);
     });
     return;
   }
 
-  syncInlineTagTextNodes(primaryLine);
+  syncInlineTagTextNodes(scanRoot);
 }
 
 function syncCmdkTagRow(row) {
