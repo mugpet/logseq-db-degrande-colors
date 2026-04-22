@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.23";
+const FALLBACK_PLUGIN_VERSION = "0.4.24";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1611,50 +1611,61 @@ function syncInlineTagTextNodes(container) {
 
   const hostDocument = container.ownerDocument;
   const hostWindow = hostDocument.defaultView || window;
+  const textNodes = [];
 
   container.querySelectorAll('[data-degrande-inline-tag]').forEach((chip) => {
     syncCmdkInlineTagChip(chip);
   });
 
-  const segments = collectInlineTagTextSegments(container, hostWindow);
-  const combinedText = segments.map((segment) => segment.value).join('');
+  const walker = hostDocument.createTreeWalker(
+    container,
+    hostWindow.NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        const parentElement = node.parentElement;
 
-  if (!combinedText.includes('#')) {
-    return;
+        if (!node.nodeValue?.includes('#') || !parentElement) {
+          return hostWindow.NodeFilter.FILTER_REJECT;
+        }
+
+        if (parentElement.closest('[data-degrande-inline-tag], [data-degrande-search-tag-label], mark, a.tag[data-ref]')) {
+          return hostWindow.NodeFilter.FILTER_REJECT;
+        }
+
+        return hostWindow.NodeFilter.FILTER_ACCEPT;
+      },
+    }
+  );
+
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode);
   }
 
-  const matches = collectCmdkInlineTagMatches(combinedText);
+  textNodes.forEach((node) => {
+    const text = node.nodeValue || '';
+    const matches = collectCmdkInlineTagMatches(text);
 
-  if (!matches.length) {
-    return;
-  }
-
-  matches.reverse().forEach((match) => {
-    const startPosition = getTextPositionForOffset(segments, match.start);
-    const endPosition = getTextPositionForOffset(segments, match.end);
-
-    if (!startPosition || !endPosition) {
+    if (!matches.length) {
       return;
     }
 
-    const range = hostDocument.createRange();
+    let lastIndex = 0;
+    const fragment = hostDocument.createDocumentFragment();
 
-    try {
-      range.setStart(startPosition.node, startPosition.offset);
-      range.setEnd(endPosition.node, endPosition.offset);
-
-      const extracted = range.extractContents();
-
-      if (!extracted.textContent?.trim()) {
-        return;
+    matches.forEach((match) => {
+      if (match.start > lastIndex) {
+        fragment.appendChild(hostDocument.createTextNode(text.slice(lastIndex, match.start)));
       }
 
-      range.insertNode(createCmdkInlineTagChip(hostDocument, match.displayTagName, match.canonicalTagName, extracted));
-    } catch (error) {
-      // Ignore malformed transient ranges while Logseq is rerendering search rows.
-    } finally {
-      range.detach?.();
+      fragment.appendChild(createCmdkInlineTagChip(hostDocument, match.displayTagName, match.canonicalTagName));
+      lastIndex = match.end;
+    });
+
+    if (lastIndex < text.length) {
+      fragment.appendChild(hostDocument.createTextNode(text.slice(lastIndex)));
     }
+
+    node.parentNode?.replaceChild(fragment, node);
   });
 }
 
