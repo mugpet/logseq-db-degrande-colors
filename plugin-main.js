@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.33";
+const FALLBACK_PLUGIN_VERSION = "0.4.34";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1675,67 +1675,69 @@ function syncInlineTagTextNodes(container) {
 }
 
 function replaceInlineTagsInElement(element, hostDocument, hostWindow) {
-  // Build a flat segment list of all text node descendants, ignoring our own chips.
-  const segments = [];
-  let combined = '';
-  const walker = hostDocument.createTreeWalker(
-    element,
-    hostWindow.NodeFilter.SHOW_TEXT,
-    {
-      acceptNode(node) {
-        const parent = node.parentElement;
-
-        if (!node.nodeValue || !parent) {
-          return hostWindow.NodeFilter.FILTER_REJECT;
-        }
-
-        if (parent.closest('[data-degrande-inline-tag], [data-degrande-search-tag-label], a.tag[data-ref]')) {
-          return hostWindow.NodeFilter.FILTER_REJECT;
-        }
-
-        return hostWindow.NodeFilter.FILTER_ACCEPT;
-      },
-    }
-  );
-
-  while (walker.nextNode()) {
-    const node = walker.currentNode;
-    const value = node.nodeValue || '';
-
-    segments.push({ node, start: combined.length, end: combined.length + value.length });
-    combined += value;
-  }
-
-  if (!segments.length) {
-    return false;
-  }
-
-  const matches = collectCmdkInlineTagMatches(combined);
-
-  if (!matches.length) {
-    return false;
-  }
-
   let appliedAny = false;
+  let safety = 0;
 
-  // Replace from the end so earlier offsets remain valid.
-  for (let i = matches.length - 1; i >= 0; i -= 1) {
-    const match = matches[i];
+  while (safety < 100) {
+    safety += 1;
+
+    const segments = [];
+    let combined = '';
+    const walker = hostDocument.createTreeWalker(
+      element,
+      hostWindow.NodeFilter.SHOW_TEXT,
+      {
+        acceptNode(node) {
+          const parent = node.parentElement;
+
+          if (!node.nodeValue || !parent) {
+            return hostWindow.NodeFilter.FILTER_REJECT;
+          }
+
+          if (parent.closest('[data-degrande-inline-tag], [data-degrande-search-tag-label], a.tag[data-ref]')) {
+            return hostWindow.NodeFilter.FILTER_REJECT;
+          }
+
+          return hostWindow.NodeFilter.FILTER_ACCEPT;
+        },
+      }
+    );
+
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const value = node.nodeValue || '';
+
+      segments.push({ node, start: combined.length, end: combined.length + value.length });
+      combined += value;
+    }
+
+    if (!segments.length) {
+      return appliedAny;
+    }
+
+    const matches = collectCmdkInlineTagMatches(combined);
+
+    if (!matches.length) {
+      return appliedAny;
+    }
+
+    const match = matches[0];
     const startPos = locateOffset(segments, match.start);
     const endPos = locateOffset(segments, match.end);
 
     if (!startPos || !endPos) {
-      continue;
+      return appliedAny;
     }
+
+    let inserted = false;
 
     try {
       const range = hostDocument.createRange();
       range.setStart(startPos.node, startPos.offset);
       range.setEnd(endPos.node, endPos.offset);
 
-      // Refuse to span outside the element (defensive).
       if (!element.contains(range.commonAncestorContainer)) {
-        continue;
+        return appliedAny;
       }
 
       const fragment = range.extractContents();
@@ -1746,9 +1748,15 @@ function replaceInlineTagsInElement(element, hostDocument, hostWindow) {
         fragment
       );
       range.insertNode(chip);
+      inserted = true;
       appliedAny = true;
     } catch (rangeError) {
-      // Ignore ranges that became invalid due to prior replacements.
+      // If Range manipulation fails for any reason, stop to avoid an infinite loop.
+      return appliedAny;
+    }
+
+    if (!inserted) {
+      return appliedAny;
     }
   }
 
