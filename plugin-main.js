@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.41";
+const FALLBACK_PLUGIN_VERSION = "0.4.42";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -5016,6 +5016,7 @@ function addGradientStop(areaKey, position = null, track = "top") {
         source: selectedStop.source,
         ...(selectedStop.token ? { token: selectedStop.token } : {}),
         ...(selectedStop.color ? { color: selectedStop.color } : {}),
+        ...(typeof selectedStop.alpha === "number" ? { alpha: selectedStop.alpha } : {}),
       }
     : {
         source: "linked",
