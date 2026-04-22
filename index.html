@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors v0.4.36</title>
-    <meta name="degrande-colors-version" content="0.4.36">
+    <title>Degrande Colors v0.4.37</title>
+    <meta name="degrande-colors-version" content="0.4.37">
     <style>
       :root {
         color-scheme: light;
@@ -737,6 +737,61 @@
 
       .ctl-gradient-handle:active {
         cursor: grabbing;
+      }
+
+      .ctl-gradient-handle.is-staggered {
+        box-shadow: 0 8px 14px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(148, 163, 184, 0.35);
+      }
+
+      .ctl-stop-picker {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .ctl-stop-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px 4px 4px;
+        border: 1px solid var(--ctl-border);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.55);
+        color: var(--ctl-text);
+        font: inherit;
+        font-size: 11px;
+        cursor: pointer;
+        transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
+      }
+
+      .theme-dark .ctl-stop-chip {
+        background: rgba(15, 23, 42, 0.55);
+      }
+
+      .ctl-stop-chip:hover {
+        border-color: rgba(15, 118, 110, 0.4);
+      }
+
+      .ctl-stop-chip.is-active {
+        border-color: rgba(15, 118, 110, 0.6);
+        box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.18);
+        background: linear-gradient(180deg, rgba(15, 118, 110, 0.12), rgba(15, 118, 110, 0.04));
+      }
+
+      .ctl-stop-chip-swatch {
+        width: 14px;
+        height: 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.45);
+        flex: none;
+      }
+
+      .ctl-stop-chip-label {
+        font-weight: 700;
+      }
+
+      .ctl-stop-chip-position {
+        color: var(--ctl-text-muted);
       }
 
       .ctl-gradient-handle.is-transparent {
@@ -1512,8 +1567,8 @@
   </head>
   <body>
     <div id="app"></div>
-    <script src="./lsplugin.user.js?v=0.4.36"></script>
-    <script src="./plugin.js?v=0.4.36"></script>
+    <script src="./lsplugin.user.js?v=0.4.37"></script>
+    <script src="./plugin.js?v=0.4.37"></script>
   </body>
 </html>
 

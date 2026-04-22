@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.36";
+const FALLBACK_PLUGIN_VERSION = "0.4.37";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -5547,17 +5547,108 @@ function buildGradientCustomColorMarkup(areaKey, stopIndex, selectedStop) {
   `;
 }
 
+function buildGradientStopPickerMarkup(areaKey, area, areaConfig, selectedIndex) {
+  const previewLinkedColor = getGradientPreviewLinkedColor(areaKey);
+
+  const chips = area.stops.map((stop, index) => {
+    const swatchColor = getGradientStopColor(stop, previewLinkedColor, "preview");
+    const isTransparent = stop.source === "transparent";
+    const sourceLabel = stop.source === "linked"
+      ? areaConfig.linkedLabel
+      : stop.source === "preset"
+        ? "Preset"
+        : stop.source === "custom"
+          ? "Custom"
+          : "Transparent";
+    const swatchStyle = isTransparent
+      ? `background-image: linear-gradient(45deg, rgba(148, 163, 184, 0.32) 25%, transparent 25%, transparent 50%, rgba(148, 163, 184, 0.32) 50%, rgba(148, 163, 184, 0.32) 75%, transparent 75%, transparent); background-size: 6px 6px;`
+      : `background:${swatchColor};`;
+
+    return `
+      <button
+        class="ctl-stop-chip${index === selectedIndex ? " is-active" : ""}"
+        type="button"
+        data-action="select-gradient-stop"
+        data-area-key="${areaKey}"
+        data-stop-index="${index}"
+        title="Select stop ${index + 1} (${sourceLabel} at ${Math.round(stop.position)}%)"
+      >
+        <span class="ctl-stop-chip-swatch" style="${swatchStyle}"></span>
+        <span class="ctl-stop-chip-label">${index + 1}</span>
+        <span class="ctl-stop-chip-position">${Math.round(stop.position)}%</span>
+      </button>
+    `;
+  }).join("");
+
+  return `
+    <div class="ctl-stop-picker" role="listbox" aria-label="Gradient stops">
+      ${chips}
+    </div>
+  `;
+}
+
+function computeStopStaggerOffsets(stops) {
+  // For each stop index, return a vertical offset (in px) so that stops within
+  // ~3% of each other fan out instead of stacking and stealing each other's clicks.
+  const CLUSTER_THRESHOLD = 3;
+  const STEP = 11;
+  const offsets = new Array(stops.length).fill(0);
+
+  // Group indices by cluster (left-to-right scan over position-sorted indices).
+  const order = stops
+    .map((stop, index) => ({ index, position: Number(stop.position) || 0 }))
+    .sort((a, b) => a.position - b.position || a.index - b.index);
+
+  let cluster = [];
+  const flushCluster = () => {
+    if (cluster.length <= 1) {
+      cluster = [];
+      return;
+    }
+    // Fan around 0: [0, -STEP, +STEP, -2*STEP, +2*STEP, ...]
+    cluster.forEach((item, position) => {
+      const direction = position % 2 === 0 ? -1 : 1;
+      const magnitude = Math.ceil(position / 2) * STEP;
+      offsets[item.index] = direction * magnitude;
+    });
+    cluster = [];
+  };
+
+  order.forEach((item) => {
+    if (!cluster.length) {
+      cluster.push(item);
+      return;
+    }
+    const last = cluster[cluster.length - 1];
+    if (Math.abs(item.position - last.position) <= CLUSTER_THRESHOLD) {
+      cluster.push(item);
+    } else {
+      flushCluster();
+      cluster.push(item);
+    }
+  });
+  flushCluster();
+
+  return offsets;
+}
+
 function buildGradientStripMarkup(areaKey, area, areaConfig, selectedIndex) {
   const previewLinkedColor = getGradientPreviewLinkedColor(areaKey);
+  const offsets = computeStopStaggerOffsets(area.stops);
 
   return `
     <div class="ctl-gradient-strip" data-gradient-strip data-area-key="${areaKey}" title="Click to add a stop, and right-click to remove a stop">
       ${area.stops.map((stop, index) => {
         const swatchColor = getGradientStopColor(stop, previewLinkedColor, "preview");
         const isTransparent = stop.source === "transparent";
+        const offset = offsets[index] || 0;
+        const transformValue = offset
+          ? `translate(0, calc(-50% + ${offset}px))`
+          : `translateY(-50%)`;
+        const baseStyle = `left: calc(${stop.position}% - 9px); transform:${transformValue};`;
         const style = isTransparent
-          ? `left: calc(${stop.position}% - 9px);`
-          : `left: calc(${stop.position}% - 9px); --ctl-stop-swatch:${swatchColor};`;
+          ? baseStyle
+          : `${baseStyle} --ctl-stop-swatch:${swatchColor};`;
         const label = stop.source === "linked"
           ? areaConfig.linkedLabel
           : stop.source === "preset"
@@ -5565,12 +5656,13 @@ function buildGradientStripMarkup(areaKey, area, areaConfig, selectedIndex) {
             : stop.source === "custom"
               ? "Custom Color"
               : "Transparent";
+        const zIndex = index === selectedIndex ? 5 : (offset === 0 ? 2 : 3);
 
         return `
           <button
-            class="ctl-gradient-handle${index === selectedIndex ? " is-active" : ""}${isTransparent ? " is-transparent" : ""}"
+            class="ctl-gradient-handle${index === selectedIndex ? " is-active" : ""}${isTransparent ? " is-transparent" : ""}${offset !== 0 ? " is-staggered" : ""}"
             type="button"
-            style="${style}"
+            style="${style} z-index:${zIndex};"
             data-action="select-gradient-stop"
             data-gradient-handle
             data-area-key="${areaKey}"
@@ -5616,6 +5708,7 @@ function buildGradientEditorMarkup(areaKey, previewMarkup, controlKeys = []) {
           <strong data-gradient-selected-index="${areaKey}">Stop ${selectedIndex + 1}</strong>
           <span data-gradient-selected-label="${areaKey}">${selectedLabel} · ${Math.round(selectedStop.position)}%</span>
         </div>
+        ${buildGradientStopPickerMarkup(areaKey, area, areaConfig, selectedIndex)}
         <section class="ctl-gradient-group">
           <label class="ctl-control ctl-control-tight" for="gradient-alpha-${areaKey}">
             <div class="ctl-control-header">
