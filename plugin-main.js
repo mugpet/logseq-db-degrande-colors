@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.29";
+const FALLBACK_PLUGIN_VERSION = "0.4.30";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1747,22 +1747,52 @@ function syncCmdkTagRow(row) {
 }
 
 function syncCmdkTagStyles() {
-  getObservableHostDocuments().forEach((hostDocument) => {
-    const hostWindow = hostDocument.defaultView || window;
+  const hostWindow = getHostWindow();
+  const diag = { ts: Date.now(), version: PLUGIN_VERSION, docs: 0, rows: 0, marked: 0, errors: [] };
 
-    if (!hostDocument.querySelector(CMDK_SCOPE_SELECTOR)) {
-      return;
-    }
+  try {
+    getObservableHostDocuments().forEach((hostDocument) => {
+      const docWindow = hostDocument.defaultView || window;
 
-    collectMatchingElements(hostDocument, CMDK_ROW_SELECTOR, hostWindow).forEach((row) => {
-      if (!(row instanceof hostWindow.Element)) {
+      if (!hostDocument.querySelector(CMDK_SCOPE_SELECTOR)) {
         return;
       }
 
-      syncCmdkTagRow(row);
-      syncCmdkInlineTags(row);
+      diag.docs += 1;
+
+      collectMatchingElements(hostDocument, CMDK_ROW_SELECTOR, docWindow).forEach((row) => {
+        if (!(row instanceof docWindow.Element)) {
+          return;
+        }
+
+        diag.rows += 1;
+
+        try {
+          syncCmdkTagRow(row);
+          syncCmdkInlineTags(row);
+
+          if (row.querySelector('[data-degrande-inline-tag], [data-degrande-search-tag-label]')) {
+            diag.marked += 1;
+          }
+        } catch (rowError) {
+          diag.errors.push(String(rowError && rowError.stack || rowError));
+        }
+      });
     });
-  });
+  } catch (outerError) {
+    diag.errors.push('outer:' + String(outerError && outerError.stack || outerError));
+  }
+
+  try {
+    hostWindow.__degrandeColorsCmdkDiag = diag;
+  } catch (assignError) {
+    // Ignore if host window is not writable.
+  }
+}
+
+function runCmdkSyncNow() {
+  scheduleCmdkTagStyleSync();
+  return getHostWindow().__degrandeColorsCmdkDiag || null;
 }
 
 function syncCmdkTagStylesInSubtree(root, hostDocument) {
@@ -7939,6 +7969,17 @@ async function main() {
   }
 
   console.info(`[Degrande Colors] Loaded base styles and controls (v${PLUGIN_VERSION})`);
+
+  try {
+    const diagHost = getHostWindow();
+    diagHost.__degrandeColorsRunCmdkSync = () => {
+      syncCmdkTagStyles();
+      return diagHost.__degrandeColorsCmdkDiag || null;
+    };
+    diagHost.__degrandeColorsVersion = PLUGIN_VERSION;
+  } catch (diagAttachError) {
+    // Ignore — diagnostics are optional.
+  }
 }
 
 window.__degrandeColorsMain = main;

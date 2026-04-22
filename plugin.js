@@ -1,5 +1,5 @@
 const STARTUP_ERROR_PREFIX = "[Degrande Colors] Failed to start";
-const FALLBACK_PLUGIN_VERSION = "0.4.29";
+const FALLBACK_PLUGIN_VERSION = "0.4.30";
 const MAIN_SCRIPT_DATA_ATTRIBUTE = "data-degrande-colors-main";
 let pluginStartupPromise = null;
 
