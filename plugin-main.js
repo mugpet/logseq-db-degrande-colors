@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.27";
+const FALLBACK_PLUGIN_VERSION = "0.4.28";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1288,15 +1288,21 @@ function observeTagDrivenNodeStyles() {
 }
 
 function getCmdkPrimaryLine(row) {
-  const textColumn = row.querySelector('.flex.flex-1.flex-col');
+  const directPrimary = row.querySelector('.text-sm.font-medium.text-gray-12')
+    || row.querySelector('.text-sm.font-medium');
 
-  if (!textColumn) {
-    return null;
+  if (directPrimary) {
+    return directPrimary;
   }
 
+  const textColumn = row.querySelector('.flex.flex-1.flex-col')
+    || row.querySelector('.flex.flex-col')
+    || row;
+
   return textColumn.querySelector('.text-sm.font-medium.text-gray-12')
-    || Array.from(textColumn.children).find((child) => child.matches?.('.text-sm.font-medium, .text-sm'))
-    || Array.from(textColumn.children).find((child) => child.textContent?.trim())
+    || textColumn.querySelector('.text-sm.font-medium')
+    || Array.from(textColumn.children || []).find((child) => child.matches?.('.text-sm'))
+    || Array.from(textColumn.children || []).find((child) => child.textContent?.trim())
     || textColumn;
 }
 
