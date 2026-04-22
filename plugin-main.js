@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.37";
+const FALLBACK_PLUGIN_VERSION = "0.4.38";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -6496,6 +6496,31 @@ function syncGradientEditorState() {
 
       handle.title = `${label} at ${Math.round(stop.position)}%`;
     });
+
+    // Sync stop-chip picker is-active.
+    const chips = document.querySelectorAll(`.ctl-stop-chip[data-area-key="${areaKey}"]`);
+    chips.forEach((chip) => {
+      const chipIndex = Number(chip.dataset.stopIndex);
+      chip.classList.toggle("is-active", chipIndex === selectedIndex);
+    });
+
+    // Sync quick-mode is-active for the currently-selected stop.
+    const modeButtons = document.querySelectorAll(`.ctl-mode-option[data-area-key="${areaKey}"]`);
+    modeButtons.forEach((button) => {
+      const isActive = Number(button.dataset.stopIndex) === selectedIndex
+        && button.dataset.stopMode === selectedStop.source;
+      button.classList.toggle("is-active", isActive);
+      // Refresh the data-stop-index so subsequent clicks target the new selection.
+      button.dataset.stopIndex = String(selectedIndex);
+    });
+
+    // Sync preset palette is-active for the currently-selected stop.
+    const presetButtons = document.querySelectorAll(`.ctl-preset-option[data-area-key="${areaKey}"]`);
+    presetButtons.forEach((button) => {
+      const isActive = selectedStop.source === "preset" && button.dataset.stopToken === selectedStop.token;
+      button.classList.toggle("is-active", isActive);
+      button.dataset.stopIndex = String(selectedIndex);
+    });
   }
 }
 
@@ -6775,7 +6800,7 @@ function updateGradientHandleDrag(clientX) {
 
   drag.moved = true;
   updateGradientStop(drag.areaKey, drag.stopIndex, { position: nextPosition });
-  void applyManagedOverrides(false, "Adjusted gradient stop", "preview");
+  void applyManagedOverrides(false, "Adjusted gradient stop", "soft");
 }
 
 function endGradientHandleDrag() {
@@ -6789,7 +6814,6 @@ function endGradientHandleDrag() {
 
   if (drag.moved) {
     panelState.suppressGradientClick = true;
-    rerenderPreviewPanePreservingScroll("Adjusted gradient stop");
     schedulePersistGradients();
   }
 }
@@ -7421,7 +7445,7 @@ function mountPanel() {
       }
 
       setSelectedGradientStop(target.dataset.areaKey, Number(target.dataset.stopIndex));
-      rerenderPreviewPanePreservingScroll();
+      refreshPanel();
       return;
     }
 
@@ -7512,7 +7536,7 @@ function mountPanel() {
         Number(target.dataset.stopIndex),
         { source: target.dataset.stopMode, token: COLOR_PRESETS[0].token, color: panelState.tagCustomColorDraft }
       );
-      void applyManagedOverrides(false, "Updated gradient stop type", "preview");
+      void applyManagedOverrides(false, "Updated gradient stop type", "soft");
       schedulePersistGradients();
       return;
     }
@@ -7523,7 +7547,7 @@ function mountPanel() {
         Number(target.dataset.stopIndex),
         { source: "preset", token: target.dataset.stopToken }
       );
-      void applyManagedOverrides(false, "Updated preset gradient color", "preview");
+      void applyManagedOverrides(false, "Updated preset gradient color", "soft");
       schedulePersistGradients();
       return;
     }
