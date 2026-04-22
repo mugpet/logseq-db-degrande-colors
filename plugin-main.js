@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.24";
+const FALLBACK_PLUGIN_VERSION = "0.4.25";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1890,6 +1890,7 @@ function observeCmdkSearchResults() {
     observer.observe(hostDocument.body || hostDocument.documentElement, {
       childList: true,
       subtree: true,
+      characterData: true,
     });
 
     return observer;
