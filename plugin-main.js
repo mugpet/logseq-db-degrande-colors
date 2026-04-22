@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.32";
+const FALLBACK_PLUGIN_VERSION = "0.4.33";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1618,24 +1618,78 @@ function syncInlineTagTextNodes(container) {
 
   const hostDocument = container.ownerDocument;
   const hostWindow = hostDocument.defaultView || window;
-  const textNodes = [];
 
   container.querySelectorAll('[data-degrande-inline-tag]').forEach((chip) => {
     syncCmdkInlineTagChip(chip);
   });
 
+  // Iterate by parent block so we can scan across <mark> splits within the same line/cell.
+  // Re-query each pass because replacements mutate the tree.
+  const seenParents = new WeakSet();
+  let safety = 0;
+
+  while (safety < 50) {
+    safety += 1;
+
+    const candidateText = Array.from(
+      container.querySelectorAll('*')
+    ).find((element) => {
+      if (seenParents.has(element)) {
+        return false;
+      }
+
+      if (element.closest('[data-degrande-inline-tag], [data-degrande-search-tag-label], a.tag[data-ref]')) {
+        return false;
+      }
+
+      // Skip wrappers whose children include block-level layout — only scan inline content.
+      const hasBlockChild = Array.from(element.children).some((child) =>
+        /^(DIV|UL|OL|LI|P|H[1-6]|SECTION|ARTICLE|HEADER|FOOTER|NAV|TABLE)$/i.test(child.tagName)
+      );
+      if (hasBlockChild) {
+        return false;
+      }
+
+      const text = element.textContent || '';
+      if (!text.includes('#')) {
+        return false;
+      }
+
+      const matches = collectCmdkInlineTagMatches(text);
+      return matches.length > 0;
+    });
+
+    if (!candidateText) {
+      break;
+    }
+
+    seenParents.add(candidateText);
+
+    const replaced = replaceInlineTagsInElement(candidateText, hostDocument, hostWindow);
+
+    if (!replaced) {
+      // No replacement actually applied (e.g. matches collided with chip boundary). Move on.
+      continue;
+    }
+  }
+}
+
+function replaceInlineTagsInElement(element, hostDocument, hostWindow) {
+  // Build a flat segment list of all text node descendants, ignoring our own chips.
+  const segments = [];
+  let combined = '';
   const walker = hostDocument.createTreeWalker(
-    container,
+    element,
     hostWindow.NodeFilter.SHOW_TEXT,
     {
       acceptNode(node) {
-        const parentElement = node.parentElement;
+        const parent = node.parentElement;
 
-        if (!node.nodeValue?.includes('#') || !parentElement) {
+        if (!node.nodeValue || !parent) {
           return hostWindow.NodeFilter.FILTER_REJECT;
         }
 
-        if (parentElement.closest('[data-degrande-inline-tag], [data-degrande-search-tag-label], mark, a.tag[data-ref]')) {
+        if (parent.closest('[data-degrande-inline-tag], [data-degrande-search-tag-label], a.tag[data-ref]')) {
           return hostWindow.NodeFilter.FILTER_REJECT;
         }
 
@@ -1645,35 +1699,72 @@ function syncInlineTagTextNodes(container) {
   );
 
   while (walker.nextNode()) {
-    textNodes.push(walker.currentNode);
+    const node = walker.currentNode;
+    const value = node.nodeValue || '';
+
+    segments.push({ node, start: combined.length, end: combined.length + value.length });
+    combined += value;
   }
 
-  textNodes.forEach((node) => {
-    const text = node.nodeValue || '';
-    const matches = collectCmdkInlineTagMatches(text);
+  if (!segments.length) {
+    return false;
+  }
 
-    if (!matches.length) {
-      return;
+  const matches = collectCmdkInlineTagMatches(combined);
+
+  if (!matches.length) {
+    return false;
+  }
+
+  let appliedAny = false;
+
+  // Replace from the end so earlier offsets remain valid.
+  for (let i = matches.length - 1; i >= 0; i -= 1) {
+    const match = matches[i];
+    const startPos = locateOffset(segments, match.start);
+    const endPos = locateOffset(segments, match.end);
+
+    if (!startPos || !endPos) {
+      continue;
     }
 
-    let lastIndex = 0;
-    const fragment = hostDocument.createDocumentFragment();
+    try {
+      const range = hostDocument.createRange();
+      range.setStart(startPos.node, startPos.offset);
+      range.setEnd(endPos.node, endPos.offset);
 
-    matches.forEach((match) => {
-      if (match.start > lastIndex) {
-        fragment.appendChild(hostDocument.createTextNode(text.slice(lastIndex, match.start)));
+      // Refuse to span outside the element (defensive).
+      if (!element.contains(range.commonAncestorContainer)) {
+        continue;
       }
 
-      fragment.appendChild(createCmdkInlineTagChip(hostDocument, match.displayTagName, match.canonicalTagName));
-      lastIndex = match.end;
-    });
-
-    if (lastIndex < text.length) {
-      fragment.appendChild(hostDocument.createTextNode(text.slice(lastIndex)));
+      const fragment = range.extractContents();
+      const chip = createCmdkInlineTagChip(
+        hostDocument,
+        match.displayTagName,
+        match.canonicalTagName,
+        fragment
+      );
+      range.insertNode(chip);
+      appliedAny = true;
+    } catch (rangeError) {
+      // Ignore ranges that became invalid due to prior replacements.
     }
+  }
 
-    node.parentNode?.replaceChild(fragment, node);
-  });
+  return appliedAny;
+}
+
+function locateOffset(segments, offset) {
+  for (const segment of segments) {
+    if (offset >= segment.start && offset <= segment.end) {
+      return { node: segment.node, offset: offset - segment.start };
+    }
+  }
+
+  const last = segments[segments.length - 1];
+  if (!last) return null;
+  return { node: last.node, offset: last.node.nodeValue?.length || 0 };
 }
 
 function syncCmdkInlineTags(row) {
