@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.40";
+const FALLBACK_PLUGIN_VERSION = "0.4.41";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -3441,7 +3441,8 @@ function normalizeGradientStop(stop) {
 
   const source = ["linked", "transparent", "preset", "custom"].includes(stop.source) ? stop.source : "transparent";
   const position = Math.min(100, Math.max(0, Number(stop.position ?? 0)));
-  const normalized = { source, position };
+  const track = stop.track === "bottom" ? "bottom" : "top";
+  const normalized = { source, position, track };
 
   if (source === "preset" && COLOR_PRESET_MAP[stop.token]) {
     normalized.token = stop.token;
@@ -4829,6 +4830,18 @@ function getGradientPositionFromClientX(areaKey, clientX) {
   return Math.round(Math.min(100, Math.max(0, (relativeX / Math.max(rect.width, 1)) * 100)));
 }
 
+function getGradientTrackFromClientY(areaKey, clientY) {
+  const strip = getGradientStripElement(areaKey);
+
+  if (!strip) {
+    return null;
+  }
+
+  const rect = strip.getBoundingClientRect();
+  const relativeY = clientY - rect.top;
+  return relativeY > rect.height / 2 ? "bottom" : "top";
+}
+
 function getPreviewGradientFallbackColor(token) {
   const preset = getPresetMeta(token);
 
@@ -4990,7 +5003,7 @@ function updateGradientStop(areaKey, stopIndex, patch) {
   setSelectedGradientStop(areaKey, area.stops.indexOf(stop));
 }
 
-function addGradientStop(areaKey, position = null) {
+function addGradientStop(areaKey, position = null, track = "top") {
   const area = getGradientArea(areaKey);
 
   if (!area) {
@@ -5009,6 +5022,7 @@ function addGradientStop(areaKey, position = null) {
       };
 
   nextStop.position = Math.min(100, Math.max(0, Number(position ?? getSuggestedGradientStopPosition(area))));
+  nextStop.track = track === "bottom" ? "bottom" : "top";
 
   area.stops.push(nextStop);
   area.stops.sort((left, right) => left.position - right.position);
@@ -5634,18 +5648,14 @@ function computeStopStaggerOffsets(stops) {
 
 function buildGradientStripMarkup(areaKey, area, areaConfig, selectedIndex) {
   const previewLinkedColor = getGradientPreviewLinkedColor(areaKey);
-  const offsets = computeStopStaggerOffsets(area.stops);
 
   return `
-    <div class="ctl-gradient-strip" data-gradient-strip data-area-key="${areaKey}" title="Click to add a stop, and right-click to remove a stop">
+    <div class="ctl-gradient-strip" data-gradient-strip data-area-key="${areaKey}" title="Click top or bottom track to add a stop. Drag a stop between tracks to keep overlapping stops reachable. Right-click to remove.">
       ${area.stops.map((stop, index) => {
         const swatchColor = getGradientStopColor(stop, previewLinkedColor, "preview");
         const isTransparent = stop.source === "transparent";
-        const offset = offsets[index] || 0;
-        const transformValue = offset
-          ? `translate(0, calc(-50% + ${offset}px))`
-          : `translateY(-50%)`;
-        const baseStyle = `left: calc(${stop.position}% - 9px); transform:${transformValue};`;
+        const track = stop.track === "bottom" ? "bottom" : "top";
+        const baseStyle = `left: calc(${stop.position}% - 9px);`;
         const style = isTransparent
           ? baseStyle
           : `${baseStyle} --ctl-stop-swatch:${swatchColor};`;
@@ -5656,18 +5666,18 @@ function buildGradientStripMarkup(areaKey, area, areaConfig, selectedIndex) {
             : stop.source === "custom"
               ? "Custom Color"
               : "Transparent";
-        const zIndex = index === selectedIndex ? 5 : (offset === 0 ? 2 : 3);
+        const zIndex = index === selectedIndex ? 5 : 2;
 
         return `
           <button
-            class="ctl-gradient-handle${index === selectedIndex ? " is-active" : ""}${isTransparent ? " is-transparent" : ""}${offset !== 0 ? " is-staggered" : ""}"
+            class="ctl-gradient-handle is-track-${track}${index === selectedIndex ? " is-active" : ""}${isTransparent ? " is-transparent" : ""}"
             type="button"
             style="${style} z-index:${zIndex};"
             data-action="select-gradient-stop"
             data-gradient-handle
             data-area-key="${areaKey}"
             data-stop-index="${index}"
-            title="${label} at ${Math.round(stop.position)}%. Click to add a stop, and right-click to remove a stop."
+            title="${label} at ${Math.round(stop.position)}% (${track} track). Drag horizontally to move, drag vertically to switch tracks, right-click to remove."
           ></button>
         `;
       }).join("")}
@@ -6466,7 +6476,6 @@ function syncGradientEditorState() {
     }
 
     const handles = document.querySelectorAll(`[data-action="select-gradient-stop"][data-area-key="${areaKey}"]`);
-    const staggerOffsets = computeStopStaggerOffsets(area.stops);
 
     handles.forEach((handle, index) => {
       const stop = area.stops[index];
@@ -6478,12 +6487,11 @@ function syncGradientEditorState() {
       const swatchColor = getGradientStopColor(stop, getGradientPreviewLinkedColor(areaKey), "preview");
       handle.style.left = `calc(${stop.position}% - 9px)`;
 
-      const offset = staggerOffsets[index] || 0;
-      handle.style.transform = offset
-        ? `translate(0, calc(-50% + ${offset}px))`
-        : `translateY(-50%)`;
-      handle.style.zIndex = index === selectedIndex ? 5 : (offset === 0 ? 2 : 3);
-      handle.classList.toggle("is-staggered", offset !== 0);
+      const track = stop.track === "bottom" ? "bottom" : "top";
+      handle.classList.toggle("is-track-bottom", track === "bottom");
+      handle.classList.toggle("is-track-top", track === "top");
+      handle.style.removeProperty("transform");
+      handle.style.zIndex = index === selectedIndex ? 5 : 2;
 
       if (stop.source === "transparent") {
         handle.style.removeProperty("--ctl-stop-swatch");
@@ -6793,7 +6801,7 @@ function beginGradientHandleDrag(areaKey, stopIndex, pointerId) {
   syncGradientEditorState();
 }
 
-function updateGradientHandleDrag(clientX) {
+function updateGradientHandleDrag(clientX, clientY) {
   const drag = panelState.gradientDrag;
 
   if (!drag) {
@@ -6807,7 +6815,8 @@ function updateGradientHandleDrag(clientX) {
   }
 
   drag.moved = true;
-  updateGradientStop(drag.areaKey, drag.stopIndex, { position: nextPosition });
+  const nextTrack = getGradientTrackFromClientY(drag.areaKey, clientY) || "top";
+  updateGradientStop(drag.areaKey, drag.stopIndex, { position: nextPosition, track: nextTrack });
   void applyManagedOverrides(false, "Adjusted gradient stop", "soft");
 }
 
@@ -7436,8 +7445,10 @@ function mountPanel() {
 
       const rect = gradientStrip.getBoundingClientRect();
       const relativeX = event.clientX - rect.left;
+      const relativeY = event.clientY - rect.top;
       const position = Math.round((relativeX / Math.max(rect.width, 1)) * 100);
-      addGradientStop(gradientStrip.dataset.areaKey, position);
+      const track = relativeY > rect.height / 2 ? "bottom" : "top";
+      addGradientStop(gradientStrip.dataset.areaKey, position, track);
       void applyManagedOverrides(false, "Added gradient stop", "preview");
       schedulePersistGradients();
       return;
@@ -7621,7 +7632,7 @@ function mountPanel() {
     }
 
     event.preventDefault();
-    updateGradientHandleDrag(event.clientX);
+    updateGradientHandleDrag(event.clientX, event.clientY);
   });
 
   document.addEventListener("pointerup", (event) => {
