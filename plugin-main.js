@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.38";
+const FALLBACK_PLUGIN_VERSION = "0.4.39";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -7421,6 +7421,11 @@ function mountPanel() {
     const gradientStrip = event.target.closest("[data-gradient-strip]");
 
     if (gradientStrip && !event.target.closest('[data-action="select-gradient-stop"]')) {
+      if (panelState.suppressGradientClick) {
+        panelState.suppressGradientClick = false;
+        return;
+      }
+
       const rect = gradientStrip.getBoundingClientRect();
       const relativeX = event.clientX - rect.left;
       const position = Math.round((relativeX / Math.max(rect.width, 1)) * 100);
