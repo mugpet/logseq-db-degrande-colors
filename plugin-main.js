@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.39";
+const FALLBACK_PLUGIN_VERSION = "0.4.40";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -6466,6 +6466,7 @@ function syncGradientEditorState() {
     }
 
     const handles = document.querySelectorAll(`[data-action="select-gradient-stop"][data-area-key="${areaKey}"]`);
+    const staggerOffsets = computeStopStaggerOffsets(area.stops);
 
     handles.forEach((handle, index) => {
       const stop = area.stops[index];
@@ -6476,6 +6477,13 @@ function syncGradientEditorState() {
 
       const swatchColor = getGradientStopColor(stop, getGradientPreviewLinkedColor(areaKey), "preview");
       handle.style.left = `calc(${stop.position}% - 9px)`;
+
+      const offset = staggerOffsets[index] || 0;
+      handle.style.transform = offset
+        ? `translate(0, calc(-50% + ${offset}px))`
+        : `translateY(-50%)`;
+      handle.style.zIndex = index === selectedIndex ? 5 : (offset === 0 ? 2 : 3);
+      handle.classList.toggle("is-staggered", offset !== 0);
 
       if (stop.source === "transparent") {
         handle.style.removeProperty("--ctl-stop-swatch");
