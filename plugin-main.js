@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.21";
+const FALLBACK_PLUGIN_VERSION = "0.4.22";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1405,12 +1405,16 @@ function isKnownCmdkInlineTag(tagName) {
     || Boolean(panelState.baseTagColorMap[normalized]);
 }
 
-function createCmdkInlineTagChip(hostDocument, displayTagName, tagName) {
+function createCmdkInlineTagChip(hostDocument, displayTagName, tagName, contentNode = null) {
   const chip = hostDocument.createElement('span');
   const chipTheme = getCmdkTagThemeState(tagName);
 
   chip.setAttribute('data-degrande-inline-tag', tagName);
-  chip.textContent = `#${displayTagName}`;
+  if (contentNode) {
+    chip.appendChild(contentNode);
+  } else {
+    chip.textContent = `#${displayTagName}`;
+  }
   chip.style.setProperty('--degrande-search-chip-bg', chipTheme.theme.background);
   chip.style.setProperty('--degrande-search-chip-border', chipTheme.theme.borderColor);
   chip.style.setProperty('--degrande-search-chip-color', chipTheme.theme.color);
@@ -1437,31 +1441,76 @@ function syncCmdkInlineTagChip(chip) {
   chip.style.setProperty('--degrande-search-chip-gradient', chipTheme.gradientColor);
 }
 
-function syncInlineTagTextNodes(container) {
-  if (!container) {
-    return;
+function isInlineTagBoundaryCharacter(character) {
+  return !character || /[\s,.;:!?()[\]{}"']/u.test(character);
+}
+
+function getCmdkInlineTagCandidates() {
+  return Array.from(new Set(getKnownTagNames().filter(Boolean)))
+    .sort((left, right) => right.length - left.length);
+}
+
+function collectCmdkInlineTagMatches(text) {
+  const matches = [];
+  const loweredText = String(text || '').toLowerCase();
+
+  if (!loweredText.includes('#')) {
+    return matches;
   }
 
-  const hostDocument = container.ownerDocument;
-  const hostWindow = hostDocument.defaultView || window;
+  const knownTags = getCmdkInlineTagCandidates();
+
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] !== '#') {
+      continue;
+    }
+
+    if (!isInlineTagBoundaryCharacter(text[index - 1] || '')) {
+      continue;
+    }
+
+    const match = knownTags.find((candidate) => {
+      const candidateLength = candidate.length;
+      const candidateText = loweredText.slice(index + 1, index + 1 + candidateLength);
+
+      if (candidateText !== candidate.toLowerCase()) {
+        return false;
+      }
+
+      return isInlineTagBoundaryCharacter(text[index + 1 + candidateLength] || '');
+    });
+
+    if (!match) {
+      continue;
+    }
+
+    const end = index + 1 + match.length;
+    matches.push({
+      start: index,
+      end,
+      displayTagName: text.slice(index + 1, end),
+      canonicalTagName: getCanonicalTagName(match),
+    });
+    index = end - 1;
+  }
+
+  return matches;
+}
+
+function collectInlineTagTextSegments(container, hostWindow) {
   const textNodes = [];
-
-  container.querySelectorAll('[data-degrande-inline-tag]').forEach((chip) => {
-    syncCmdkInlineTagChip(chip);
-  });
-
-  const walker = hostDocument.createTreeWalker(
+  const walker = container.ownerDocument.createTreeWalker(
     container,
     hostWindow.NodeFilter.SHOW_TEXT,
     {
       acceptNode(node) {
         const parentElement = node.parentElement;
 
-        if (!node.nodeValue?.includes('#') || !parentElement) {
+        if (!node.nodeValue || !parentElement) {
           return hostWindow.NodeFilter.FILTER_REJECT;
         }
 
-        if (parentElement.closest('[data-degrande-inline-tag], [data-degrande-search-tag-label], mark')) {
+        if (parentElement.closest('[data-degrande-inline-tag], [data-degrande-search-tag-label], a.tag[data-ref]')) {
           return hostWindow.NodeFilter.FILTER_REJECT;
         }
 
@@ -1470,48 +1519,99 @@ function syncInlineTagTextNodes(container) {
     }
   );
 
+  let offset = 0;
+
   while (walker.nextNode()) {
-    textNodes.push(walker.currentNode);
+    const node = walker.currentNode;
+    const value = node.nodeValue || '';
+
+    textNodes.push({
+      node,
+      start: offset,
+      end: offset + value.length,
+      value,
+    });
+    offset += value.length;
   }
 
-  const inlineTagPattern = /(^|[\s([{"'])#([^\s#.,;:!?()[\]{}"']+)/gu;
+  return textNodes;
+}
 
-  textNodes.forEach((node) => {
-    const text = node.nodeValue || '';
-    let lastIndex = 0;
-    let match = null;
-    let hasReplacement = false;
-    const fragment = hostDocument.createDocumentFragment();
+function getTextPositionForOffset(segments, offset) {
+  const safeOffset = Math.max(0, offset);
 
-    while ((match = inlineTagPattern.exec(text))) {
-      const prefix = match[1] || '';
-      const displayTagName = match[2] || '';
-      const tagStart = match.index + prefix.length;
-      const tagEnd = match.index + match[0].length;
-      const canonicalTagName = getCanonicalTagName(displayTagName);
-
-      if (!isKnownCmdkInlineTag(canonicalTagName)) {
-        continue;
-      }
-
-      if (tagStart > lastIndex) {
-        fragment.appendChild(hostDocument.createTextNode(text.slice(lastIndex, tagStart)));
-      }
-
-      fragment.appendChild(createCmdkInlineTagChip(hostDocument, displayTagName, canonicalTagName));
-      lastIndex = tagEnd;
-      hasReplacement = true;
+  for (const segment of segments) {
+    if (safeOffset >= segment.start && safeOffset <= segment.end) {
+      return {
+        node: segment.node,
+        offset: safeOffset - segment.start,
+      };
     }
+  }
 
-    if (!hasReplacement) {
+  const lastSegment = segments[segments.length - 1];
+
+  if (!lastSegment) {
+    return null;
+  }
+
+  return {
+    node: lastSegment.node,
+    offset: lastSegment.value.length,
+  };
+}
+
+function syncInlineTagTextNodes(container) {
+  if (!container) {
+    return;
+  }
+
+  const hostDocument = container.ownerDocument;
+  const hostWindow = hostDocument.defaultView || window;
+
+  container.querySelectorAll('[data-degrande-inline-tag]').forEach((chip) => {
+    syncCmdkInlineTagChip(chip);
+  });
+
+  const segments = collectInlineTagTextSegments(container, hostWindow);
+  const combinedText = segments.map((segment) => segment.value).join('');
+
+  if (!combinedText.includes('#')) {
+    return;
+  }
+
+  const matches = collectCmdkInlineTagMatches(combinedText).filter((match) => isKnownCmdkInlineTag(match.canonicalTagName));
+
+  if (!matches.length) {
+    return;
+  }
+
+  matches.reverse().forEach((match) => {
+    const startPosition = getTextPositionForOffset(segments, match.start);
+    const endPosition = getTextPositionForOffset(segments, match.end);
+
+    if (!startPosition || !endPosition) {
       return;
     }
 
-    if (lastIndex < text.length) {
-      fragment.appendChild(hostDocument.createTextNode(text.slice(lastIndex)));
-    }
+    const range = hostDocument.createRange();
 
-    node.parentNode?.replaceChild(fragment, node);
+    try {
+      range.setStart(startPosition.node, startPosition.offset);
+      range.setEnd(endPosition.node, endPosition.offset);
+
+      const extracted = range.extractContents();
+
+      if (!extracted.textContent?.trim()) {
+        return;
+      }
+
+      range.insertNode(createCmdkInlineTagChip(hostDocument, match.displayTagName, match.canonicalTagName, extracted));
+    } catch (error) {
+      // Ignore malformed transient ranges while Logseq is rerendering search rows.
+    } finally {
+      range.detach?.();
+    }
   });
 }
 
