@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.46";
+const FALLBACK_PLUGIN_VERSION = "0.4.47";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1962,6 +1962,173 @@ function syncInlineTagHighlightStyle() {
   }
 }
 
+// React-safe DOM mutation for the [[name]] page-search popover.
+//
+// The previous splicing approach used Range.extractContents() which REMOVED
+// the React-tracked text node from its parent, causing crashes when React
+// later called parent.removeChild(originalNode) on unmount.
+//
+// This approach uses Text.splitText() instead. splitText() keeps the original
+// text node in place (just shortens its nodeValue) and inserts NEW text nodes
+// next to it. The React-tracked node never leaves its parent. Only the
+// newly-created sibling nodes (which React knows nothing about) get wrapped
+// in our chip span.
+//
+// Cleanup merges chip text back into the original node by mutating its
+// nodeValue (safe — React doesn't track text values defensively) and removes
+// only the nodes we created.
+function cleanupInlineTagChipsInRoot(scanRoot) {
+  if (!scanRoot) {
+    return;
+  }
+  let chips;
+  try {
+    chips = scanRoot.querySelectorAll('[data-degrande-popover-chip]');
+  } catch (_) {
+    return;
+  }
+  chips.forEach((chip) => {
+    try {
+      const inner = chip.firstChild;
+      const innerText = (inner && inner.nodeType === 3)
+        ? (inner.nodeValue || '')
+        : (chip.textContent || '');
+      const prev = chip.previousSibling;
+      const next = chip.nextSibling;
+      const parent = chip.parentNode;
+
+      // Best effort: merge chip + trailing text node back into preceding
+      // text node so the row text reads naturally again.
+      if (prev && prev.nodeType === 3 && parent) {
+        let merged = (prev.nodeValue || '') + innerText;
+        if (next && next.nodeType === 3 && next.parentNode === parent) {
+          merged += (next.nodeValue || '');
+          try { parent.removeChild(next); } catch (_) {}
+        }
+        try { prev.nodeValue = merged; } catch (_) {}
+      }
+
+      if (parent) {
+        try { parent.removeChild(chip); } catch (_) {}
+      }
+    } catch (_) {
+      // ignore — best effort cleanup
+    }
+  });
+}
+
+function paintInlineTagChipsViaSplit(scanRoot, hostDocument, hostWindow) {
+  if (!scanRoot || !hostDocument || !hostWindow) {
+    return false;
+  }
+
+  // Clear any prior chips and any prior highlights for this scanRoot so the
+  // two paint paths don't double-render.
+  cleanupInlineTagChipsInRoot(scanRoot);
+  try {
+    clearInlineTagHighlightsForRoot(scanRoot, hostWindow);
+  } catch (_) {}
+
+  let walker;
+  try {
+    walker = hostDocument.createTreeWalker(
+      scanRoot,
+      hostWindow.NodeFilter.SHOW_TEXT,
+      {
+        acceptNode(node) {
+          const value = node.nodeValue;
+          if (!value || !value.includes('#')) {
+            return hostWindow.NodeFilter.FILTER_REJECT;
+          }
+          const parent = node.parentElement;
+          if (!parent) {
+            return hostWindow.NodeFilter.FILTER_REJECT;
+          }
+          if (parent.closest(
+            'a.tag[data-ref], [data-degrande-inline-tag], [data-degrande-search-tag-label], [data-degrande-popover-chip], code, pre, script, style'
+          )) {
+            return hostWindow.NodeFilter.FILTER_REJECT;
+          }
+          return hostWindow.NodeFilter.FILTER_ACCEPT;
+        },
+      }
+    );
+  } catch (_) {
+    return false;
+  }
+
+  // Collect first; do not mutate during walking.
+  const textNodes = [];
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode);
+  }
+
+  let anySuccess = false;
+
+  for (const node of textNodes) {
+    const value = node.nodeValue || '';
+    let matches;
+    try {
+      matches = collectCmdkInlineTagMatches(value);
+    } catch (_) {
+      continue;
+    }
+    if (!matches || !matches.length) {
+      continue;
+    }
+
+    // Process right-to-left so earlier offsets remain valid as we splitText.
+    matches.sort((a, b) => b.start - a.start);
+
+    for (const match of matches) {
+      if (!match.canonicalTagName || !isKnownCmdkInlineTag(match.canonicalTagName)) {
+        continue;
+      }
+      const themeState = getCmdkTagThemeState(match.canonicalTagName);
+      if (!themeState || !themeState.theme) {
+        continue;
+      }
+
+      try {
+        // node currently holds the (possibly already shortened) prefix that
+        // still includes this match. splitText keeps `node` as the part
+        // BEFORE match.start and returns a new text node containing match
+        // and everything after.
+        const tagAndRest = node.splitText(match.start);
+        // Now isolate just the tag substring; afterTag = text following tag.
+        tagAndRest.splitText(match.end - match.start);
+
+        // Wrap tagAndRest (the brand-new tag-only text node) in a span chip.
+        // tagAndRest is NOT React-tracked — we just created it via splitText.
+        const span = hostDocument.createElement('span');
+        span.setAttribute('data-degrande-popover-chip', match.canonicalTagName);
+        const t = themeState.theme;
+        span.style.setProperty('background-color', t.background);
+        span.style.setProperty('color', t.color);
+        span.style.setProperty('border', `1px solid ${t.borderColor}`);
+        span.style.setProperty('border-radius', '6px');
+        span.style.setProperty('padding', '0 5px');
+        span.style.setProperty('font-size', '0.82em');
+        span.style.setProperty('line-height', '1.25');
+        span.style.setProperty('white-space', 'nowrap');
+        span.style.setProperty('vertical-align', 'baseline');
+
+        const parent = tagAndRest.parentNode;
+        if (parent) {
+          parent.insertBefore(span, tagAndRest);
+          span.appendChild(tagAndRest);
+          anySuccess = true;
+        }
+      } catch (_) {
+        // Stop processing this text node; another may still succeed.
+        break;
+      }
+    }
+  }
+
+  return anySuccess;
+}
+
 function syncCmdkInlineTags(row) {
   const scanRoot = getCmdkInlineTagScanRoot(row);
 
@@ -1976,14 +2143,26 @@ function syncCmdkInlineTags(row) {
     return;
   }
 
-  // Do NOT splice chip elements into React-managed page-search popover rows
-  // (the [[name]] autocomplete). extractContents/insertNode destroys the
-  // text nodes React owns and causes removeChild errors when React unmounts
-  // the popover, crashing the editor. Use the CSS Custom Highlights API
-  // instead — it paints over Range objects without touching the DOM.
+  // Do NOT use Range.extractContents()/insertNode() inside the React-managed
+  // page-search popover ([[name]] autocomplete) — that REMOVES the React-
+  // tracked text node from its parent and crashes the editor on unmount.
+  //
+  // Instead try Text.splitText()-based wrapping first (keeps the original
+  // text node in place; only newly-created sibling nodes are wrapped). If
+  // any split throws, fall back to the CSS Custom Highlights API which
+  // paints over Range objects without any DOM mutation.
   if (row.closest && row.closest('[data-editor-popup-ref="page-search"]')) {
     const hostWindow = scanRoot.ownerDocument?.defaultView || window;
-    paintInlineTagHighlights(scanRoot, hostWindow);
+    const hostDocument = scanRoot.ownerDocument;
+    let chipPainted = false;
+    try {
+      chipPainted = paintInlineTagChipsViaSplit(scanRoot, hostDocument, hostWindow);
+    } catch (_) {
+      chipPainted = false;
+    }
+    if (!chipPainted) {
+      paintInlineTagHighlights(scanRoot, hostWindow);
+    }
     return;
   }
 
