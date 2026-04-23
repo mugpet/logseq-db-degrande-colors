@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.43";
+const FALLBACK_PLUGIN_VERSION = "0.4.44";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1783,6 +1783,17 @@ function syncCmdkInlineTags(row) {
   }
 
   if (getCmdkHashIconNode(row)) {
+    scanRoot.querySelectorAll('[data-degrande-inline-tag]').forEach((chip) => {
+      syncCmdkInlineTagChip(chip);
+    });
+    return;
+  }
+
+  // Do not splice chip elements into React-managed page-search popover rows
+  // (the [[name]] autocomplete). extractContents/insertNode destroys text
+  // nodes React owns and causes removeChild errors when React unmounts the
+  // popover, crashing the editor. Only refresh existing chips, if any.
+  if (row.closest && row.closest('[data-editor-popup-ref="page-search"]')) {
     scanRoot.querySelectorAll('[data-degrande-inline-tag]').forEach((chip) => {
       syncCmdkInlineTagChip(chip);
     });
