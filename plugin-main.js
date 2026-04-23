@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.44";
+const FALLBACK_PLUGIN_VERSION = "0.4.45";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -3006,7 +3006,7 @@ function getManagedOverrideTagNames() {
 }
 
 function buildSearchTagChipSelector(themePrefix = "") {
-  return `${themePrefix}:where(.cp__cmdk, .cp__select-main, .cp__palette-main) a.tag[data-ref]`;
+  return `${themePrefix}:where(.cp__cmdk, .cp__select-main, .cp__palette-main, [data-editor-popup-ref="page-search"]) a.tag[data-ref]`;
 }
 
 function buildGroupedTagChipSelectors(tagNames, themePrefix = "") {
@@ -3016,8 +3016,8 @@ function buildGroupedTagChipSelectors(tagNames, themePrefix = "") {
     return [
       `${themePrefix}a.tag[data-ref="${escapedTagName}" i]`,
       `${themePrefix}a.tag[data-ref="${escapedTagName}" i]:hover`,
-      `${themePrefix}:where(.cp__cmdk, .cp__select-main, .cp__palette-main) a.tag[data-ref="${escapedTagName}" i]`,
-      `${themePrefix}:where(.cp__cmdk, .cp__select-main, .cp__palette-main) a.tag[data-ref="${escapedTagName}" i]:hover`,
+      `${themePrefix}:where(.cp__cmdk, .cp__select-main, .cp__palette-main, [data-editor-popup-ref="page-search"]) a.tag[data-ref="${escapedTagName}" i]`,
+      `${themePrefix}:where(.cp__cmdk, .cp__select-main, .cp__palette-main, [data-editor-popup-ref="page-search"]) a.tag[data-ref="${escapedTagName}" i]:hover`,
     ];
   }).join(",\n");
 }
