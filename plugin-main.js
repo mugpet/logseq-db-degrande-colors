@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.45";
+const FALLBACK_PLUGIN_VERSION = "0.4.46";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1775,6 +1775,193 @@ function locateOffset(segments, offset) {
   return { node: last.node, offset: last.node.nodeValue?.length || 0 };
 }
 
+// CSS Custom Highlights API path: lets us color inline tag text inside
+// React-managed surfaces (page-search popover) without mutating the DOM, so
+// React's reconciliation never sees orphaned text nodes (the cause of the
+// removeChild crash that splicing chips would trigger).
+const HIGHLIGHT_RANGES_KEY = '__degrandeColorsInlineHighlightRanges';
+const HIGHLIGHT_REGISTRY_KEY = '__degrandeColorsInlineHighlightRegistry';
+const HIGHLIGHT_NAME_PREFIX = 'degrande-inline-';
+const HIGHLIGHT_STYLE_ELEMENT_ID = 'degrande-colors-inline-tag-highlights';
+
+function slugifyTagForHighlight(tagName) {
+  return String(tagName || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'untagged';
+}
+
+function getInlineTagHighlightSupported(hostWindow) {
+  return Boolean(hostWindow?.CSS?.highlights && typeof hostWindow.Highlight === 'function');
+}
+
+function getInlineTagHighlight(hostWindow, canonicalTagName) {
+  if (!getInlineTagHighlightSupported(hostWindow)) {
+    return null;
+  }
+
+  let registry = hostWindow[HIGHLIGHT_REGISTRY_KEY];
+  if (!registry) {
+    registry = new Map();
+    hostWindow[HIGHLIGHT_REGISTRY_KEY] = registry;
+  }
+
+  const slug = slugifyTagForHighlight(canonicalTagName);
+  const name = HIGHLIGHT_NAME_PREFIX + slug;
+
+  let highlight = registry.get(name);
+  if (!highlight) {
+    highlight = new hostWindow.Highlight();
+    registry.set(name, highlight);
+    try {
+      hostWindow.CSS.highlights.set(name, highlight);
+    } catch (registerError) {
+      registry.delete(name);
+      return null;
+    }
+  }
+
+  return highlight;
+}
+
+function getInlineTagHighlightTracker(hostWindow) {
+  let tracker = hostWindow[HIGHLIGHT_RANGES_KEY];
+  if (!tracker) {
+    tracker = new WeakMap();
+    hostWindow[HIGHLIGHT_RANGES_KEY] = tracker;
+  }
+  return tracker;
+}
+
+function clearInlineTagHighlightsForRoot(scanRoot, hostWindow) {
+  if (!getInlineTagHighlightSupported(hostWindow)) {
+    return;
+  }
+  const tracker = getInlineTagHighlightTracker(hostWindow);
+  const previous = tracker.get(scanRoot);
+  if (!previous || !previous.length) {
+    return;
+  }
+  previous.forEach(({ highlight, range }) => {
+    try { highlight.delete(range); } catch (_) { /* ignore */ }
+  });
+  tracker.delete(scanRoot);
+}
+
+function paintInlineTagHighlights(scanRoot, hostWindow) {
+  if (!scanRoot || !getInlineTagHighlightSupported(hostWindow)) {
+    return false;
+  }
+
+  const hostDocument = scanRoot.ownerDocument;
+  if (!hostDocument) {
+    return false;
+  }
+
+  clearInlineTagHighlightsForRoot(scanRoot, hostWindow);
+
+  const tracker = getInlineTagHighlightTracker(hostWindow);
+  const tracked = [];
+
+  let walker;
+  try {
+    walker = hostDocument.createTreeWalker(
+      scanRoot,
+      hostWindow.NodeFilter.SHOW_TEXT,
+      {
+        acceptNode(node) {
+          const value = node.nodeValue;
+          if (!value || !value.includes('#')) {
+            return hostWindow.NodeFilter.FILTER_REJECT;
+          }
+          const parent = node.parentElement;
+          if (!parent) {
+            return hostWindow.NodeFilter.FILTER_REJECT;
+          }
+          // Skip nodes inside real tag links, existing chips, code, scripts.
+          if (parent.closest(
+            'a.tag[data-ref], [data-degrande-inline-tag], [data-degrande-search-tag-label], code, pre, script, style'
+          )) {
+            return hostWindow.NodeFilter.FILTER_REJECT;
+          }
+          return hostWindow.NodeFilter.FILTER_ACCEPT;
+        },
+      }
+    );
+  } catch (walkerError) {
+    return false;
+  }
+
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const value = node.nodeValue || '';
+    let matches;
+    try {
+      matches = collectCmdkInlineTagMatches(value);
+    } catch (matchError) {
+      continue;
+    }
+    if (!matches || !matches.length) {
+      continue;
+    }
+    for (const match of matches) {
+      if (!match.canonicalTagName || !isKnownCmdkInlineTag(match.canonicalTagName)) {
+        continue;
+      }
+      const highlight = getInlineTagHighlight(hostWindow, match.canonicalTagName);
+      if (!highlight) {
+        continue;
+      }
+      let range;
+      try {
+        range = hostDocument.createRange();
+        range.setStart(node, match.start);
+        range.setEnd(node, match.end);
+        highlight.add(range);
+      } catch (rangeError) {
+        continue;
+      }
+      tracked.push({ highlight, range });
+    }
+  }
+
+  if (tracked.length) {
+    tracker.set(scanRoot, tracked);
+  }
+  return true;
+}
+
+function buildInlineTagHighlightCss() {
+  const tagNames = Array.from(new Set(getKnownTagNames().filter(Boolean)));
+  if (!tagNames.length) {
+    return '';
+  }
+  const rules = [];
+  tagNames.forEach((tagName) => {
+    const canonical = getCanonicalTagName(tagName);
+    const slug = slugifyTagForHighlight(canonical);
+    const theme = getCmdkTagThemeState(canonical);
+    if (!theme || !theme.theme) {
+      return;
+    }
+    rules.push(
+      `::highlight(${HIGHLIGHT_NAME_PREFIX}${slug}) {\n` +
+      `  background-color: ${theme.theme.background};\n` +
+      `  color: ${theme.theme.color};\n` +
+      `}`
+    );
+  });
+  return rules.join('\n');
+}
+
+function syncInlineTagHighlightStyle() {
+  try {
+    setHostStyleText(HIGHLIGHT_STYLE_ELEMENT_ID, buildInlineTagHighlightCss());
+  } catch (_) {
+    // ignore — host document may not be accessible (packaged plugin)
+  }
+}
+
 function syncCmdkInlineTags(row) {
   const scanRoot = getCmdkInlineTagScanRoot(row);
 
@@ -1789,14 +1976,14 @@ function syncCmdkInlineTags(row) {
     return;
   }
 
-  // Do not splice chip elements into React-managed page-search popover rows
-  // (the [[name]] autocomplete). extractContents/insertNode destroys text
-  // nodes React owns and causes removeChild errors when React unmounts the
-  // popover, crashing the editor. Only refresh existing chips, if any.
+  // Do NOT splice chip elements into React-managed page-search popover rows
+  // (the [[name]] autocomplete). extractContents/insertNode destroys the
+  // text nodes React owns and causes removeChild errors when React unmounts
+  // the popover, crashing the editor. Use the CSS Custom Highlights API
+  // instead — it paints over Range objects without touching the DOM.
   if (row.closest && row.closest('[data-editor-popup-ref="page-search"]')) {
-    scanRoot.querySelectorAll('[data-degrande-inline-tag]').forEach((chip) => {
-      syncCmdkInlineTagChip(chip);
-    });
+    const hostWindow = scanRoot.ownerDocument?.defaultView || window;
+    paintInlineTagHighlights(scanRoot, hostWindow);
     return;
   }
 
@@ -1857,6 +2044,8 @@ function syncCmdkTagRow(row) {
 function syncCmdkTagStyles() {
   const hostWindow = getHostWindow();
   const diag = { ts: Date.now(), version: PLUGIN_VERSION, docs: 0, rows: 0, marked: 0, errors: [] };
+
+  syncInlineTagHighlightStyle();
 
   try {
     getObservableHostDocuments().forEach((hostDocument) => {
@@ -7924,6 +8113,7 @@ async function applyManagedOverrides(showToast = false, statusMessage = "Updated
 
   syncHostColorVariables();
   syncAllTagDrivenNodeStyles();
+  syncInlineTagHighlightStyle();
   scheduleCmdkTagStyleSync();
   scheduleSidebarTagStyleSync();
 
