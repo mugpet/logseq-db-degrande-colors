@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.51";
+const FALLBACK_PLUGIN_VERSION = "0.4.52";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -531,6 +531,67 @@ function disconnectObserverGroup(registry) {
   registry.forEach((entry) => {
     entry?.disconnect?.();
   });
+}
+
+// === DIAGNOSTIC KILL-SWITCH (v0.4.52) ===
+// Lets the user disconnect every Degrande MutationObserver at runtime so we can
+// confirm whether observer cost is what causes the Ctrl+K / [[ ]] / property
+// dropdown latency. Use from DevTools:
+//   __degrandeKillObservers()      // disconnect all 5 observers
+//   __degrandeRestoreObservers()   // reattach them
+// Persistent boot-time skip:
+//   localStorage.setItem('degrandeKillObservers','1'); // then reload Logseq
+//   localStorage.removeItem('degrandeKillObservers');
+function shouldSkipObserversAtBoot() {
+  try {
+    const hostWindow = getHostWindow();
+    return hostWindow?.localStorage?.getItem?.('degrandeKillObservers') === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function killAllDegrandeObservers() {
+  const hostWindow = getHostWindow();
+  const keys = [
+    "__degrandeColorsToolbarObserver",
+    "__degrandeColorsHostColorObserver",
+    "__degrandeColorsTagNodeStyleObserver",
+    "__degrandeColorsCmdkStyleObserver",
+    "__degrandeColorsSidebarStyleObserver",
+  ];
+  let count = 0;
+  keys.forEach((key) => {
+    const reg = hostWindow[key];
+    if (Array.isArray(reg)) {
+      reg.forEach((o) => { try { o?.disconnect?.(); count++; } catch (_) {} });
+    } else if (reg) {
+      try { reg.disconnect?.(); count++; } catch (_) {}
+    }
+    hostWindow[key] = null;
+  });
+  try { hostWindow.console?.log?.('[degrande] killed', count, 'observers'); } catch (_) {}
+  return count;
+}
+
+function restoreAllDegrandeObservers() {
+  try {
+    observeHostColorTargets();
+    observeTagDrivenNodeStyles();
+    observeCmdkSearchResults();
+    observeSidebarTagStyles();
+    getHostWindow().console?.log?.('[degrande] observers restored');
+  } catch (e) {
+    getHostWindow().console?.error?.('[degrande] restore failed', e);
+  }
+}
+
+function exposeDegrandeKillSwitch() {
+  try {
+    const hostWindow = getHostWindow();
+    hostWindow.__degrandeKillObservers = killAllDegrandeObservers;
+    hostWindow.__degrandeRestoreObservers = restoreAllDegrandeObservers;
+  } catch (_) {}
 }
 
 function canAccessExternalHostDocument() {
@@ -8520,10 +8581,16 @@ async function main() {
   }
 
   await reloadThemeCss(false, false);
-  observeHostColorTargets();
-  observeTagDrivenNodeStyles();
-  observeCmdkSearchResults();
-  observeSidebarTagStyles();
+  exposeDegrandeKillSwitch();
+
+  if (shouldSkipObserversAtBoot()) {
+    try { getHostWindow().console?.warn?.('[degrande] observers skipped at boot via localStorage.degrandeKillObservers=1'); } catch (_) {}
+  } else {
+    observeHostColorTargets();
+    observeTagDrivenNodeStyles();
+    observeCmdkSearchResults();
+    observeSidebarTagStyles();
+  }
 
   logseq.provideModel({
     openThemeLoader,
