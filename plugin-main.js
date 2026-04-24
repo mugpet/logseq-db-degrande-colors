@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.57";
+const FALLBACK_PLUGIN_VERSION = "0.4.58";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -5776,25 +5776,41 @@ function buildAppearanceDiagnosticsMarkup() {
       </div>
       <div class="ctl-section-head" style="margin-top:16px;">
         <div>
-          <h2>Performance Kill-Switch</h2>
-          <p>If Logseq feels slow with this plugin enabled, use these to isolate the cause. The buttons disconnect / reattach all 5 host MutationObservers at runtime. Setting the boot toggle skips them on next reload.</p>
+          <h2>Performance Diagnostics</h2>
+          <p>Pick ONE test from the dropdown, click <b>Apply &amp; Reload</b>, then test toolbar / Ctrl+K speed in Logseq. Use <b>Reset everything</b> to return the plugin to normal.</p>
         </div>
       </div>
-      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-        <button class="ctl-button ctl-button-secondary" data-action="degrande-kill-observers">Disable Observers Now</button>
-        <button class="ctl-button ctl-button-secondary" data-action="degrande-restore-observers">Re-enable Observers</button>
-        <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-boot-skip">Toggle Boot Skip</button>
-        <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-neuter">Toggle Full Neuter (reload)</button>
-        <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-db-onchanged">Toggle DB.onChanged (reload)</button>
-        <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-skip-activation">Toggle Skip Activation (reload)</button>
-        <button class="ctl-button ctl-button-secondary" data-action="degrande-bisect-toolbar">Bisect: skip Toolbar (reload)</button>
-        <button class="ctl-button ctl-button-secondary" data-action="degrande-bisect-commands">Bisect: skip Commands (reload)</button>
-        <button class="ctl-button ctl-button-secondary" data-action="degrande-bisect-providestyle">Bisect: skip provideStyle (reload)</button>
-        <button class="ctl-button ctl-button-secondary" data-action="degrande-bisect-providemodel">Bisect: skip provideModel (reload)</button>
-        <button class="ctl-button ctl-button-secondary" data-action="degrande-bisect-clear">Bisect: clear all (reload)</button>
-        <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-perflog">Toggle Perf Log</button>
-        <span data-role="degrande-killswitch-status" style="align-self:center; opacity:.75; font-size:12px;"></span>
-      </div>
+      ${(() => {
+        const FLAGS = [
+          ["degrandeSkipActivation", "Skip Activation (plugin does nothing)"],
+          ["degrandeNeuter", "Full Neuter (no SDK callbacks)"],
+          ["degrandeDisableDbOnChanged", "Skip DB.onChanged subscription"],
+          ["degrandeKillObservers", "Skip MutationObservers at boot"],
+          ["degrandeBisectSkipToolbar", "Bisect: skip toolbar item"],
+          ["degrandeBisectSkipCommands", "Bisect: skip command palette commands"],
+          ["degrandeBisectSkipProvideStyle", "Bisect: skip provideStyle(toolbar)"],
+          ["degrandeBisectSkipProvideModel", "Bisect: skip provideModel"],
+        ];
+        let activeKey = "none";
+        let activeLabel = "Normal (no test active)";
+        try {
+          for (const [k, label] of FLAGS) {
+            if (getHostWindow()?.localStorage?.getItem?.(k) === "1") { activeKey = k; activeLabel = label; break; }
+          }
+        } catch (_) {}
+        const opts = [`<option value="none"${activeKey === "none" ? " selected" : ""}>— Normal (no test active) —</option>`]
+          .concat(FLAGS.map(([k, label]) => `<option value="${k}"${activeKey === k ? " selected" : ""}>${escapeHtml(label)}</option>`))
+          .join("");
+        return `
+          <div style="margin-top:8px; font-size:12px;"><b>Currently active:</b> ${escapeHtml(activeLabel)}</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px;">
+            <select data-role="degrande-diag-select" style="padding:6px 8px; min-width:280px;">${opts}</select>
+            <button class="ctl-button" data-action="degrande-diag-apply">Apply &amp; Reload</button>
+            <button class="ctl-button ctl-button-secondary" data-action="degrande-diag-reset">Reset everything (no test, reload)</button>
+          </div>
+        `;
+      })()}
+      <div data-role="degrande-killswitch-status" style="margin-top:8px; font-size:12px; opacity:.85;"></div>
     </section>
   `;
 }
@@ -8047,122 +8063,32 @@ function mountPanel() {
       return;
     }
 
-    if (action === "degrande-kill-observers") {
-      const n = (typeof killAllDegrandeObservers === "function") ? killAllDegrandeObservers() : 0;
-      const status = document.querySelector('[data-role="degrande-killswitch-status"]');
-      if (status) status.textContent = `Disconnected ${n} observer${n === 1 ? "" : "s"}.`;
-      return;
-    }
-
-    if (action === "degrande-restore-observers") {
-      if (typeof restoreAllDegrandeObservers === "function") restoreAllDegrandeObservers();
-      const status = document.querySelector('[data-role="degrande-killswitch-status"]');
-      if (status) status.textContent = "Observers re-enabled.";
-      return;
-    }
-
-    if (action === "degrande-toggle-boot-skip") {
+    if (action === "degrande-diag-apply" || action === "degrande-diag-reset") {
       try {
         const hostWindow = getHostWindow();
-        const cur = hostWindow.localStorage.getItem('degrandeKillObservers') === '1';
-        if (cur) {
-          hostWindow.localStorage.removeItem('degrandeKillObservers');
-        } else {
-          hostWindow.localStorage.setItem('degrandeKillObservers', '1');
+        const ALL_FLAGS = [
+          "degrandeSkipActivation",
+          "degrandeNeuter",
+          "degrandeDisableDbOnChanged",
+          "degrandeKillObservers",
+          "degrandeBisectSkipToolbar",
+          "degrandeBisectSkipCommands",
+          "degrandeBisectSkipProvideStyle",
+          "degrandeBisectSkipProvideModel",
+        ];
+        // Always start from a clean slate so only one test is active at a time.
+        ALL_FLAGS.forEach((k) => hostWindow.localStorage.removeItem(k));
+
+        if (action === "degrande-diag-apply") {
+          const select = document.querySelector('[data-role="degrande-diag-select"]');
+          const choice = select ? String(select.value || "none") : "none";
+          if (choice !== "none" && ALL_FLAGS.includes(choice)) {
+            hostWindow.localStorage.setItem(choice, "1");
+          }
         }
-        const status = document.querySelector('[data-role="degrande-killswitch-status"]');
-        if (status) status.textContent = cur
-          ? "Boot skip OFF. Observers will start normally on next reload."
-          : "Boot skip ON. Reload Logseq — observers will NOT start.";
-      } catch (_) {}
-      return;
-    }
 
-    if (action === "degrande-toggle-neuter") {
-      try {
-        const hostWindow = getHostWindow();
-        const cur = hostWindow.localStorage.getItem('degrandeNeuter') === '1';
-        if (cur) hostWindow.localStorage.removeItem('degrandeNeuter');
-        else hostWindow.localStorage.setItem('degrandeNeuter', '1');
-        const status = document.querySelector('[data-role="degrande-killswitch-status"]');
-        if (status) status.textContent = cur
-          ? "Neuter OFF. Reload Logseq."
-          : "Neuter ON. Reload Logseq — every Degrande callback will no-op and host styles will be empty. If Logseq is STILL slow after reload, the cost is in the plugin iframe/SDK itself, not in our code.";
-      } catch (_) {}
-      return;
-    }
-
-    if (action === "degrande-toggle-perflog") {
-      try {
-        const hostWindow = getHostWindow();
-        const cur = hostWindow.localStorage.getItem('degrandePerfLog') === '1';
-        if (cur) hostWindow.localStorage.removeItem('degrandePerfLog');
-        else hostWindow.localStorage.setItem('degrandePerfLog', '1');
-        const status = document.querySelector('[data-role="degrande-killswitch-status"]');
-        if (status) status.textContent = cur
-          ? "Perf log OFF."
-          : "Perf log ON. Open Logseq DevTools console; any Degrande callback >1ms will print as [degrande] <name> <ms>ms. Click slow toolbar icons and report the loudest line.";
-      } catch (_) {}
-      return;
-    }
-
-    if (action === "degrande-toggle-db-onchanged") {
-      try {
-        const hostWindow = getHostWindow();
-        const cur = hostWindow.localStorage.getItem('degrandeDisableDbOnChanged') === '1';
-        if (cur) hostWindow.localStorage.removeItem('degrandeDisableDbOnChanged');
-        else hostWindow.localStorage.setItem('degrandeDisableDbOnChanged', '1');
-        const status = document.querySelector('[data-role="degrande-killswitch-status"]');
-        if (status) status.textContent = cur
-          ? "DB.onChanged ENABLED on next reload."
-          : "DB.onChanged subscription will be SKIPPED on next reload. This is the unique-to-colors callback that calendar/bullet-threading do not use; Logseq fires it on every transaction. Reload Logseq, test toolbar/Ctrl+K speed, and report whether the freezes are gone.";
-      } catch (_) {}
-      return;
-    }
-
-    if (action === "degrande-toggle-skip-activation") {
-      try {
-        const hostWindow = getHostWindow();
-        const cur = hostWindow.localStorage.getItem('degrandeSkipActivation') === '1';
-        if (cur) hostWindow.localStorage.removeItem('degrandeSkipActivation');
-        else hostWindow.localStorage.setItem('degrandeSkipActivation', '1');
-        const status = document.querySelector('[data-role="degrande-killswitch-status"]');
-        if (status) status.textContent = cur
-          ? "Skip Activation OFF. Reload Logseq."
-          : "Skip Activation ON. Reload Logseq - the plugin will do NOTHING. To turn off without the panel: open Logseq DevTools console and run  localStorage.removeItem('degrandeSkipActivation'); location.reload();";
-      } catch (_) {}
-      return;
-    }
-
-    const bisectFlag = {
-      "degrande-bisect-toolbar":       { key: "degrandeBisectSkipToolbar",       label: "Toolbar item" },
-      "degrande-bisect-commands":      { key: "degrandeBisectSkipCommands",      label: "Command palette commands" },
-      "degrande-bisect-providestyle":  { key: "degrandeBisectSkipProvideStyle",  label: "provideStyle(toolbar)" },
-      "degrande-bisect-providemodel":  { key: "degrandeBisectSkipProvideModel",  label: "provideModel" },
-    }[action];
-
-    if (bisectFlag) {
-      try {
-        const hostWindow = getHostWindow();
-        const cur = hostWindow.localStorage.getItem(bisectFlag.key) === '1';
-        if (cur) hostWindow.localStorage.removeItem(bisectFlag.key);
-        else hostWindow.localStorage.setItem(bisectFlag.key, '1');
-        // Also disable Skip Activation so the bisect actually runs.
-        hostWindow.localStorage.removeItem('degrandeSkipActivation');
-        const status = document.querySelector('[data-role="degrande-killswitch-status"]');
-        if (status) status.textContent = cur
-          ? `${bisectFlag.label} ENABLED on next reload.`
-          : `${bisectFlag.label} will be SKIPPED on next reload. Reload Logseq, test toolbar/Ctrl+K speed, and report whether the freezes are gone.`;
-      } catch (_) {}
-      return;
-    }
-
-    if (action === "degrande-bisect-clear") {
-      try {
-        const hostWindow = getHostWindow();
-        ["degrandeBisectSkipToolbar","degrandeBisectSkipCommands","degrandeBisectSkipProvideStyle","degrandeBisectSkipProvideModel","degrandeSkipActivation","degrandeNeuter","degrandeDisableDbOnChanged","degrandeKillObservers"].forEach((k) => hostWindow.localStorage.removeItem(k));
-        const status = document.querySelector('[data-role="degrande-killswitch-status"]');
-        if (status) status.textContent = "All bisect/kill flags cleared. Reload Logseq.";
+        // Reload Logseq itself, not the iframe.
+        try { hostWindow.location.reload(); } catch (_) { try { window.location.reload(); } catch (_) {} }
       } catch (_) {}
       return;
     }
@@ -8855,7 +8781,7 @@ async function main() {
       `,
     });
   } else if (shouldRegisterHostUi) {
-    try { getHostWindow().console?.warn?.('[degrande] BISECT: toolbar item skipped'); } catch (_) {}
+    try { getHostWindow().console?.warn?.('[degrande] BISECT: toolbar item skipped. To restore: localStorage.removeItem("degrandeBisectSkipToolbar"); location.reload();'); } catch (_) {}
   }
 
   syncThemeLoaderToggleState();
