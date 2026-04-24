@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.52";
+const FALLBACK_PLUGIN_VERSION = "0.4.53";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -5731,6 +5731,18 @@ function buildAppearanceDiagnosticsMarkup() {
           </div>
         `).join("")}
       </div>
+      <div class="ctl-section-head" style="margin-top:16px;">
+        <div>
+          <h2>Performance Kill-Switch</h2>
+          <p>If Logseq feels slow with this plugin enabled, use these to isolate the cause. The buttons disconnect / reattach all 5 host MutationObservers at runtime. Setting the boot toggle skips them on next reload.</p>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+        <button class="ctl-button ctl-button-secondary" data-action="degrande-kill-observers">Disable Observers Now</button>
+        <button class="ctl-button ctl-button-secondary" data-action="degrande-restore-observers">Re-enable Observers</button>
+        <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-boot-skip">Toggle Boot Skip</button>
+        <span data-role="degrande-killswitch-status" style="align-self:center; opacity:.75; font-size:12px;"></span>
+      </div>
     </section>
   `;
 }
@@ -7980,6 +7992,37 @@ function mountPanel() {
 
     if (action === "reset-controls") {
       await resetControls();
+      return;
+    }
+
+    if (action === "degrande-kill-observers") {
+      const n = (typeof killAllDegrandeObservers === "function") ? killAllDegrandeObservers() : 0;
+      const status = document.querySelector('[data-role="degrande-killswitch-status"]');
+      if (status) status.textContent = `Disconnected ${n} observer${n === 1 ? "" : "s"}.`;
+      return;
+    }
+
+    if (action === "degrande-restore-observers") {
+      if (typeof restoreAllDegrandeObservers === "function") restoreAllDegrandeObservers();
+      const status = document.querySelector('[data-role="degrande-killswitch-status"]');
+      if (status) status.textContent = "Observers re-enabled.";
+      return;
+    }
+
+    if (action === "degrande-toggle-boot-skip") {
+      try {
+        const hostWindow = getHostWindow();
+        const cur = hostWindow.localStorage.getItem('degrandeKillObservers') === '1';
+        if (cur) {
+          hostWindow.localStorage.removeItem('degrandeKillObservers');
+        } else {
+          hostWindow.localStorage.setItem('degrandeKillObservers', '1');
+        }
+        const status = document.querySelector('[data-role="degrande-killswitch-status"]');
+        if (status) status.textContent = cur
+          ? "Boot skip OFF. Observers will start normally on next reload."
+          : "Boot skip ON. Reload Logseq — observers will NOT start.";
+      } catch (_) {}
       return;
     }
 
