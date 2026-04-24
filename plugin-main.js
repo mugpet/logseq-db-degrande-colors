@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.49";
+const FALLBACK_PLUGIN_VERSION = "0.4.48";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1068,20 +1068,24 @@ function observeHostColorTargets() {
   hostWindow[HOST_COLOR_SYNC_OBSERVER_KEY]?.disconnect?.();
 
   const observer = new HostMutationObserver((mutations) => {
-    // Cheap: only schedule a debounced full pass. Don't do per-node closest()/querySelector()
-    // walks here — when a large React subtree (Ctrl+K popup, page nav) mounts, those walks
-    // run synchronously across many observers and delay the popup paint by 1-2s.
+    // Fast-bail when no colored blocks exist anywhere in the document; avoids per-mutation
+    // closest()/querySelector() walks during normal editor activity (cursor blink emits style
+    // attribute mutations everywhere).
     if (!hostDocument.querySelector(HOST_COLOR_TARGET_SELECTOR)) {
       return;
     }
 
-    for (let i = 0; i < mutations.length; i += 1) {
-      const mutation = mutations[i];
-      if (mutation.type === 'attributes' || (mutation.addedNodes && mutation.addedNodes.length)) {
-        scheduleHostColorSync();
-        return;
+    mutations.forEach((mutation) => {
+      if (mutation.type === 'attributes' && nodeTouchesSelector(mutation.target, HOST_COLOR_TARGET_SELECTOR, hostWindow)) {
+        syncHostColorVariablesInSubtree(mutation.target, hostDocument);
       }
-    }
+
+      Array.from(mutation.addedNodes || []).forEach((node) => {
+        if (nodeTouchesSelector(node, HOST_COLOR_TARGET_SELECTOR, hostWindow)) {
+          syncHostColorVariablesInSubtree(node, hostDocument);
+        }
+      });
+    });
   });
 
   observer.observe(hostDocument.body || hostDocument.documentElement, {
@@ -1284,18 +1288,17 @@ function observeTagDrivenNodeStyles() {
     const documentWindow = hostDocument.defaultView || hostWindow;
     const HostMutationObserver = documentWindow.MutationObserver || MutationObserver;
     const observer = new HostMutationObserver((mutations) => {
-      // Cheap callback: only check mutation.target (closest is upward, O(depth)). Avoid deep
-      // querySelector walks on large added subtrees so popup/page mounts paint without delay.
-      // queueTagDrivenNodeStyleSync(hostDocument) requeues a full subtree pass under the
-      // existing 40ms debounce; that pass runs after paint.
-      for (let i = 0; i < mutations.length; i += 1) {
-        const target = mutations[i].target;
-        const candidate = target && target.nodeType === 3 ? target.parentElement : target;
-        if (candidate && candidate.closest && candidate.closest(".ls-block, .ls-block-right, .block-main-content")) {
-          queueTagDrivenNodeStyleSync(hostDocument, hostDocument);
-          return;
+      mutations.forEach((mutation) => {
+        if (nodeTouchesSelector(mutation.target, ".ls-block, .ls-block-right, a.tag[data-ref], .block-main-content", documentWindow)) {
+          queueTagDrivenNodeStyleSync(mutation.target, hostDocument);
         }
-      }
+
+        Array.from(mutation.addedNodes || []).forEach((node) => {
+          if (nodeTouchesSelector(node, ".ls-block, .ls-block-right, a.tag[data-ref], .block-main-content", documentWindow)) {
+            queueTagDrivenNodeStyleSync(node, hostDocument);
+          }
+        });
+      });
     });
 
     // Tag links (a.tag[data-ref]) are inserted/removed as elements; we don't need
@@ -2386,21 +2389,22 @@ function observeSidebarTagStyles() {
     const documentWindow = hostDocument.defaultView || hostWindow;
     const HostMutationObserver = documentWindow.MutationObserver || MutationObserver;
     const observer = new HostMutationObserver((mutations) => {
-      // Cheap callback: bail if sidebar isn't rendered, otherwise check mutation.target via
-      // upward closest() only. No deep querySelector over added subtrees (Ctrl+K popup mount
-      // would otherwise traverse the whole popup looking for the sidebar root).
+      // Fast-bail when the left sidebar isn't even rendered.
       if (!hostDocument.querySelector(SIDEBAR_ROOT_SELECTOR)) {
         return;
       }
 
-      for (let i = 0; i < mutations.length; i += 1) {
-        const target = mutations[i].target;
-        const candidate = target && target.nodeType === 3 ? target.parentElement : target;
-        if (candidate && candidate.closest && candidate.closest(SIDEBAR_ROOT_SELECTOR)) {
-          scheduleSidebarTagStyleSync();
-          return;
+      mutations.forEach((mutation) => {
+        if (nodeTouchesSidebar(mutation.target, documentWindow)) {
+          syncSidebarTagStylesInSubtree(mutation.target, hostDocument);
         }
-      }
+
+        Array.from(mutation.addedNodes || []).forEach((node) => {
+          if (nodeTouchesSidebar(node, documentWindow)) {
+            syncSidebarTagStylesInSubtree(node, hostDocument);
+          }
+        });
+      });
     });
 
     // Sidebar titles change via element add/remove (page entries) or page rename, both
@@ -2426,35 +2430,28 @@ function observeCmdkSearchResults() {
     const documentWindow = hostDocument.defaultView || hostWindow;
     const HostMutationObserver = documentWindow.MutationObserver || MutationObserver;
     const observer = new HostMutationObserver((mutations) => {
-      // Cheap callback: bail if no popup surface, then check mutation.target via upward
-      // closest() only. Skip deep querySelector(CMDK_SCOPE_SELECTOR) over added subtrees —
-      // when Ctrl+K mounts the popup as a large React subtree, traversing it across multiple
-      // observers blocks the main thread before paint.
+      // Fast-bail when no cmdk / popup surface is currently open. This avoids per-mutation
+      // closest() walks while the user types in the editor (no popup means no work to do).
       if (!hostDocument.querySelector(CMDK_SCOPE_SELECTOR)) {
         return;
       }
 
-      for (let i = 0; i < mutations.length; i += 1) {
-        const target = mutations[i].target;
-        const candidate = target && target.nodeType === 3 ? target.parentElement : target;
-        if (candidate && candidate.closest && candidate.closest(CMDK_SCOPE_SELECTOR)) {
-          scheduleCmdkTagStyleSync();
-          return;
-        }
-      }
+      let shouldSync = false;
 
-      // The popup root itself is added inside body; mutation.target=body won't match closest.
-      // Catch that one common case via cheap matches() on top-level addedNodes.
-      for (let i = 0; i < mutations.length; i += 1) {
-        const added = mutations[i].addedNodes;
-        if (!added || !added.length) continue;
-        for (let j = 0; j < added.length; j += 1) {
-          const node = added[j];
-          if (node && node.nodeType === 1 && node.matches && node.matches(CMDK_SCOPE_SELECTOR)) {
-            scheduleCmdkTagStyleSync();
-            return;
-          }
+      mutations.forEach((mutation) => {
+        if (!shouldSync && nodeTouchesCmdk(mutation.target, documentWindow)) {
+          shouldSync = true;
         }
+
+        Array.from(mutation.addedNodes || []).forEach((node) => {
+          if (!shouldSync && nodeTouchesCmdk(node, documentWindow)) {
+            shouldSync = true;
+          }
+        });
+      });
+
+      if (shouldSync) {
+        scheduleCmdkTagStyleSync();
       }
     });
 
