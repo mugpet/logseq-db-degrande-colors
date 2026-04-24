@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.61";
+const FALLBACK_PLUGIN_VERSION = "0.4.62";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -8645,15 +8645,18 @@ async function main() {
   // v0.4.59: bisect harness phase 2 — narrow which boot-phase work is slow.
   const _lsGet2 = (k) => { try { return getHostWindow()?.localStorage?.getItem?.(k) === '1'; } catch (_) { return false; } };
 
-  // v0.4.61: data-load is now fire-and-forget. It used to run synchronously here,
-  // which forced bridge round-trips into Logseq's DB worker BEFORE the worker was
-  // ready (it spends ~2s booting). That caused getGraphSyncStoragePage -> createPage
-  // to fail with "ISwap.-swap! defined for type null" and the failed writes were
-  // queued/retried, blocking the host worker on subsequent UI interactions.
-  // Now we just kick off the load and return. Logseq's onGraphAfterIndexed callback
-  // (registered below) reruns the load via syncPersistedAppearance once the DB is
-  // actually ready, so all values still land correctly.
-  const _runBootDataLoad = async () => {
+  // v0.4.62: the ONLY reliable "DB worker is ready" signal is onGraphAfterIndexed.
+  // primeGraphIndexedState via datascriptQuery returns a false-positive (null result,
+  // no error) during the ~2s worker boot, so earlier attempts to gate on it still
+  // raced. Now we run the entire boot data-load from inside the onGraphAfterIndexed
+  // handler (single code path, no duplicate work). If the handler doesn't fire
+  // within 10s — e.g. plugin hot-reload on an already-indexed graph — we run a
+  // one-shot fallback path.
+  panelState.bootLoadStarted = false;
+  const _runBootDataLoad = async (trigger) => {
+    if (panelState.bootLoadStarted) return;
+    panelState.bootLoadStarted = true;
+    try { getHostWindow().console?.warn?.(`[degrande-boot] start (trigger=${trigger})`); } catch (_) {}
     const _t = (label, p) => {
       const t0 = (getHostWindow()?.performance?.now?.() ?? Date.now());
       return Promise.resolve(p).finally(() => {
@@ -8664,6 +8667,7 @@ async function main() {
     await _t('syncCurrentGraphInfo',     syncCurrentGraphInfo());
     await _t('primeGraphIndexedState',   primeGraphIndexedState());
     await _t('loadStoredAppearanceState',loadStoredAppearanceState());
+    await _t('flushDeferredGraphSyncWrites', flushDeferredGraphSyncWrites());
     await _t('loadGraphSyncRevisionState',loadGraphSyncRevisionState());
     await _t('loadStoredControls',       loadStoredControls());
     await _t('loadStoredTagColors',      loadStoredTagColors());
@@ -8674,11 +8678,20 @@ async function main() {
     }
     try { getHostWindow().console?.warn?.('[degrande-boot] data-load + theme css complete'); } catch (_) {}
   };
+  // Expose so onGraphAfterIndexed handler (and the fallback timer) can kick it off.
+  panelState._runBootDataLoad = _runBootDataLoad;
 
   if (!_lsGet2('degrandeBisectSkipDataLoad')) {
-    void _runBootDataLoad();
+    // Fallback: if onGraphAfterIndexed never fires (plugin hot-reload on an
+    // already-indexed graph), run the load anyway after a safe delay.
+    setTimeout(() => {
+      if (!panelState.bootLoadStarted) {
+        void _runBootDataLoad('fallback-timer');
+      }
+    }, 10000);
   } else {
     try { getHostWindow().console?.warn?.('[degrande] BISECT: data-load skipped'); } catch (_) {}
+    panelState.bootLoadStarted = true;
   }
 
   if (!isDegrandeNeutered() && !_lsGet2('degrandeBisectSkipBindContextMenu')) {
@@ -8716,6 +8729,14 @@ async function main() {
           }
 
           panelState.graphIndexed = true;
+
+          // v0.4.62: first fire — run the deferred boot data-load now that the
+          // DB worker is actually ready. On subsequent fires (graph change), the
+          // boot load has already run so re-sync appearance for the new graph.
+          if (!panelState.bootLoadStarted && typeof panelState._runBootDataLoad === "function") {
+            void panelState._runBootDataLoad('onGraphAfterIndexed');
+            return;
+          }
 
           void (async () => {
             await flushDeferredGraphSyncWrites();
