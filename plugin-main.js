@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.58";
+const FALLBACK_PLUGIN_VERSION = "0.4.59";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -5790,6 +5790,10 @@ function buildAppearanceDiagnosticsMarkup() {
           ["degrandeBisectSkipCommands", "Bisect: skip command palette commands"],
           ["degrandeBisectSkipProvideStyle", "Bisect: skip provideStyle(toolbar)"],
           ["degrandeBisectSkipProvideModel", "Bisect: skip provideModel"],
+          ["degrandeBisectSkipDataLoad", "Bisect 2: skip data load (sync/prime/loadStored*)"],
+          ["degrandeBisectSkipBindContextMenu", "Bisect 2: skip bindHostTagContextMenu"],
+          ["degrandeBisectSkipOtherCallbacks", "Bisect 2: skip onThemeMode/onCurrentGraph/onGraphAfterIndexed"],
+          ["degrandeBisectSkipReloadThemeCss", "Bisect 2: skip reloadThemeCss"],
         ];
         let activeKey = "none";
         let activeLabel = "Normal (no test active)";
@@ -8075,6 +8079,10 @@ function mountPanel() {
           "degrandeBisectSkipCommands",
           "degrandeBisectSkipProvideStyle",
           "degrandeBisectSkipProvideModel",
+          "degrandeBisectSkipDataLoad",
+          "degrandeBisectSkipBindContextMenu",
+          "degrandeBisectSkipOtherCallbacks",
+          "degrandeBisectSkipReloadThemeCss",
         ];
         // Always start from a clean slate so only one test is active at a time.
         ALL_FLAGS.forEach((k) => hostWindow.localStorage.removeItem(k));
@@ -8634,22 +8642,34 @@ async function main() {
   const hostToolbarButtonExists = Boolean(getHostDocument().getElementById(TOOLBAR_BUTTON_ID));
   const shouldRegisterHostUi = !hostSession[pluginId] && !hostToolbarButtonExists;
 
-  await syncCurrentGraphInfo();
-  await primeGraphIndexedState();
-  await loadStoredAppearanceState();
-  await loadGraphSyncRevisionState();
-  await loadStoredControls();
-  await loadStoredTagColors();
-  await loadStoredGradients();
-  setSyncState("synced");
-  if (!isDegrandeNeutered()) bindHostTagContextMenu();
+  // v0.4.59: bisect harness phase 2 — narrow which boot-phase work is slow.
+  const _lsGet2 = (k) => { try { return getHostWindow()?.localStorage?.getItem?.(k) === '1'; } catch (_) { return false; } };
+
+  if (!_lsGet2('degrandeBisectSkipDataLoad')) {
+    await syncCurrentGraphInfo();
+    await primeGraphIndexedState();
+    await loadStoredAppearanceState();
+    await loadGraphSyncRevisionState();
+    await loadStoredControls();
+    await loadStoredTagColors();
+    await loadStoredGradients();
+    setSyncState("synced");
+  } else {
+    try { getHostWindow().console?.warn?.('[degrande] BISECT: data-load skipped'); } catch (_) {}
+  }
+
+  if (!isDegrandeNeutered() && !_lsGet2('degrandeBisectSkipBindContextMenu')) {
+    bindHostTagContextMenu();
+  } else if (_lsGet2('degrandeBisectSkipBindContextMenu')) {
+    try { getHostWindow().console?.warn?.('[degrande] BISECT: bindHostTagContextMenu skipped'); } catch (_) {}
+  }
 
   const userConfigs = await logseq.App.getUserConfigs();
   setThemeMode(userConfigs?.preferredThemeMode);
 
   // v0.4.55: when neutered, do NOT register SDK callbacks at all.
   // Just no-op'ing the body still pays the bridge cost on every fire.
-  if (!isDegrandeNeutered()) {
+  if (!isDegrandeNeutered() && !_lsGet2('degrandeBisectSkipOtherCallbacks')) {
     logseq.App.onThemeModeChanged(({ mode }) => {
       degrandeTime("onThemeModeChanged", () => {
         setThemeMode(mode);
@@ -8724,7 +8744,11 @@ async function main() {
     try { getHostWindow().console?.warn?.('[degrande] FULL NEUTER: SDK callbacks not registered.'); } catch (_) {}
   }
 
-  await reloadThemeCss(false, false);
+  if (!_lsGet2('degrandeBisectSkipReloadThemeCss')) {
+    await reloadThemeCss(false, false);
+  } else {
+    try { getHostWindow().console?.warn?.('[degrande] BISECT: reloadThemeCss skipped'); } catch (_) {}
+  }
   exposeDegrandeKillSwitch();
 
   if (isDegrandeNeutered()) {
