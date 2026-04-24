@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.65";
+const FALLBACK_PLUGIN_VERSION = "0.4.66";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -531,110 +531,6 @@ function disconnectObserverGroup(registry) {
   registry.forEach((entry) => {
     entry?.disconnect?.();
   });
-}
-
-// === DIAGNOSTIC KILL-SWITCH (v0.4.52) ===
-// Lets the user disconnect every Degrande MutationObserver at runtime so we can
-// confirm whether observer cost is what causes the Ctrl+K / [[ ]] / property
-// dropdown latency. Use from DevTools:
-//   __degrandeKillObservers()      // disconnect all 5 observers
-//   __degrandeRestoreObservers()   // reattach them
-// Persistent boot-time skip:
-//   localStorage.setItem('degrandeKillObservers','1'); // then reload Logseq
-//   localStorage.removeItem('degrandeKillObservers');
-function shouldSkipObserversAtBoot() {
-  try {
-    const hostWindow = getHostWindow();
-    return hostWindow?.localStorage?.getItem?.('degrandeKillObservers') === '1';
-  } catch (_) {
-    return false;
-  }
-}
-
-function killAllDegrandeObservers() {
-  const hostWindow = getHostWindow();
-  const keys = [
-    "__degrandeColorsToolbarObserver",
-    "__degrandeColorsHostColorObserver",
-    "__degrandeColorsTagNodeStyleObserver",
-    "__degrandeColorsCmdkStyleObserver",
-    "__degrandeColorsSidebarStyleObserver",
-  ];
-  let count = 0;
-  keys.forEach((key) => {
-    const reg = hostWindow[key];
-    if (Array.isArray(reg)) {
-      reg.forEach((o) => { try { o?.disconnect?.(); count++; } catch (_) {} });
-    } else if (reg) {
-      try { reg.disconnect?.(); count++; } catch (_) {}
-    }
-    hostWindow[key] = null;
-  });
-  try { hostWindow.console?.log?.('[degrande] killed', count, 'observers'); } catch (_) {}
-  return count;
-}
-
-function restoreAllDegrandeObservers() {
-  try {
-    observeHostColorTargets();
-    observeTagDrivenNodeStyles();
-    observeCmdkSearchResults();
-    observeSidebarTagStyles();
-    getHostWindow().console?.log?.('[degrande] observers restored');
-  } catch (e) {
-    getHostWindow().console?.error?.('[degrande] restore failed', e);
-  }
-}
-
-function exposeDegrandeKillSwitch() {
-  try {
-    const hostWindow = getHostWindow();
-    hostWindow.__degrandeKillObservers = killAllDegrandeObservers;
-    hostWindow.__degrandeRestoreObservers = restoreAllDegrandeObservers;
-    hostWindow.__degrandeNeuter = () => { try { hostWindow.localStorage.setItem('degrandeNeuter','1'); } catch(_){} hostWindow.console?.warn?.('[degrande] neutered. Reload Logseq.'); };
-    hostWindow.__degrandeUnneuter = () => { try { hostWindow.localStorage.removeItem('degrandeNeuter'); } catch(_){} hostWindow.console?.warn?.('[degrande] unneutered. Reload Logseq.'); };
-    hostWindow.__degrandePerf = (on = true) => { try { hostWindow.localStorage.setItem('degrandePerfLog', on ? '1' : '0'); } catch(_){} hostWindow.console?.warn?.('[degrande] perf log', on ? 'ON' : 'OFF'); };
-  } catch (_) {}
-}
-
-function isDegrandeNeutered() {
-  try {
-    return getHostWindow()?.localStorage?.getItem?.('degrandeNeuter') === '1';
-  } catch (_) {
-    return false;
-  }
-}
-
-function isDbOnChangedDisabled() {
-  try {
-    return getHostWindow()?.localStorage?.getItem?.('degrandeDisableDbOnChanged') === '1';
-  } catch (_) {
-    return false;
-  }
-}
-
-function isDegrandePerfLogOn() {
-  try {
-    return getHostWindow()?.localStorage?.getItem?.('degrandePerfLog') === '1';
-  } catch (_) {
-    return false;
-  }
-}
-
-function degrandeTime(label, fn, extra) {
-  if (!isDegrandePerfLogOn()) {
-    return fn();
-  }
-  const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-  try {
-    return fn();
-  } finally {
-    const t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-    const dt = t1 - t0;
-    if (dt > 1) {
-      try { getHostWindow().console?.log?.(`[degrande] ${label} ${dt.toFixed(1)}ms` + (extra !== undefined ? ` (${extra})` : '')); } catch (_) {}
-    }
-  }
 }
 
 function canAccessExternalHostDocument() {
@@ -5800,47 +5696,6 @@ function buildAppearanceDiagnosticsMarkup() {
           </div>
         `).join("")}
       </div>
-      <div class="ctl-section-head" style="margin-top:16px;">
-        <div>
-          <h2>Performance Diagnostics</h2>
-          <p>Pick ONE test from the dropdown, click <b>Apply &amp; Reload</b>, then test toolbar / Ctrl+K speed in Logseq. Use <b>Reset everything</b> to return the plugin to normal.</p>
-        </div>
-      </div>
-      ${(() => {
-        const FLAGS = [
-          ["degrandeSkipActivation", "Skip Activation (plugin does nothing)"],
-          ["degrandeNeuter", "Full Neuter (no SDK callbacks)"],
-          ["degrandeDisableDbOnChanged", "Skip DB.onChanged subscription"],
-          ["degrandeKillObservers", "Skip MutationObservers at boot"],
-          ["degrandeBisectSkipToolbar", "Bisect: skip toolbar item"],
-          ["degrandeBisectSkipCommands", "Bisect: skip command palette commands"],
-          ["degrandeBisectSkipProvideStyle", "Bisect: skip provideStyle(toolbar)"],
-          ["degrandeBisectSkipProvideModel", "Bisect: skip provideModel"],
-          ["degrandeBisectSkipDataLoad", "Bisect 2: skip data load (sync/prime/loadStored*)"],
-          ["degrandeBisectSkipBindContextMenu", "Bisect 2: skip bindHostTagContextMenu"],
-          ["degrandeBisectSkipOtherCallbacks", "Bisect 2: skip onThemeMode/onCurrentGraph/onGraphAfterIndexed"],
-          ["degrandeBisectSkipReloadThemeCss", "Bisect 2: skip reloadThemeCss"],
-        ];
-        let activeKey = "none";
-        let activeLabel = "Normal (no test active)";
-        try {
-          for (const [k, label] of FLAGS) {
-            if (getHostWindow()?.localStorage?.getItem?.(k) === "1") { activeKey = k; activeLabel = label; break; }
-          }
-        } catch (_) {}
-        const opts = [`<option value="none"${activeKey === "none" ? " selected" : ""}>— Normal (no test active) —</option>`]
-          .concat(FLAGS.map(([k, label]) => `<option value="${k}"${activeKey === k ? " selected" : ""}>${escapeHtml(label)}</option>`))
-          .join("");
-        return `
-          <div style="margin-top:8px; font-size:12px;"><b>Currently active:</b> ${escapeHtml(activeLabel)}</div>
-          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px;">
-            <select data-role="degrande-diag-select" style="padding:6px 8px; min-width:280px;">${opts}</select>
-            <button class="ctl-button" data-action="degrande-diag-apply">Apply &amp; Reload</button>
-            <button class="ctl-button ctl-button-secondary" data-action="degrande-diag-reset">Reset everything (no test, reload)</button>
-          </div>
-        `;
-      })()}
-      <div data-role="degrande-killswitch-status" style="margin-top:8px; font-size:12px; opacity:.85;"></div>
     </section>
   `;
 }
@@ -8093,41 +7948,6 @@ function mountPanel() {
       return;
     }
 
-    if (action === "degrande-diag-apply" || action === "degrande-diag-reset") {
-      try {
-        const hostWindow = getHostWindow();
-        const ALL_FLAGS = [
-          "degrandeSkipActivation",
-          "degrandeNeuter",
-          "degrandeDisableDbOnChanged",
-          "degrandeKillObservers",
-          "degrandeBisectSkipToolbar",
-          "degrandeBisectSkipCommands",
-          "degrandeBisectSkipProvideStyle",
-          "degrandeBisectSkipProvideModel",
-          "degrandeBisectSkipDataLoad",
-          "degrandeBisectSkipBindContextMenu",
-          "degrandeBisectSkipOtherCallbacks",
-          "degrandeBisectSkipReloadThemeCss",
-        ];
-        // Always start from a clean slate so only one test is active at a time.
-        ALL_FLAGS.forEach((k) => hostWindow.localStorage.removeItem(k));
-
-        if (action === "degrande-diag-apply") {
-          const select = document.querySelector('[data-role="degrande-diag-select"]');
-          const choice = select ? String(select.value || "none") : "none";
-          if (choice !== "none" && ALL_FLAGS.includes(choice)) {
-            hostWindow.localStorage.setItem(choice, "1");
-          }
-        }
-
-        // Reload Logseq itself, not the iframe.
-        try { hostWindow.location.reload(); } catch (_) { try { window.location.reload(); } catch (_) {} }
-      } catch (_) {}
-      return;
-    }
-
-
     if (action === "clear-tag-color") {
       if (!panelState.selectedTag) {
         return;
@@ -8646,20 +8466,6 @@ async function resetTagColors() {
 }
 
 async function main() {
-  // v0.4.56: Skip-Activation mode. If toggled on via panel/console, bail before any
-  // UI registrations (toolbar item, settings schema, provideStyle, provideModel,
-  // setMainUIInlineStyle) and before any SDK callbacks. This is the "uninstall
-  // without uninstalling" diagnostic: if Logseq is still slow with this on, the
-  // cost is in just having the plugin iframe loaded by Logseq, not in our code.
-  // To turn off: in Logseq DevTools console run
-  //   localStorage.removeItem('degrandeSkipActivation'); location.reload();
-  try {
-    if (getHostWindow()?.localStorage?.getItem?.('degrandeSkipActivation') === '1') {
-      try { getHostWindow().console?.warn?.('[degrande] SKIP ACTIVATION active. Plugin did nothing. To re-enable: localStorage.removeItem("degrandeSkipActivation"); reload Logseq.'); } catch (_) {}
-      return;
-    }
-  } catch (_) {}
-
   const pluginId = logseq.baseInfo.id;
   const commandKey = (suffix) => `${pluginId}/${suffix}`;
   const activationMessage = `Degrande Colors v${PLUGIN_VERSION} is active with graph-backed sync for this Logseq DB graph.`;
@@ -8668,224 +8474,119 @@ async function main() {
   const hostToolbarButtonExists = Boolean(getHostDocument().getElementById(TOOLBAR_BUTTON_ID));
   const shouldRegisterHostUi = !hostSession[pluginId] && !hostToolbarButtonExists;
 
-  // v0.4.59: bisect harness phase 2 — narrow which boot-phase work is slow.
-  const _lsGet2 = (k) => { try { return getHostWindow()?.localStorage?.getItem?.(k) === '1'; } catch (_) { return false; } };
-
-  // v0.4.62: the ONLY reliable "DB worker is ready" signal is onGraphAfterIndexed.
-  // primeGraphIndexedState via datascriptQuery returns a false-positive (null result,
-  // no error) during the ~2s worker boot, so earlier attempts to gate on it still
-  // raced. Now we run the entire boot data-load from inside the onGraphAfterIndexed
-  // handler (single code path, no duplicate work). If the handler doesn't fire
-  // within 10s — e.g. plugin hot-reload on an already-indexed graph — we run a
-  // one-shot fallback path.
+  // The ONLY reliable "DB worker is ready" signal is onGraphAfterIndexed.
+  // primeGraphIndexedState via datascriptQuery returns a false-positive (null
+  // result, no error) during the ~2s worker boot, so we run the entire boot
+  // data-load from inside the onGraphAfterIndexed handler. If it never fires
+  // (e.g. plugin hot-reload on an already-indexed graph), a 10s fallback
+  // timer kicks the same path.
   panelState.bootLoadStarted = false;
-  const _runBootDataLoad = async (trigger) => {
+  const _runBootDataLoad = async () => {
     if (panelState.bootLoadStarted) return;
     panelState.bootLoadStarted = true;
-    try { getHostWindow().console?.warn?.(`[degrande-boot] start (trigger=${trigger})`); } catch (_) {}
-    const _t = (label, p) => {
-      const t0 = (getHostWindow()?.performance?.now?.() ?? Date.now());
-      return Promise.resolve(p).finally(() => {
-        const dt = (getHostWindow()?.performance?.now?.() ?? Date.now()) - t0;
-        try { getHostWindow().console?.warn?.(`[degrande-boot] ${label}: ${dt.toFixed(1)}ms`); } catch (_) {}
-      });
-    };
-    await _t('syncCurrentGraphInfo',     syncCurrentGraphInfo());
-    await _t('primeGraphIndexedState',   primeGraphIndexedState());
-    await _t('loadStoredAppearanceState',loadStoredAppearanceState());
-    await _t('flushDeferredGraphSyncWrites', flushDeferredGraphSyncWrites());
-    await _t('loadGraphSyncRevisionState',loadGraphSyncRevisionState());
-    await _t('loadStoredControls',       loadStoredControls());
-    await _t('loadStoredTagColors',      loadStoredTagColors());
-    await _t('loadStoredGradients',      loadStoredGradients());
+    await syncCurrentGraphInfo();
+    await primeGraphIndexedState();
+    await loadStoredAppearanceState();
+    await flushDeferredGraphSyncWrites();
+    await loadGraphSyncRevisionState();
+    await loadStoredControls();
+    await loadStoredTagColors();
+    await loadStoredGradients();
     setSyncState("synced");
-    if (!_lsGet2('degrandeBisectSkipReloadThemeCss')) {
-      await _t('reloadThemeCss', reloadThemeCss(false, false));
-    }
-    try { getHostWindow().console?.warn?.('[degrande-boot] data-load + theme css complete'); } catch (_) {}
+    await reloadThemeCss(false, false);
   };
-  // Expose so onGraphAfterIndexed handler (and the fallback timer) can kick it off.
   panelState._runBootDataLoad = _runBootDataLoad;
 
-  if (!_lsGet2('degrandeBisectSkipDataLoad')) {
-    // Fallback: if onGraphAfterIndexed never fires (plugin hot-reload on an
-    // already-indexed graph), run the load anyway after a safe delay.
-    setTimeout(() => {
-      if (!panelState.bootLoadStarted) {
-        void _runBootDataLoad('fallback-timer');
-      }
-    }, 10000);
-  } else {
-    try { getHostWindow().console?.warn?.('[degrande] BISECT: data-load skipped'); } catch (_) {}
-    panelState.bootLoadStarted = true;
-  }
+  setTimeout(() => {
+    if (!panelState.bootLoadStarted) {
+      void _runBootDataLoad();
+    }
+  }, 10000);
 
-  if (!isDegrandeNeutered() && !_lsGet2('degrandeBisectSkipBindContextMenu')) {
-    bindHostTagContextMenu();
-  } else if (_lsGet2('degrandeBisectSkipBindContextMenu')) {
-    try { getHostWindow().console?.warn?.('[degrande] BISECT: bindHostTagContextMenu skipped'); } catch (_) {}
-  }
+  bindHostTagContextMenu();
 
   const userConfigs = await logseq.App.getUserConfigs();
   setThemeMode(userConfigs?.preferredThemeMode);
 
-  // v0.4.55: when neutered, do NOT register SDK callbacks at all.
-  // Just no-op'ing the body still pays the bridge cost on every fire.
-  // v0.4.63: split the previous single "other callbacks" flag into three so we
-  // can bisect which of the three App.* listeners is expensive. The umbrella
-  // flag `degrandeBisectSkipOtherCallbacks` still disables all three for
-  // back-compat with earlier bisect sessions.
-  if (!isDegrandeNeutered()) {
-    const _skipAll = _lsGet2('degrandeBisectSkipOtherCallbacks');
-    const _skipTheme   = _skipAll || _lsGet2('degrandeBisectSkipOnThemeModeChanged');
-    const _skipGraphCh = _skipAll || _lsGet2('degrandeBisectSkipOnCurrentGraphChanged');
-    const _skipIndexed = _skipAll || _lsGet2('degrandeBisectSkipOnGraphAfterIndexed');
+  logseq.App.onThemeModeChanged(({ mode }) => {
+    setThemeMode(mode);
+    rebuildTagDrivenNodeStyleState();
+    syncAllTagDrivenNodeStyles();
+    renderPanel(`Logseq theme: ${mode}`);
+  });
 
-    if (!_skipTheme) {
-      logseq.App.onThemeModeChanged(({ mode }) => {
-        degrandeTime("onThemeModeChanged", () => {
-          setThemeMode(mode);
-          rebuildTagDrivenNodeStyleState();
-          syncAllTagDrivenNodeStyles();
-          renderPanel(`Logseq theme: ${mode}`);
-        });
-      });
-    } else {
-      try { getHostWindow().console?.warn?.('[degrande] BISECT: onThemeModeChanged skipped'); } catch (_) {}
-    }
+  if (typeof logseq.App.onCurrentGraphChanged === "function") {
+    logseq.App.onCurrentGraphChanged(() => { void handleCurrentGraphChanged(); });
+  }
 
-    if (!_skipGraphCh && typeof logseq.App.onCurrentGraphChanged === "function") {
-      logseq.App.onCurrentGraphChanged(() => {
-        degrandeTime("onCurrentGraphChanged", () => { void handleCurrentGraphChanged(); });
-      });
-    } else if (_skipGraphCh) {
-      try { getHostWindow().console?.warn?.('[degrande] BISECT: onCurrentGraphChanged skipped'); } catch (_) {}
-    }
-
-    if (!_skipIndexed && typeof logseq.App.onGraphAfterIndexed === "function") {
-      // v0.4.64: Logseq fires onGraphAfterIndexed many times during normal use,
-      // not just once on boot. Previously each fire ran the full
-      // syncPersistedAppearance (4 bridge round-trips: loadGraphSyncRevisionState +
-      // loadStoredControls + loadStoredGradients + loadStoredTagColors), which
-      // stalled toolbar clicks, Ctrl+K, and [[ autocomplete. Now we use this
-      // callback only for its one critical job: kicking off the deferred boot
-      // data-load. After that, graph switches are handled by onCurrentGraphChanged,
-      // and intra-graph state changes by DB.onChanged. Subsequent fires early-return.
-      let _unsubscribeAfterIndexed = null;
-      const _indexedHandler = ({ repo }) => {
-        if (panelState.bootLoadStarted) {
-          // Already handled. Try to unsubscribe so we don't even pay the bridge
-          // cost on future fires.
-          try { _unsubscribeAfterIndexed?.(); } catch (_) {}
-          return;
-        }
-        degrandeTime("onGraphAfterIndexed", () => {
-          if (!doesRepoMatchGraph(repo)) {
-            return;
-          }
-          panelState.graphIndexed = true;
-          if (typeof panelState._runBootDataLoad === "function") {
-            void panelState._runBootDataLoad('onGraphAfterIndexed');
-          }
-        });
-      };
-      try {
-        _unsubscribeAfterIndexed = logseq.App.onGraphAfterIndexed(_indexedHandler);
-      } catch (_) {
-        logseq.App.onGraphAfterIndexed(_indexedHandler);
+  if (typeof logseq.App.onGraphAfterIndexed === "function") {
+    // Logseq fires onGraphAfterIndexed many times during normal use, not just
+    // once on boot. We use this callback only for its one critical job:
+    // kicking off the deferred boot data-load. After that, graph switches are
+    // handled by onCurrentGraphChanged, intra-graph state changes by
+    // DB.onChanged, and we try to unsubscribe to skip bridge cost on future
+    // fires.
+    let _unsubscribeAfterIndexed = null;
+    const _indexedHandler = ({ repo }) => {
+      if (panelState.bootLoadStarted) {
+        try { _unsubscribeAfterIndexed?.(); } catch (_) {}
+        return;
       }
-    } else if (_skipIndexed) {
-      try { getHostWindow().console?.warn?.('[degrande] BISECT: onGraphAfterIndexed skipped'); } catch (_) {}
-    }
-
-    // v0.4.55: DB.onChanged is the unique-to-colors callback. Calendar and bullet-threading
-    // do not subscribe at all. Logseq fires it on every transaction (including focus/route
-    // side-effects), and the cost lands BEFORE our handler runs because txData has to be
-    // serialized across the iframe bridge. Skip registration entirely when the user opts out.
-    if (typeof logseq.DB?.onChanged === "function" && !isDbOnChangedDisabled()) {
-      logseq.DB.onChanged(({ txData }) => {
-        degrandeTime("DB.onChanged", () => {
-          if (!Array.isArray(txData) || !txData.length) {
-            return;
-          }
-
-          const changeSummary = doesTxDataTouchDegrandeState(txData);
-
-          if (!changeSummary.touched) {
-            return;
-          }
-
-          if (changeSummary.syncStateChanged) {
-            schedulePersistedAppearanceSync({
-              reason: "Updated synced graph appearance",
-              fallbackToPrevious: false,
-              refreshTagCatalog: false,
-            });
-          }
-
-          if (changeSummary.tagCatalogChanged) {
-            scheduleTagCatalogRefresh();
-          }
-        }, txData?.length || 0);
-      });
-    } else if (typeof logseq.DB?.onChanged === "function") {
-      try { getHostWindow().console?.warn?.('[degrande] DB.onChanged subscription SKIPPED via localStorage.degrandeDisableDbOnChanged=1'); } catch (_) {}
-    }
-  } else {
-    try { getHostWindow().console?.warn?.('[degrande] FULL NEUTER: SDK callbacks not registered.'); } catch (_) {}
-  }
-
-  // v0.4.61: reloadThemeCss(false,false) used to run here synchronously.
-  // It now runs at the end of the deferred _runBootDataLoad() above so it sees
-  // populated panelState. Skipping it via degrandeBisectSkipReloadThemeCss is
-  // honored inside _runBootDataLoad.
-  exposeDegrandeKillSwitch();
-
-  if (isDegrandeNeutered()) {
+      if (!doesRepoMatchGraph(repo)) {
+        return;
+      }
+      panelState.graphIndexed = true;
+      if (typeof panelState._runBootDataLoad === "function") {
+        void panelState._runBootDataLoad();
+      }
+    };
     try {
-      // Wipe injected host styles so this is a true zero-impact mode.
-      setHostStyleText(BASE_STYLE_ELEMENT_ID, "");
-      setHostStyleText(MANAGED_STYLE_ELEMENT_ID, "");
-      getHostWindow().console?.warn?.('[degrande] FULL NEUTER active. All callbacks no-op, host styles wiped.');
-    } catch (_) {}
+      _unsubscribeAfterIndexed = logseq.App.onGraphAfterIndexed(_indexedHandler);
+    } catch (_) {
+      logseq.App.onGraphAfterIndexed(_indexedHandler);
+    }
   }
 
-  if (shouldSkipObserversAtBoot() || isDegrandeNeutered()) {
-    try { getHostWindow().console?.warn?.('[degrande] observers skipped at boot'); } catch (_) {}
-  } else {
-    observeHostColorTargets();
-    observeTagDrivenNodeStyles();
-    observeCmdkSearchResults();
-    observeSidebarTagStyles();
-  }
+  if (typeof logseq.DB?.onChanged === "function") {
+    logseq.DB.onChanged(({ txData }) => {
+      if (!Array.isArray(txData) || !txData.length) {
+        return;
+      }
 
-  // v0.4.57: bisect harness for the per-interaction slowness.
-  // Each section is gated by a localStorage flag so we can A/B in one reload.
-  // Set in panel via Diagnostics, or in DevTools console:
-  //   localStorage.setItem('degrandeBisectSkipToolbar','1')      // skip toolbar item
-  //   localStorage.setItem('degrandeBisectSkipCommands','1')     // skip Ctrl+K commands
-  //   localStorage.setItem('degrandeBisectSkipProvideModel','1') // skip provideModel
-  //   localStorage.setItem('degrandeBisectSkipProvideStyle','1') // skip toolbar provideStyle
-  // then location.reload(). Goal: find which one accounts for the slowness.
-  const lsGet = (k) => { try { return getHostWindow()?.localStorage?.getItem?.(k) === '1'; } catch (_) { return false; } };
+      const changeSummary = doesTxDataTouchDegrandeState(txData);
 
-  if (!lsGet('degrandeBisectSkipProvideModel')) {
-    logseq.provideModel({
-      openThemeLoader,
-      closeThemeLoader,
-      toggleThemeLoader,
+      if (!changeSummary.touched) {
+        return;
+      }
+
+      if (changeSummary.syncStateChanged) {
+        schedulePersistedAppearanceSync({
+          reason: "Updated synced graph appearance",
+          fallbackToPrevious: false,
+          refreshTagCatalog: false,
+        });
+      }
+
+      if (changeSummary.tagCatalogChanged) {
+        scheduleTagCatalogRefresh();
+      }
     });
-  } else {
-    try { getHostWindow().console?.warn?.('[degrande] BISECT: provideModel skipped'); } catch (_) {}
   }
 
-  if (!lsGet('degrandeBisectSkipProvideStyle')) {
-    logseq.provideStyle(getToolbarStyle());
-  } else {
-    try { getHostWindow().console?.warn?.('[degrande] BISECT: provideStyle(toolbar) skipped'); } catch (_) {}
-  }
+  observeHostColorTargets();
+  observeTagDrivenNodeStyles();
+  observeCmdkSearchResults();
+  observeSidebarTagStyles();
 
-  if (shouldRegisterHostUi && !lsGet('degrandeBisectSkipToolbar')) {
+  logseq.provideModel({
+    openThemeLoader,
+    closeThemeLoader,
+    toggleThemeLoader,
+  });
+
+  logseq.provideStyle(getToolbarStyle());
+
+  if (shouldRegisterHostUi) {
     registerToolbarItemSafely({
       key: "custom-theme-loader-open",
       template: `
@@ -8894,13 +8595,11 @@ async function main() {
         </a>
       `,
     });
-  } else if (shouldRegisterHostUi) {
-    try { getHostWindow().console?.warn?.('[degrande] BISECT: toolbar item skipped. To restore: localStorage.removeItem("degrandeBisectSkipToolbar"); location.reload();'); } catch (_) {}
   }
 
   syncThemeLoaderToggleState();
 
-  if (shouldRegisterHostUi && !lsGet('degrandeBisectSkipCommands')) {
+  if (shouldRegisterHostUi) {
     registerCommandPaletteSafely(
       {
         key: commandKey("open-panel"),
