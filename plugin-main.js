@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.59";
+const FALLBACK_PLUGIN_VERSION = "0.4.60";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -8646,13 +8646,20 @@ async function main() {
   const _lsGet2 = (k) => { try { return getHostWindow()?.localStorage?.getItem?.(k) === '1'; } catch (_) { return false; } };
 
   if (!_lsGet2('degrandeBisectSkipDataLoad')) {
-    await syncCurrentGraphInfo();
-    await primeGraphIndexedState();
-    await loadStoredAppearanceState();
-    await loadGraphSyncRevisionState();
-    await loadStoredControls();
-    await loadStoredTagColors();
-    await loadStoredGradients();
+    const _t = (label, p) => {
+      const t0 = (getHostWindow()?.performance?.now?.() ?? Date.now());
+      return Promise.resolve(p).finally(() => {
+        const dt = (getHostWindow()?.performance?.now?.() ?? Date.now()) - t0;
+        try { getHostWindow().console?.warn?.(`[degrande-boot] ${label}: ${dt.toFixed(1)}ms`); } catch (_) {}
+      });
+    };
+    await _t('syncCurrentGraphInfo',     syncCurrentGraphInfo());
+    await _t('primeGraphIndexedState',   primeGraphIndexedState());
+    await _t('loadStoredAppearanceState',loadStoredAppearanceState());
+    await _t('loadGraphSyncRevisionState',loadGraphSyncRevisionState());
+    await _t('loadStoredControls',       loadStoredControls());
+    await _t('loadStoredTagColors',      loadStoredTagColors());
+    await _t('loadStoredGradients',      loadStoredGradients());
     setSyncState("synced");
   } else {
     try { getHostWindow().console?.warn?.('[degrande] BISECT: data-load skipped'); } catch (_) {}
