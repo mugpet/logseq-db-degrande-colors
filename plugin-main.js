@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.47";
+const FALLBACK_PLUGIN_VERSION = "0.4.48";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -899,6 +899,19 @@ function scheduleToolbarButtonRender() {
   }, 40);
 }
 
+function isToolbarButtonMounted(hostDocument) {
+  const button = hostDocument.getElementById(TOOLBAR_BUTTON_ID);
+  if (!button) {
+    return false;
+  }
+  const wrapper = button.parentElement;
+  if (!wrapper || !wrapper.isConnected) {
+    return false;
+  }
+  // Treat as mounted when it is anchored inside a toolbar host (not just the body fallback).
+  return wrapper.getAttribute('data-toolbar-fallback') === 'false';
+}
+
 function observeToolbarHost() {
   const hostDocument = getHostDocument();
   const hostWindow = hostDocument.defaultView || window;
@@ -907,6 +920,12 @@ function observeToolbarHost() {
   hostWindow[TOOLBAR_OBSERVER_KEY]?.disconnect?.();
 
   const observer = new HostMutationObserver(() => {
+    // Skip the whole pipeline when the button is already mounted in a real toolbar host.
+    // Without this guard every DOM mutation in the host (typing, scroll, lazy block render)
+    // schedules a toolbar re-check.
+    if (isToolbarButtonMounted(hostDocument)) {
+      return;
+    }
     scheduleToolbarButtonRender();
   });
 
@@ -1049,6 +1068,13 @@ function observeHostColorTargets() {
   hostWindow[HOST_COLOR_SYNC_OBSERVER_KEY]?.disconnect?.();
 
   const observer = new HostMutationObserver((mutations) => {
+    // Fast-bail when no colored blocks exist anywhere in the document; avoids per-mutation
+    // closest()/querySelector() walks during normal editor activity (cursor blink emits style
+    // attribute mutations everywhere).
+    if (!hostDocument.querySelector(HOST_COLOR_TARGET_SELECTOR)) {
+      return;
+    }
+
     mutations.forEach((mutation) => {
       if (mutation.type === 'attributes' && nodeTouchesSelector(mutation.target, HOST_COLOR_TARGET_SELECTOR, hostWindow)) {
         syncHostColorVariablesInSubtree(mutation.target, hostDocument);
@@ -1275,10 +1301,11 @@ function observeTagDrivenNodeStyles() {
       });
     });
 
+    // Tag links (a.tag[data-ref]) are inserted/removed as elements; we don't need
+    // characterData notifications for every keystroke in the editor.
     observer.observe(hostDocument.body || hostDocument.documentElement, {
       childList: true,
       subtree: true,
-      characterData: true,
     });
 
     return observer;
@@ -2362,19 +2389,29 @@ function observeSidebarTagStyles() {
     const documentWindow = hostDocument.defaultView || hostWindow;
     const HostMutationObserver = documentWindow.MutationObserver || MutationObserver;
     const observer = new HostMutationObserver((mutations) => {
+      // Fast-bail when the left sidebar isn't even rendered.
+      if (!hostDocument.querySelector(SIDEBAR_ROOT_SELECTOR)) {
+        return;
+      }
+
       mutations.forEach((mutation) => {
-        syncSidebarTagStylesInSubtree(mutation.target, hostDocument);
+        if (nodeTouchesSidebar(mutation.target, documentWindow)) {
+          syncSidebarTagStylesInSubtree(mutation.target, hostDocument);
+        }
 
         Array.from(mutation.addedNodes || []).forEach((node) => {
-          syncSidebarTagStylesInSubtree(node, hostDocument);
+          if (nodeTouchesSidebar(node, documentWindow)) {
+            syncSidebarTagStylesInSubtree(node, hostDocument);
+          }
         });
       });
     });
 
+    // Sidebar titles change via element add/remove (page entries) or page rename, both
+    // childList-level. characterData would fire on every keystroke in the editor.
     observer.observe(hostDocument.body || hostDocument.documentElement, {
       childList: true,
       subtree: true,
-      characterData: true,
     });
 
     return observer;
@@ -2393,6 +2430,12 @@ function observeCmdkSearchResults() {
     const documentWindow = hostDocument.defaultView || hostWindow;
     const HostMutationObserver = documentWindow.MutationObserver || MutationObserver;
     const observer = new HostMutationObserver((mutations) => {
+      // Fast-bail when no cmdk / popup surface is currently open. This avoids per-mutation
+      // closest() walks while the user types in the editor (no popup means no work to do).
+      if (!hostDocument.querySelector(CMDK_SCOPE_SELECTOR)) {
+        return;
+      }
+
       let shouldSync = false;
 
       mutations.forEach((mutation) => {
@@ -2412,10 +2455,11 @@ function observeCmdkSearchResults() {
       }
     });
 
+    // cmdk rows are inserted/removed as elements; characterData would fire for every editor
+    // keystroke and force the popup-open lookup above on every event.
     observer.observe(hostDocument.body || hostDocument.documentElement, {
       childList: true,
       subtree: true,
-      characterData: true,
     });
 
     return observer;
