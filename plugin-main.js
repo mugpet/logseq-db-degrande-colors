@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.4";
+const FALLBACK_PLUGIN_VERSION = "0.5.5";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -199,6 +199,8 @@ const CONTROL_SECTIONS = [
       { key: "nodeBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
       { key: "nodeBorderColorToken", label: "Border Color Preset", type: "string", defaultValue: "green" },
       { key: "nodeBorderColor", label: "Border Color", type: "color", defaultValue: "#10b98155" },
+      { key: "nodePaddingY", label: "Vertical Padding", min: 0, max: 24, step: 1, unit: "px", defaultValue: 8 },
+      { key: "nodePaddingX", label: "Horizontal Padding", min: 0, max: 28, step: 1, unit: "px", defaultValue: 12 },
       { key: "nodeBorderTop", label: "Top", type: "boolean", defaultValue: true },
       { key: "nodeBorderRight", label: "Right", type: "boolean", defaultValue: true },
       { key: "nodeBorderBottom", label: "Bottom", type: "boolean", defaultValue: true },
@@ -224,6 +226,8 @@ const CONTROL_SECTIONS = [
       { key: "titleBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
       { key: "titleBorderColorToken", label: "Border Color Preset", type: "string", defaultValue: "amber" },
       { key: "titleBorderColor", label: "Border Color", type: "color", defaultValue: "#f59e0b55" },
+      { key: "titlePaddingY", label: "Vertical Padding", min: 0, max: 24, step: 1, unit: "px", defaultValue: 10 },
+      { key: "titlePaddingX", label: "Horizontal Padding", min: 0, max: 28, step: 1, unit: "px", defaultValue: 16 },
       { key: "titleBorderTop", label: "Top", type: "boolean", defaultValue: true },
       { key: "titleBorderRight", label: "Right", type: "boolean", defaultValue: true },
       { key: "titleBorderBottom", label: "Bottom", type: "boolean", defaultValue: true },
@@ -246,6 +250,8 @@ const CONTROL_SECTIONS = [
       { key: "highlightBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
       { key: "highlightBorderColorToken", label: "Border Color Preset", type: "string", defaultValue: "yellow" },
       { key: "highlightBorderColor", label: "Border Color", type: "color", defaultValue: "#facc1566" },
+      { key: "highlightPaddingY", label: "Vertical Padding", min: 0, max: 12, step: 1, unit: "px", defaultValue: 0 },
+      { key: "highlightPaddingX", label: "Horizontal Padding", min: 0, max: 16, step: 1, unit: "px", defaultValue: 3 },
       { key: "highlightBorderTop", label: "Top", type: "boolean", defaultValue: true },
       { key: "highlightBorderRight", label: "Right", type: "boolean", defaultValue: true },
       { key: "highlightBorderBottom", label: "Bottom", type: "boolean", defaultValue: true },
@@ -7311,7 +7317,7 @@ function buildPreviewMarkup() {
         ${buildGradientStripMarkup("node", getGradientArea("node"), GRADIENT_AREAS.node, getSelectedGradientStopIndex("node"))}
       </div>
     `,
-    [],
+    ["nodePaddingY", "nodePaddingX"],
     buildBorderEditorMarkup("node")
   );
   const titlePreview = buildGradientEditorMarkup(
@@ -7323,7 +7329,7 @@ function buildPreviewMarkup() {
         ${buildGradientStripMarkup("title", getGradientArea("title"), GRADIENT_AREAS.title, getSelectedGradientStopIndex("title"))}
       </div>
     `,
-    [],
+    ["titlePaddingY", "titlePaddingX"],
     buildBorderEditorMarkup("title")
   );
   const highlightPreview = buildGradientEditorMarkup(
@@ -7335,7 +7341,7 @@ function buildPreviewMarkup() {
         ${buildGradientStripMarkup("highlight", getGradientArea("highlight"), GRADIENT_AREAS.highlight, getSelectedGradientStopIndex("highlight"))}
       </div>
     `,
-    ["highlightStartPercent", "highlightEndPercent"],
+    ["highlightStartPercent", "highlightEndPercent", "highlightPaddingY", "highlightPaddingX"],
     buildBorderEditorMarkup("highlight")
   );
   const quotePreview = buildGradientEditorMarkup(
@@ -7492,6 +7498,7 @@ function syncPreviewStyles() {
     borderWidth: buildBorderWidthShorthand("node"),
     borderColor: nodeBorderColor,
     borderRadius: buildBorderRadiusShorthand("node"),
+    padding: `${controls.nodePaddingY}px ${controls.nodePaddingX}px`,
   });
 
   setPreviewElementStyle(document.querySelector('[data-role="preview-title-card"]'), {
@@ -7502,6 +7509,7 @@ function syncPreviewStyles() {
     borderWidth: buildBorderWidthShorthand("title"),
     borderColor: titleBorderColor,
     borderRadius: buildBorderRadiusShorthand("title"),
+    padding: `${controls.titlePaddingY}px ${controls.titlePaddingX}px`,
   });
 
   setPreviewElementStyle(document.querySelector('[data-role="preview-highlight"]'), {
@@ -7515,7 +7523,7 @@ function syncPreviewStyles() {
     borderWidth: buildBorderWidthShorthand("highlight"),
     borderColor: highlightBorderColor,
     borderRadius: buildBorderRadiusShorthand("highlight"),
-    padding: "0 0.18em",
+    padding: `${controls.highlightPaddingY}px ${controls.highlightPaddingX}px`,
     boxDecorationBreak: "clone",
     WebkitBoxDecorationBreak: "clone",
   });
@@ -8407,6 +8415,7 @@ ${buildSearchTagChipSelector(".dark-theme ")}:hover {
   border-style: solid !important;
   border-color: ${nodeBorderColor} !important;
   ${buildBorderRadiusDeclarations("node", " !important;")}
+  padding: ${controls.nodePaddingY}px ${controls.nodePaddingX}px !important;
 }
 `.trim(),
     pageTitles: `
@@ -8417,6 +8426,7 @@ ${buildSearchTagChipSelector(".dark-theme ")}:hover {
   border-style: solid !important;
   border-color: ${titleBorderColor} !important;
   ${buildBorderRadiusDeclarations("title", " !important;")}
+  padding: ${controls.titlePaddingY}px ${controls.titlePaddingX}px !important;
 }
 `.trim(),
     highlights: `
@@ -8433,7 +8443,7 @@ ${highlightMarkSelector} {
   border-style: solid !important;
   border-color: ${highlightBorderColor} !important;
   ${buildBorderRadiusDeclarations("highlight", " !important;")}
-  padding: 0 0.18em !important;
+  padding: ${controls.highlightPaddingY}px ${controls.highlightPaddingX}px !important;
   box-decoration-break: clone !important;
   -webkit-box-decoration-break: clone !important;
 
