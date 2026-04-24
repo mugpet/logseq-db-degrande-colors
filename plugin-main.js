@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.64";
+const FALLBACK_PLUGIN_VERSION = "0.4.65";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -2031,25 +2031,51 @@ function paintInlineTagHighlights(scanRoot, hostWindow) {
 
   if (tracked.length) {
     tracker.set(scanRoot, tracked);
+    // Emit the ::highlight() rules lazily, only for tags we just registered
+    // ranges for. The boot-time always-on rule list was the dominant cost.
+    syncInlineTagHighlightStyle();
   }
   return true;
 }
 
 function buildInlineTagHighlightCss() {
-  const tagNames = Array.from(new Set(getKnownTagNames().filter(Boolean)));
-  if (!tagNames.length) {
+  // Perf: only emit ::highlight() rules for tags that currently have live
+  // Range objects registered with CSS.highlights. Emitting one rule per
+  // *known* tag (used to be ~150 rules / 13KB) made every host
+  // Recalculate Style pass evaluate the Highlights API against every
+  // styled element and was the dominant cost for toolbar / Ctrl+K /
+  // [[autocomplete]] interactions even when no popover was open.
+  const hostWindow = getHostWindow();
+  const registry = hostWindow?.[HIGHLIGHT_REGISTRY_KEY];
+  if (!registry || !registry.size) {
     return '';
   }
   const rules = [];
-  tagNames.forEach((tagName) => {
-    const canonical = getCanonicalTagName(tagName);
-    const slug = slugifyTagForHighlight(canonical);
+  registry.forEach((highlight, name) => {
+    if (!highlight || typeof highlight.size !== 'number' || highlight.size === 0) {
+      return;
+    }
+    if (!name || !name.startsWith(HIGHLIGHT_NAME_PREFIX)) {
+      return;
+    }
+    const slug = name.slice(HIGHLIGHT_NAME_PREFIX.length);
+    // Recover canonical tag from registered tags by reverse-lookup of slug.
+    let canonical = null;
+    for (const tagName of getKnownTagNames()) {
+      if (slugifyTagForHighlight(getCanonicalTagName(tagName)) === slug) {
+        canonical = getCanonicalTagName(tagName);
+        break;
+      }
+    }
+    if (!canonical) {
+      return;
+    }
     const theme = getCmdkTagThemeState(canonical);
     if (!theme || !theme.theme) {
       return;
     }
     rules.push(
-      `::highlight(${HIGHLIGHT_NAME_PREFIX}${slug}) {\n` +
+      `::highlight(${name}) {\n` +
       `  background-color: ${theme.theme.background};\n` +
       `  color: ${theme.theme.color};\n` +
       `}`
