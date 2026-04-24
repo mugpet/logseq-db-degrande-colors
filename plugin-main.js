@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.62";
+const FALLBACK_PLUGIN_VERSION = "0.4.63";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -8705,23 +8705,38 @@ async function main() {
 
   // v0.4.55: when neutered, do NOT register SDK callbacks at all.
   // Just no-op'ing the body still pays the bridge cost on every fire.
-  if (!isDegrandeNeutered() && !_lsGet2('degrandeBisectSkipOtherCallbacks')) {
-    logseq.App.onThemeModeChanged(({ mode }) => {
-      degrandeTime("onThemeModeChanged", () => {
-        setThemeMode(mode);
-        rebuildTagDrivenNodeStyleState();
-        syncAllTagDrivenNodeStyles();
-        renderPanel(`Logseq theme: ${mode}`);
-      });
-    });
+  // v0.4.63: split the previous single "other callbacks" flag into three so we
+  // can bisect which of the three App.* listeners is expensive. The umbrella
+  // flag `degrandeBisectSkipOtherCallbacks` still disables all three for
+  // back-compat with earlier bisect sessions.
+  if (!isDegrandeNeutered()) {
+    const _skipAll = _lsGet2('degrandeBisectSkipOtherCallbacks');
+    const _skipTheme   = _skipAll || _lsGet2('degrandeBisectSkipOnThemeModeChanged');
+    const _skipGraphCh = _skipAll || _lsGet2('degrandeBisectSkipOnCurrentGraphChanged');
+    const _skipIndexed = _skipAll || _lsGet2('degrandeBisectSkipOnGraphAfterIndexed');
 
-    if (typeof logseq.App.onCurrentGraphChanged === "function") {
+    if (!_skipTheme) {
+      logseq.App.onThemeModeChanged(({ mode }) => {
+        degrandeTime("onThemeModeChanged", () => {
+          setThemeMode(mode);
+          rebuildTagDrivenNodeStyleState();
+          syncAllTagDrivenNodeStyles();
+          renderPanel(`Logseq theme: ${mode}`);
+        });
+      });
+    } else {
+      try { getHostWindow().console?.warn?.('[degrande] BISECT: onThemeModeChanged skipped'); } catch (_) {}
+    }
+
+    if (!_skipGraphCh && typeof logseq.App.onCurrentGraphChanged === "function") {
       logseq.App.onCurrentGraphChanged(() => {
         degrandeTime("onCurrentGraphChanged", () => { void handleCurrentGraphChanged(); });
       });
+    } else if (_skipGraphCh) {
+      try { getHostWindow().console?.warn?.('[degrande] BISECT: onCurrentGraphChanged skipped'); } catch (_) {}
     }
 
-    if (typeof logseq.App.onGraphAfterIndexed === "function") {
+    if (!_skipIndexed && typeof logseq.App.onGraphAfterIndexed === "function") {
       logseq.App.onGraphAfterIndexed(({ repo }) => {
         degrandeTime("onGraphAfterIndexed", () => {
           if (!doesRepoMatchGraph(repo)) {
@@ -8749,6 +8764,8 @@ async function main() {
           })();
         });
       });
+    } else if (_skipIndexed) {
+      try { getHostWindow().console?.warn?.('[degrande] BISECT: onGraphAfterIndexed skipped'); } catch (_) {}
     }
 
     // v0.4.55: DB.onChanged is the unique-to-colors callback. Calendar and bullet-threading
