@@ -106,10 +106,18 @@ a.tag, a.tag:hover, h1 a.tag, h2 a.tag, h3 a.tag, h4 a.tag {
 a.tag:hover { opacity: 0.96 !important; transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 2px 4px rgba(15, 23, 42, 0.12); }
 a.tag::before, a.tag * { color: inherit !important; font-size: inherit !important; }
 
-*:has(+ a.tag) svg, *:has(+ a.tag):hover svg { width: 12px !important; height: 12px !important; margin: 0 !important; }
-*:has(+ a.tag), *:has(+ a.tag):hover {
+/* Icon sizing for tag-adjacent icons. Uses the [data-degrande-search-tag-icon]
+   attribute that the plugin sets on cmdk hash icons. The previous
+   `*:has(+ a.tag)` selector forced Chromium to re-scan the entire document for
+   every DOM mutation (Ctrl+K mount, popup mount, typing) because the universal
+   subject combined with sibling `:has()` and `:hover` re-evaluates per element.
+   That single rule was the main cause of the 1-2s pop-up latency. */
+[data-degrande-search-tag-icon] svg,
+[data-degrande-search-tag-icon]:hover svg { width: 12px !important; height: 12px !important; margin: 0 !important; }
+[data-degrande-search-tag-icon],
+[data-degrande-search-tag-icon]:hover {
   position: relative; z-index: 10; display: inline-flex !important; align-items: center !important;
-  justify-content: center !important; width: 14px !important; padding: 0 0px 0 4px !important; overflow: hidden !important; 
+  justify-content: center !important; width: 14px !important; padding: 0 0px 0 4px !important; overflow: hidden !important;
 }
 
 /* ========================================= */
@@ -127,72 +135,22 @@ a.tag::before, a.tag * { color: inherit !important; font-size: inherit !importan
 /* 4a. Variable assignment is injected by the plugin when colors are enabled. */
 
 
-/* 4b. GRADIENT SHAPE LOGIC */
+/* 4b. GRADIENT SHAPE LOGIC
+ *
+ * The standard-node and page-title gradient rules previously lived here as a
+ * matrix of `.ls-block > div:first-child:not(.selected):not(.selected-block)
+ *   :not(:has(.block-content-or-editor-wrap.ls-page-title-container))
+ *   :has(a.tag[data-ref])` selectors (and dark-theme + h1.title/journal-title
+ * variants). Those `:has()` chains forced Chromium to re-evaluate the entire
+ * document on every DOM mutation (Ctrl+K popup, page mount, editor input) and
+ * caused a 1-2s freeze before popups could paint.
+ *
+ * The plugin now applies the same gradients through the JS-managed override
+ * layer using cheap data-attribute selectors that the observers maintain:
+ *   .ls-block > div:first-child[data-degrande-linked-node="true"]
+ *   .block-main-content[data-degrande-page-title-node="true"]
+ * No CSS rules are needed in this file for those targets. */
 
-/* TARGET 1: Standard Nodes (All bullet points) */
-.ls-block > div:first-child:not(.selected):not(.selected-block):not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(a.tag[data-ref]) {
-/*  background-image: linear-gradient(90deg, var(--node-color) 0%, transparent 10%) !important;
-*/
-  background-image: linear-gradient(90deg, transparent 0%, var(--node-color) 50%, transparent 80%) !important;
-  background-color: transparent !important;
-}
-
-.dark-theme .ls-block > div:first-child:not(.selected):not(.selected-block):not(:has(.block-content-or-editor-wrap.ls-page-title-container)):has(a.tag[data-ref]) {
-  background-image: linear-gradient(90deg, transparent 0%, var(--node-color) 50%, transparent 80%) !important;
-/*  background-image: linear-gradient(90deg, var(--node-color) 0%, transparent 25%) !important;
- */
-  background-color: transparent !important;
-}
-
-/* TARGET 2: Page and Journal Titles ONLY */
-/* The "Fade In & Out" effect applies exclusively to the main page header text */
-.ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
-  --node-color: inherit;
-}
-
-:is(
-  h1.title,
-  .journal-title,
-  .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref])
-):has(a.tag[data-ref]),
-.ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
-  background-image: linear-gradient(90deg, transparent 0%, var(--node-color) 30%, transparent 60%) !important;
-  background-color: transparent !important;
-}
-
-.dark-theme .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
-  --node-color: inherit;
-}
-
-.dark-theme :is(
-  h1.title,
-  .journal-title,
-  .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref])
-):has(a.tag[data-ref]),
-.dark-theme .ls-block > div:first-child .block-main-content:has(.block-content-or-editor-wrap.ls-page-title-container):has(a.tag[data-ref]) {
-  background-image: linear-gradient(90deg, transparent 0%, var(--node-color) 3%, transparent 35%) !important;
-  background-color: transparent !important;
-}
-
-:is(
-  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref]),
-  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref]),
-  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref]),
-  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref])
-) {
-  background-image: linear-gradient(90deg, transparent 0%, var(--node-color) 30%, transparent 60%) !important;
-  background-color: transparent !important;
-}
-
-.dark-theme :is(
-  .ls-block > div:first-child:has(> h1.title):has(> a.tag[data-ref]),
-  .ls-block > div:first-child:has(> h1.title):has(> * a.tag[data-ref]),
-  .ls-block > div:first-child:has(> .journal-title):has(> a.tag[data-ref]),
-  .ls-block > div:first-child:has(> .journal-title):has(> * a.tag[data-ref])
-) {
-  background-image: linear-gradient(90deg, transparent 0%, var(--node-color) 3%, transparent 35%) !important;
-  background-color: transparent !important;
-}
 
 /* ========================================= */
 /* --- 5. SELECTION & OVERFLOW FIXES     --- */
