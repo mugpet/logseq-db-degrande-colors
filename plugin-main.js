@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.50";
+const FALLBACK_PLUGIN_VERSION = "0.4.49";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -533,36 +533,6 @@ function disconnectObserverGroup(registry) {
   });
 }
 
-// Schedule callback during the next idle period so styling work never blocks the
-// frames that paint a freshly-mounted popup, sidebar, or page. Falls back to a
-// (longer) setTimeout when requestIdleCallback isn't available. Returns an opaque
-// handle compatible with truthy checks used to debounce.
-function scheduleIdle(hostWindow, callback, fallbackDelay = 200) {
-  const win = hostWindow || window;
-  const ric = win.requestIdleCallback;
-
-  if (typeof ric === 'function') {
-    return ric.call(win, () => {
-      try {
-        callback();
-      } catch (error) {
-        // Surface but never throw out of an idle callback.
-        // eslint-disable-next-line no-console
-        console.warn('[degrande-colors] scheduled idle work failed', error);
-      }
-    }, { timeout: 800 });
-  }
-
-  return win.setTimeout(() => {
-    try {
-      callback();
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.warn('[degrande-colors] scheduled work failed', error);
-    }
-  }, fallbackDelay);
-}
-
 function canAccessExternalHostDocument() {
   try {
     if (typeof logseq?.Experiments?.ensureHostScope === 'function') {
@@ -923,10 +893,10 @@ function scheduleToolbarButtonRender() {
     return;
   }
 
-  hostWindow[TOOLBAR_RENDER_TIMER_KEY] = scheduleIdle(hostWindow, () => {
+  hostWindow[TOOLBAR_RENDER_TIMER_KEY] = hostWindow.setTimeout(() => {
     hostWindow[TOOLBAR_RENDER_TIMER_KEY] = null;
     ensureToolbarButton();
-  }, 200);
+  }, 40);
 }
 
 function isToolbarButtonMounted(hostDocument) {
@@ -949,10 +919,10 @@ function observeToolbarHost() {
 
   hostWindow[TOOLBAR_OBSERVER_KEY]?.disconnect?.();
 
-  // Observer callback is intentionally O(1): never inspect mutations, never walk DOM.
-  // The scheduled idle callback decides whether the button needs (re)mounting; this
-  // keeps Ctrl+K, page nav, and editor input from blocking on toolbar checks.
   const observer = new HostMutationObserver(() => {
+    // Skip the whole pipeline when the button is already mounted in a real toolbar host.
+    // Without this guard every DOM mutation in the host (typing, scroll, lazy block render)
+    // schedules a toolbar re-check.
     if (isToolbarButtonMounted(hostDocument)) {
       return;
     }
@@ -976,10 +946,10 @@ function scheduleHostColorSync() {
     return;
   }
 
-  hostWindow[HOST_COLOR_SYNC_TIMER_KEY] = scheduleIdle(hostWindow, () => {
+  hostWindow[HOST_COLOR_SYNC_TIMER_KEY] = hostWindow.setTimeout(() => {
     hostWindow[HOST_COLOR_SYNC_TIMER_KEY] = null;
     syncHostColorVariables();
-  }, 200);
+  }, 40);
 }
 
 function normalizeObservedNode(node) {
@@ -1097,10 +1067,21 @@ function observeHostColorTargets() {
 
   hostWindow[HOST_COLOR_SYNC_OBSERVER_KEY]?.disconnect?.();
 
-  // Observer callback is intentionally O(1): no mutation iteration, no DOM walks.
-  // The scheduled idle sync runs after paint and does the targeted work.
-  const observer = new HostMutationObserver(() => {
-    scheduleHostColorSync();
+  const observer = new HostMutationObserver((mutations) => {
+    // Cheap: only schedule a debounced full pass. Don't do per-node closest()/querySelector()
+    // walks here — when a large React subtree (Ctrl+K popup, page nav) mounts, those walks
+    // run synchronously across many observers and delay the popup paint by 1-2s.
+    if (!hostDocument.querySelector(HOST_COLOR_TARGET_SELECTOR)) {
+      return;
+    }
+
+    for (let i = 0; i < mutations.length; i += 1) {
+      const mutation = mutations[i];
+      if (mutation.type === 'attributes' || (mutation.addedNodes && mutation.addedNodes.length)) {
+        scheduleHostColorSync();
+        return;
+      }
+    }
   });
 
   observer.observe(hostDocument.body || hostDocument.documentElement, {
@@ -1121,10 +1102,10 @@ function scheduleCmdkTagStyleSync() {
     return;
   }
 
-  hostWindow[CMDK_STYLE_TIMER_KEY] = scheduleIdle(hostWindow, () => {
+  hostWindow[CMDK_STYLE_TIMER_KEY] = hostWindow.setTimeout(() => {
     hostWindow[CMDK_STYLE_TIMER_KEY] = null;
     syncCmdkTagStyles();
-  }, 200);
+  }, 40);
 }
 
 function scheduleSidebarTagStyleSync() {
@@ -1134,10 +1115,10 @@ function scheduleSidebarTagStyleSync() {
     return;
   }
 
-  hostWindow[SIDEBAR_STYLE_TIMER_KEY] = scheduleIdle(hostWindow, () => {
+  hostWindow[SIDEBAR_STYLE_TIMER_KEY] = hostWindow.setTimeout(() => {
     hostWindow[SIDEBAR_STYLE_TIMER_KEY] = null;
     syncSidebarTagStyles();
-  }, 200);
+  }, 40);
 }
 
 function getAssignedNodeColorForTag(tagName) {
@@ -1282,7 +1263,7 @@ function queueTagDrivenNodeStyleSync(root, hostDocument = getHostDocument()) {
     return;
   }
 
-  panelState.tagNodeStyleSyncTimer = scheduleIdle(window, () => {
+  panelState.tagNodeStyleSyncTimer = window.setTimeout(() => {
     const pendingRoots = Array.from(panelState.pendingTagNodeRoots);
     panelState.pendingTagNodeRoots.clear();
     panelState.tagNodeStyleSyncTimer = null;
@@ -1290,7 +1271,7 @@ function queueTagDrivenNodeStyleSync(root, hostDocument = getHostDocument()) {
     pendingRoots.forEach((pendingRoot) => {
       syncTagDrivenNodeStylesInSubtree(pendingRoot, hostDocument);
     });
-  }, 200);
+  }, 40);
 }
 
 function observeTagDrivenNodeStyles() {
@@ -1302,13 +1283,23 @@ function observeTagDrivenNodeStyles() {
   hostWindow[TAG_NODE_STYLE_OBSERVER_KEY] = documents.map((hostDocument) => {
     const documentWindow = hostDocument.defaultView || hostWindow;
     const HostMutationObserver = documentWindow.MutationObserver || MutationObserver;
-    // Observer callback is intentionally O(1): no mutation iteration, no DOM walks.
-    // The scheduled idle sync (queueTagDrivenNodeStyleSync) does the targeted work
-    // after paint, so popups and page mounts aren't blocked.
-    const observer = new HostMutationObserver(() => {
-      queueTagDrivenNodeStyleSync(hostDocument, hostDocument);
+    const observer = new HostMutationObserver((mutations) => {
+      // Cheap callback: only check mutation.target (closest is upward, O(depth)). Avoid deep
+      // querySelector walks on large added subtrees so popup/page mounts paint without delay.
+      // queueTagDrivenNodeStyleSync(hostDocument) requeues a full subtree pass under the
+      // existing 40ms debounce; that pass runs after paint.
+      for (let i = 0; i < mutations.length; i += 1) {
+        const target = mutations[i].target;
+        const candidate = target && target.nodeType === 3 ? target.parentElement : target;
+        if (candidate && candidate.closest && candidate.closest(".ls-block, .ls-block-right, .block-main-content")) {
+          queueTagDrivenNodeStyleSync(hostDocument, hostDocument);
+          return;
+        }
+      }
     });
 
+    // Tag links (a.tag[data-ref]) are inserted/removed as elements; we don't need
+    // characterData notifications for every keystroke in the editor.
     observer.observe(hostDocument.body || hostDocument.documentElement, {
       childList: true,
       subtree: true,
@@ -2394,10 +2385,22 @@ function observeSidebarTagStyles() {
   hostWindow[SIDEBAR_STYLE_OBSERVER_KEY] = documents.map((hostDocument) => {
     const documentWindow = hostDocument.defaultView || hostWindow;
     const HostMutationObserver = documentWindow.MutationObserver || MutationObserver;
-    // Observer callback is intentionally O(1): no mutation iteration, no DOM walks.
-    // The scheduled idle sync handles whether the sidebar is rendered and what to style.
-    const observer = new HostMutationObserver(() => {
-      scheduleSidebarTagStyleSync();
+    const observer = new HostMutationObserver((mutations) => {
+      // Cheap callback: bail if sidebar isn't rendered, otherwise check mutation.target via
+      // upward closest() only. No deep querySelector over added subtrees (Ctrl+K popup mount
+      // would otherwise traverse the whole popup looking for the sidebar root).
+      if (!hostDocument.querySelector(SIDEBAR_ROOT_SELECTOR)) {
+        return;
+      }
+
+      for (let i = 0; i < mutations.length; i += 1) {
+        const target = mutations[i].target;
+        const candidate = target && target.nodeType === 3 ? target.parentElement : target;
+        if (candidate && candidate.closest && candidate.closest(SIDEBAR_ROOT_SELECTOR)) {
+          scheduleSidebarTagStyleSync();
+          return;
+        }
+      }
     });
 
     // Sidebar titles change via element add/remove (page entries) or page rename, both
@@ -2422,12 +2425,37 @@ function observeCmdkSearchResults() {
   hostWindow[CMDK_STYLE_OBSERVER_KEY] = documents.map((hostDocument) => {
     const documentWindow = hostDocument.defaultView || hostWindow;
     const HostMutationObserver = documentWindow.MutationObserver || MutationObserver;
-    // Observer callback is intentionally O(1): no mutation iteration, no DOM walks.
-    // The scheduled idle sync (syncCmdkTagStyles) checks whether a popup is open and
-    // styles its rows after the popup has painted. This trades a one-frame delay in
-    // tag styling for a snappy popup open.
-    const observer = new HostMutationObserver(() => {
-      scheduleCmdkTagStyleSync();
+    const observer = new HostMutationObserver((mutations) => {
+      // Cheap callback: bail if no popup surface, then check mutation.target via upward
+      // closest() only. Skip deep querySelector(CMDK_SCOPE_SELECTOR) over added subtrees —
+      // when Ctrl+K mounts the popup as a large React subtree, traversing it across multiple
+      // observers blocks the main thread before paint.
+      if (!hostDocument.querySelector(CMDK_SCOPE_SELECTOR)) {
+        return;
+      }
+
+      for (let i = 0; i < mutations.length; i += 1) {
+        const target = mutations[i].target;
+        const candidate = target && target.nodeType === 3 ? target.parentElement : target;
+        if (candidate && candidate.closest && candidate.closest(CMDK_SCOPE_SELECTOR)) {
+          scheduleCmdkTagStyleSync();
+          return;
+        }
+      }
+
+      // The popup root itself is added inside body; mutation.target=body won't match closest.
+      // Catch that one common case via cheap matches() on top-level addedNodes.
+      for (let i = 0; i < mutations.length; i += 1) {
+        const added = mutations[i].addedNodes;
+        if (!added || !added.length) continue;
+        for (let j = 0; j < added.length; j += 1) {
+          const node = added[j];
+          if (node && node.nodeType === 1 && node.matches && node.matches(CMDK_SCOPE_SELECTOR)) {
+            scheduleCmdkTagStyleSync();
+            return;
+          }
+        }
+      }
     });
 
     // cmdk rows are inserted/removed as elements; characterData would fire for every editor
