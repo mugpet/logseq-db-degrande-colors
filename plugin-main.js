@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.60";
+const FALLBACK_PLUGIN_VERSION = "0.4.61";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -8645,7 +8645,15 @@ async function main() {
   // v0.4.59: bisect harness phase 2 — narrow which boot-phase work is slow.
   const _lsGet2 = (k) => { try { return getHostWindow()?.localStorage?.getItem?.(k) === '1'; } catch (_) { return false; } };
 
-  if (!_lsGet2('degrandeBisectSkipDataLoad')) {
+  // v0.4.61: data-load is now fire-and-forget. It used to run synchronously here,
+  // which forced bridge round-trips into Logseq's DB worker BEFORE the worker was
+  // ready (it spends ~2s booting). That caused getGraphSyncStoragePage -> createPage
+  // to fail with "ISwap.-swap! defined for type null" and the failed writes were
+  // queued/retried, blocking the host worker on subsequent UI interactions.
+  // Now we just kick off the load and return. Logseq's onGraphAfterIndexed callback
+  // (registered below) reruns the load via syncPersistedAppearance once the DB is
+  // actually ready, so all values still land correctly.
+  const _runBootDataLoad = async () => {
     const _t = (label, p) => {
       const t0 = (getHostWindow()?.performance?.now?.() ?? Date.now());
       return Promise.resolve(p).finally(() => {
@@ -8661,6 +8669,14 @@ async function main() {
     await _t('loadStoredTagColors',      loadStoredTagColors());
     await _t('loadStoredGradients',      loadStoredGradients());
     setSyncState("synced");
+    if (!_lsGet2('degrandeBisectSkipReloadThemeCss')) {
+      await _t('reloadThemeCss', reloadThemeCss(false, false));
+    }
+    try { getHostWindow().console?.warn?.('[degrande-boot] data-load + theme css complete'); } catch (_) {}
+  };
+
+  if (!_lsGet2('degrandeBisectSkipDataLoad')) {
+    void _runBootDataLoad();
   } else {
     try { getHostWindow().console?.warn?.('[degrande] BISECT: data-load skipped'); } catch (_) {}
   }
@@ -8751,11 +8767,10 @@ async function main() {
     try { getHostWindow().console?.warn?.('[degrande] FULL NEUTER: SDK callbacks not registered.'); } catch (_) {}
   }
 
-  if (!_lsGet2('degrandeBisectSkipReloadThemeCss')) {
-    await reloadThemeCss(false, false);
-  } else {
-    try { getHostWindow().console?.warn?.('[degrande] BISECT: reloadThemeCss skipped'); } catch (_) {}
-  }
+  // v0.4.61: reloadThemeCss(false,false) used to run here synchronously.
+  // It now runs at the end of the deferred _runBootDataLoad() above so it sees
+  // populated panelState. Skipping it via degrandeBisectSkipReloadThemeCss is
+  // honored inside _runBootDataLoad.
   exposeDegrandeKillSwitch();
 
   if (isDegrandeNeutered()) {
