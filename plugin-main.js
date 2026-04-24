@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.55";
+const FALLBACK_PLUGIN_VERSION = "0.4.56";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -5786,6 +5786,7 @@ function buildAppearanceDiagnosticsMarkup() {
         <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-boot-skip">Toggle Boot Skip</button>
         <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-neuter">Toggle Full Neuter (reload)</button>
         <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-db-onchanged">Toggle DB.onChanged (reload)</button>
+        <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-skip-activation">Toggle Skip Activation (reload)</button>
         <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-perflog">Toggle Perf Log</button>
         <span data-role="degrande-killswitch-status" style="align-self:center; opacity:.75; font-size:12px;"></span>
       </div>
@@ -8114,6 +8115,20 @@ function mountPanel() {
       return;
     }
 
+    if (action === "degrande-toggle-skip-activation") {
+      try {
+        const hostWindow = getHostWindow();
+        const cur = hostWindow.localStorage.getItem('degrandeSkipActivation') === '1';
+        if (cur) hostWindow.localStorage.removeItem('degrandeSkipActivation');
+        else hostWindow.localStorage.setItem('degrandeSkipActivation', '1');
+        const status = document.querySelector('[data-role="degrande-killswitch-status"]');
+        if (status) status.textContent = cur
+          ? "Skip Activation OFF. Reload Logseq."
+          : "Skip Activation ON. Reload Logseq - the plugin will do NOTHING (no toolbar item, no settings schema, no provideStyle, no provideModel, no callbacks). If Logseq is STILL slow, the cost is in just having the iframe loaded by Logseq, not in our code, and the only fix is to slim or unload the iframe. To turn off without the panel: open Logseq DevTools console and run  localStorage.removeItem('degrandeSkipActivation'); location.reload();";
+      } catch (_) {}
+      return;
+    }
+
 
     if (action === "clear-tag-color") {
       if (!panelState.selectedTag) {
@@ -8633,6 +8648,20 @@ async function resetTagColors() {
 }
 
 async function main() {
+  // v0.4.56: Skip-Activation mode. If toggled on via panel/console, bail before any
+  // UI registrations (toolbar item, settings schema, provideStyle, provideModel,
+  // setMainUIInlineStyle) and before any SDK callbacks. This is the "uninstall
+  // without uninstalling" diagnostic: if Logseq is still slow with this on, the
+  // cost is in just having the plugin iframe loaded by Logseq, not in our code.
+  // To turn off: in Logseq DevTools console run
+  //   localStorage.removeItem('degrandeSkipActivation'); location.reload();
+  try {
+    if (getHostWindow()?.localStorage?.getItem?.('degrandeSkipActivation') === '1') {
+      try { getHostWindow().console?.warn?.('[degrande] SKIP ACTIVATION active. Plugin did nothing. To re-enable: localStorage.removeItem("degrandeSkipActivation"); reload Logseq.'); } catch (_) {}
+      return;
+    }
+  } catch (_) {}
+
   const pluginId = logseq.baseInfo.id;
   const commandKey = (suffix) => `${pluginId}/${suffix}`;
   const activationMessage = `Degrande Colors v${PLUGIN_VERSION} is active with graph-backed sync for this Logseq DB graph.`;
