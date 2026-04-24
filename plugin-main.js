@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.3";
+const FALLBACK_PLUGIN_VERSION = "0.5.4";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -195,6 +195,7 @@ const CONTROL_SECTIONS = [
       { key: "nodeFadeEnd", label: "Fade End", min: 10, max: 100, step: 1, unit: "%", defaultValue: 80 },
       { key: "nodeBorderWidth", label: "Border Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
       { key: "nodeBorderRadius", label: "Radius", min: 0, max: 24, step: 1, unit: "px", defaultValue: 10 },
+      { key: "nodeBorderOpacity", label: "Opacity", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
       { key: "nodeBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
       { key: "nodeBorderColorToken", label: "Border Color Preset", type: "string", defaultValue: "green" },
       { key: "nodeBorderColor", label: "Border Color", type: "color", defaultValue: "#10b98155" },
@@ -219,6 +220,7 @@ const CONTROL_SECTIONS = [
       { key: "darkTitleFadeEnd", label: "Dark Fade End", min: 10, max: 100, step: 1, unit: "%", defaultValue: 35 },
       { key: "titleBorderWidth", label: "Border Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
       { key: "titleBorderRadius", label: "Radius", min: 0, max: 24, step: 1, unit: "px", defaultValue: 12 },
+      { key: "titleBorderOpacity", label: "Opacity", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
       { key: "titleBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
       { key: "titleBorderColorToken", label: "Border Color Preset", type: "string", defaultValue: "amber" },
       { key: "titleBorderColor", label: "Border Color", type: "color", defaultValue: "#f59e0b55" },
@@ -240,6 +242,7 @@ const CONTROL_SECTIONS = [
       { key: "highlightEndPercent", label: "Stop", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
       { key: "highlightRadius", label: "Radius", min: 0, max: 12, step: 1, unit: "px", defaultValue: 4 },
       { key: "highlightBorderWidth", label: "Border Width", min: 0, max: 6, step: 1, unit: "px", defaultValue: 0 },
+      { key: "highlightBorderOpacity", label: "Opacity", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
       { key: "highlightBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
       { key: "highlightBorderColorToken", label: "Border Color Preset", type: "string", defaultValue: "yellow" },
       { key: "highlightBorderColor", label: "Border Color", type: "color", defaultValue: "#facc1566" },
@@ -264,6 +267,7 @@ const CONTROL_SECTIONS = [
       { key: "quoteDarkOpacity", label: "Dark Edge Opacity", min: 0, max: 0.5, step: 0.01, unit: "", defaultValue: 0.15 },
       { key: "quoteBorderWidth", label: "Border Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 4 },
       { key: "quoteRadius", label: "Radius", min: 0, max: 16, step: 1, unit: "px", defaultValue: 8 },
+      { key: "quoteBorderOpacity", label: "Opacity", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
       { key: "quoteBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
       { key: "quoteBorderColorToken", label: "Border Color Preset", type: "string", defaultValue: "indigo" },
       { key: "quoteBorderColor", label: "Border Color", type: "color", defaultValue: "#6366f194" },
@@ -288,6 +292,7 @@ const CONTROL_SECTIONS = [
       { key: "bgClearEnd", label: "Clear End", min: 0, max: 100, step: 1, unit: "%", defaultValue: 80 },
       { key: "bgBorderWidth", label: "Border Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
       { key: "bgRadius", label: "Radius", min: 0, max: 16, step: 1, unit: "px", defaultValue: 6 },
+      { key: "bgBorderOpacity", label: "Opacity", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
       { key: "bgBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
       { key: "bgBorderColorToken", label: "Border Color Preset", type: "string", defaultValue: "pink" },
       { key: "bgBorderColor", label: "Border Color", type: "color", defaultValue: "#f472b655" },
@@ -326,6 +331,7 @@ const BORDER_CONTROL_GROUPS = {
     label: "Linked Block Border",
     widthKey: "nodeBorderWidth",
     radiusKey: "nodeBorderRadius",
+    opacityKey: "nodeBorderOpacity",
     modeKey: "nodeBorderColorMode",
     tokenKey: "nodeBorderColorToken",
     colorKey: "nodeBorderColor",
@@ -347,6 +353,7 @@ const BORDER_CONTROL_GROUPS = {
     label: "Page Title Border",
     widthKey: "titleBorderWidth",
     radiusKey: "titleBorderRadius",
+    opacityKey: "titleBorderOpacity",
     modeKey: "titleBorderColorMode",
     tokenKey: "titleBorderColorToken",
     colorKey: "titleBorderColor",
@@ -368,6 +375,7 @@ const BORDER_CONTROL_GROUPS = {
     label: "Highlight Border",
     widthKey: "highlightBorderWidth",
     radiusKey: "highlightRadius",
+    opacityKey: "highlightBorderOpacity",
     modeKey: "highlightBorderColorMode",
     tokenKey: "highlightBorderColorToken",
     colorKey: "highlightBorderColor",
@@ -389,6 +397,7 @@ const BORDER_CONTROL_GROUPS = {
     label: "Quote Border",
     widthKey: "quoteBorderWidth",
     radiusKey: "quoteRadius",
+    opacityKey: "quoteBorderOpacity",
     modeKey: "quoteBorderColorMode",
     tokenKey: "quoteBorderColorToken",
     colorKey: "quoteBorderColor",
@@ -410,6 +419,7 @@ const BORDER_CONTROL_GROUPS = {
     label: "Background Block Border",
     widthKey: "bgBorderWidth",
     radiusKey: "bgRadius",
+    opacityKey: "bgBorderOpacity",
     modeKey: "bgBorderColorMode",
     tokenKey: "bgBorderColorToken",
     colorKey: "bgBorderColor",
@@ -2830,16 +2840,17 @@ function getBorderControlColor(groupKey) {
 
   const mode = String(panelState.controlState[group.modeKey] || "custom");
   const token = String(panelState.controlState[group.tokenKey] || "");
+  const opacity = getBorderOpacity(group);
+
+  let colorValue = normalizeHexColor(panelState.controlState[group.colorKey]) || "#00000000";
 
   if (mode === "linked") {
-    return getBorderLinkedPreviewColor(group);
+    colorValue = getBorderLinkedPreviewColor(group);
+  } else if (mode === "preset" && COLOR_PRESET_MAP[token]) {
+    colorValue = getPreviewGradientFallbackColor(token);
   }
 
-  if (mode === "preset" && COLOR_PRESET_MAP[token]) {
-    return getPreviewGradientFallbackColor(token);
-  }
-
-  return normalizeHexColor(panelState.controlState[group.colorKey]) || "#00000000";
+  return applyColorOpacity(colorValue, opacity);
 }
 
 function getBorderRuntimeColor(groupKey) {
@@ -2851,16 +2862,17 @@ function getBorderRuntimeColor(groupKey) {
 
   const mode = String(panelState.controlState[group.modeKey] || "custom");
   const token = String(panelState.controlState[group.tokenKey] || "");
+  const opacity = getBorderOpacity(group);
+
+  let colorValue = normalizeHexColor(panelState.controlState[group.colorKey]) || "transparent";
 
   if (mode === "linked") {
-    return getBorderLinkedRuntimeColor(group);
+    colorValue = getBorderLinkedRuntimeColor(group);
+  } else if (mode === "preset" && COLOR_PRESET_MAP[token]) {
+    colorValue = `var(--bd-${token})`;
   }
 
-  if (mode === "preset" && COLOR_PRESET_MAP[token]) {
-    return `var(--bd-${token})`;
-  }
-
-  return normalizeHexColor(panelState.controlState[group.colorKey]) || "transparent";
+  return applyColorOpacity(colorValue, opacity);
 }
 
 function getBorderLinkedPreviewColor(groupKey) {
@@ -2908,6 +2920,40 @@ function getBorderColorToken(groupKey) {
 
   const token = String(panelState.controlState[group.tokenKey] || "");
   return COLOR_PRESET_MAP[token] ? token : String(CONTROL_MAP[group.tokenKey]?.defaultValue || "grey");
+}
+
+function getBorderOpacity(groupKey) {
+  const group = getBorderControlGroup(groupKey);
+
+  if (!group?.opacityKey) {
+    return 1;
+  }
+
+  const rawValue = Number(panelState.controlState[group.opacityKey]);
+  return clamp(Number.isFinite(rawValue) ? rawValue / 100 : 1, 0, 1);
+}
+
+function applyColorOpacity(colorValue, opacityMultiplier = 1) {
+  const normalizedValue = typeof colorValue === "string" ? colorValue.trim() : "";
+  const opacity = clamp(Number(opacityMultiplier ?? 1), 0, 1);
+
+  if (!normalizedValue || opacity <= 0 || normalizedValue.toLowerCase() === "transparent") {
+    return "transparent";
+  }
+
+  const parsedColor = parseCssColorValue(normalizedValue);
+
+  if (parsedColor) {
+    const baseAlpha = Number.isFinite(parsedColor.a) ? parsedColor.a : 1;
+    return rgbToCss(parsedColor, clamp(baseAlpha * opacity, 0, 1));
+  }
+
+  if (opacity >= 0.999) {
+    return normalizedValue;
+  }
+
+  const percent = Math.round(opacity * 1000) / 10;
+  return `color-mix(in srgb, ${normalizedValue} ${percent}%, transparent)`;
 }
 
 function getBorderSideWidths(groupKey) {
@@ -4177,6 +4223,55 @@ async function loadStoredAppearanceState() {
     }
 
     console.error("[Degrande Colors] Failed to load stored appearance toggles", error);
+  }
+}
+
+async function primeOptimisticStartupState() {
+  try {
+    const [appearanceSaved, controlSaved, gradientSaved, tagColorSaved] = await Promise.all([
+      loadStoredItemWithLegacyFallback(APPEARANCE_STATE_STORAGE_KEY),
+      loadStoredItemWithLegacyFallback(CONTROL_STORAGE_KEY),
+      loadStoredItemWithLegacyFallback(GRADIENT_STORAGE_KEY),
+      loadStoredItemWithLegacyFallback(TAG_COLOR_STORAGE_KEY),
+    ]);
+
+    panelState.appearanceState = appearanceSaved
+      ? mergeStoredAppearanceState(typeof appearanceSaved === "string" ? JSON.parse(appearanceSaved) : appearanceSaved)
+      : { ...DEFAULT_APPEARANCE_STATE };
+
+    const controlMirror = parseLocalMirrorValue(controlSaved, mergeStoredControls);
+
+    if (controlMirror.exists) {
+      panelState.controlState = controlMirror.value;
+    } else {
+      const settingsValue = readPluginSettingValue(SETTINGS_CONTROL_STATE_KEY);
+
+      if (settingsValue != null && hasMeaningfulStoredControls(settingsValue)) {
+        panelState.controlState = mergeStoredControls(settingsValue);
+      }
+    }
+
+    const gradientMirror = parseLocalMirrorValue(gradientSaved, mergeStoredGradients);
+
+    if (gradientMirror.exists) {
+      panelState.gradientState = gradientMirror.value;
+    } else {
+      const settingsValue = readPluginSettingValue(SETTINGS_GRADIENT_STATE_KEY);
+
+      if (settingsValue != null && hasMeaningfulStoredGradients(settingsValue)) {
+        panelState.gradientState = mergeStoredGradients(settingsValue);
+      }
+    }
+
+    const tagColorMirror = parseLocalMirrorValue(tagColorSaved, mergeStoredTagColors);
+
+    if (tagColorMirror.exists) {
+      panelState.tagColorAssignments = tagColorMirror.value;
+    }
+  } catch (error) {
+    if (!isMissingStorageError(error)) {
+      console.warn("[Degrande Colors] Failed to prime optimistic startup state", error);
+    }
   }
 }
 
@@ -6439,7 +6534,7 @@ function buildBorderEditorMarkup(groupKey) {
         <span>Width, sides, corners, and color source.</span>
       </div>
       <div class="ctl-gradient-extra">
-        ${buildNumericControlsMarkup([group.widthKey, group.radiusKey])}
+        ${buildNumericControlsMarkup([group.widthKey, group.radiusKey, group.opacityKey])}
       </div>
       <div class="ctl-custom-color-grid">
         <section class="ctl-custom-color-panel">
@@ -9261,6 +9356,8 @@ async function main() {
 
   const userConfigs = await logseq.App.getUserConfigs();
   setThemeMode(userConfigs?.preferredThemeMode);
+  await primeOptimisticStartupState();
+  await reloadThemeCss(false, false);
 
   logseq.App.onThemeModeChanged(({ mode }) => {
     setThemeMode(mode);
