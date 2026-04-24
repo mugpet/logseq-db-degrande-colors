@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.56";
+const FALLBACK_PLUGIN_VERSION = "0.4.57";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -5787,6 +5787,11 @@ function buildAppearanceDiagnosticsMarkup() {
         <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-neuter">Toggle Full Neuter (reload)</button>
         <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-db-onchanged">Toggle DB.onChanged (reload)</button>
         <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-skip-activation">Toggle Skip Activation (reload)</button>
+        <button class="ctl-button ctl-button-secondary" data-action="degrande-bisect-toolbar">Bisect: skip Toolbar (reload)</button>
+        <button class="ctl-button ctl-button-secondary" data-action="degrande-bisect-commands">Bisect: skip Commands (reload)</button>
+        <button class="ctl-button ctl-button-secondary" data-action="degrande-bisect-providestyle">Bisect: skip provideStyle (reload)</button>
+        <button class="ctl-button ctl-button-secondary" data-action="degrande-bisect-providemodel">Bisect: skip provideModel (reload)</button>
+        <button class="ctl-button ctl-button-secondary" data-action="degrande-bisect-clear">Bisect: clear all (reload)</button>
         <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-perflog">Toggle Perf Log</button>
         <span data-role="degrande-killswitch-status" style="align-self:center; opacity:.75; font-size:12px;"></span>
       </div>
@@ -8124,7 +8129,40 @@ function mountPanel() {
         const status = document.querySelector('[data-role="degrande-killswitch-status"]');
         if (status) status.textContent = cur
           ? "Skip Activation OFF. Reload Logseq."
-          : "Skip Activation ON. Reload Logseq - the plugin will do NOTHING (no toolbar item, no settings schema, no provideStyle, no provideModel, no callbacks). If Logseq is STILL slow, the cost is in just having the iframe loaded by Logseq, not in our code, and the only fix is to slim or unload the iframe. To turn off without the panel: open Logseq DevTools console and run  localStorage.removeItem('degrandeSkipActivation'); location.reload();";
+          : "Skip Activation ON. Reload Logseq - the plugin will do NOTHING. To turn off without the panel: open Logseq DevTools console and run  localStorage.removeItem('degrandeSkipActivation'); location.reload();";
+      } catch (_) {}
+      return;
+    }
+
+    const bisectFlag = {
+      "degrande-bisect-toolbar":       { key: "degrandeBisectSkipToolbar",       label: "Toolbar item" },
+      "degrande-bisect-commands":      { key: "degrandeBisectSkipCommands",      label: "Command palette commands" },
+      "degrande-bisect-providestyle":  { key: "degrandeBisectSkipProvideStyle",  label: "provideStyle(toolbar)" },
+      "degrande-bisect-providemodel":  { key: "degrandeBisectSkipProvideModel",  label: "provideModel" },
+    }[action];
+
+    if (bisectFlag) {
+      try {
+        const hostWindow = getHostWindow();
+        const cur = hostWindow.localStorage.getItem(bisectFlag.key) === '1';
+        if (cur) hostWindow.localStorage.removeItem(bisectFlag.key);
+        else hostWindow.localStorage.setItem(bisectFlag.key, '1');
+        // Also disable Skip Activation so the bisect actually runs.
+        hostWindow.localStorage.removeItem('degrandeSkipActivation');
+        const status = document.querySelector('[data-role="degrande-killswitch-status"]');
+        if (status) status.textContent = cur
+          ? `${bisectFlag.label} ENABLED on next reload.`
+          : `${bisectFlag.label} will be SKIPPED on next reload. Reload Logseq, test toolbar/Ctrl+K speed, and report whether the freezes are gone.`;
+      } catch (_) {}
+      return;
+    }
+
+    if (action === "degrande-bisect-clear") {
+      try {
+        const hostWindow = getHostWindow();
+        ["degrandeBisectSkipToolbar","degrandeBisectSkipCommands","degrandeBisectSkipProvideStyle","degrandeBisectSkipProvideModel","degrandeSkipActivation","degrandeNeuter","degrandeDisableDbOnChanged","degrandeKillObservers"].forEach((k) => hostWindow.localStorage.removeItem(k));
+        const status = document.querySelector('[data-role="degrande-killswitch-status"]');
+        if (status) status.textContent = "All bisect/kill flags cleared. Reload Logseq.";
       } catch (_) {}
       return;
     }
@@ -8781,15 +8819,33 @@ async function main() {
     observeSidebarTagStyles();
   }
 
-  logseq.provideModel({
-    openThemeLoader,
-    closeThemeLoader,
-    toggleThemeLoader,
-  });
+  // v0.4.57: bisect harness for the per-interaction slowness.
+  // Each section is gated by a localStorage flag so we can A/B in one reload.
+  // Set in panel via Diagnostics, or in DevTools console:
+  //   localStorage.setItem('degrandeBisectSkipToolbar','1')      // skip toolbar item
+  //   localStorage.setItem('degrandeBisectSkipCommands','1')     // skip Ctrl+K commands
+  //   localStorage.setItem('degrandeBisectSkipProvideModel','1') // skip provideModel
+  //   localStorage.setItem('degrandeBisectSkipProvideStyle','1') // skip toolbar provideStyle
+  // then location.reload(). Goal: find which one accounts for the slowness.
+  const lsGet = (k) => { try { return getHostWindow()?.localStorage?.getItem?.(k) === '1'; } catch (_) { return false; } };
 
-  logseq.provideStyle(getToolbarStyle());
+  if (!lsGet('degrandeBisectSkipProvideModel')) {
+    logseq.provideModel({
+      openThemeLoader,
+      closeThemeLoader,
+      toggleThemeLoader,
+    });
+  } else {
+    try { getHostWindow().console?.warn?.('[degrande] BISECT: provideModel skipped'); } catch (_) {}
+  }
 
-  if (shouldRegisterHostUi) {
+  if (!lsGet('degrandeBisectSkipProvideStyle')) {
+    logseq.provideStyle(getToolbarStyle());
+  } else {
+    try { getHostWindow().console?.warn?.('[degrande] BISECT: provideStyle(toolbar) skipped'); } catch (_) {}
+  }
+
+  if (shouldRegisterHostUi && !lsGet('degrandeBisectSkipToolbar')) {
     registerToolbarItemSafely({
       key: "custom-theme-loader-open",
       template: `
@@ -8798,11 +8854,13 @@ async function main() {
         </a>
       `,
     });
+  } else if (shouldRegisterHostUi) {
+    try { getHostWindow().console?.warn?.('[degrande] BISECT: toolbar item skipped'); } catch (_) {}
   }
 
   syncThemeLoaderToggleState();
 
-  if (shouldRegisterHostUi) {
+  if (shouldRegisterHostUi && !lsGet('degrandeBisectSkipCommands')) {
     registerCommandPaletteSafely(
       {
         key: commandKey("open-panel"),
@@ -8867,6 +8925,8 @@ async function main() {
       version: PLUGIN_VERSION,
       activatedAt: Date.now(),
     };
+  } else if (shouldRegisterHostUi) {
+    try { getHostWindow().console?.warn?.('[degrande] BISECT: command palette commands skipped'); } catch (_) {}
   }
 
   console.info(`[Degrande Colors] Loaded base styles and controls (v${PLUGIN_VERSION})`);
