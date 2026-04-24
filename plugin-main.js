@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.2";
+const FALLBACK_PLUGIN_VERSION = "0.5.3";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -195,7 +195,13 @@ const CONTROL_SECTIONS = [
       { key: "nodeFadeEnd", label: "Fade End", min: 10, max: 100, step: 1, unit: "%", defaultValue: 80 },
       { key: "nodeBorderWidth", label: "Border Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
       { key: "nodeBorderRadius", label: "Radius", min: 0, max: 24, step: 1, unit: "px", defaultValue: 10 },
+      { key: "nodeBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
+      { key: "nodeBorderColorToken", label: "Border Color Preset", type: "string", defaultValue: "green" },
       { key: "nodeBorderColor", label: "Border Color", type: "color", defaultValue: "#10b98155" },
+      { key: "nodeBorderTop", label: "Top", type: "boolean", defaultValue: true },
+      { key: "nodeBorderRight", label: "Right", type: "boolean", defaultValue: true },
+      { key: "nodeBorderBottom", label: "Bottom", type: "boolean", defaultValue: true },
+      { key: "nodeBorderLeft", label: "Left", type: "boolean", defaultValue: true },
       { key: "nodeBorderTopLeft", label: "Top Left", type: "boolean", defaultValue: true },
       { key: "nodeBorderTopRight", label: "Top Right", type: "boolean", defaultValue: true },
       { key: "nodeBorderBottomRight", label: "Bottom Right", type: "boolean", defaultValue: true },
@@ -213,7 +219,13 @@ const CONTROL_SECTIONS = [
       { key: "darkTitleFadeEnd", label: "Dark Fade End", min: 10, max: 100, step: 1, unit: "%", defaultValue: 35 },
       { key: "titleBorderWidth", label: "Border Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
       { key: "titleBorderRadius", label: "Radius", min: 0, max: 24, step: 1, unit: "px", defaultValue: 12 },
+      { key: "titleBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
+      { key: "titleBorderColorToken", label: "Border Color Preset", type: "string", defaultValue: "amber" },
       { key: "titleBorderColor", label: "Border Color", type: "color", defaultValue: "#f59e0b55" },
+      { key: "titleBorderTop", label: "Top", type: "boolean", defaultValue: true },
+      { key: "titleBorderRight", label: "Right", type: "boolean", defaultValue: true },
+      { key: "titleBorderBottom", label: "Bottom", type: "boolean", defaultValue: true },
+      { key: "titleBorderLeft", label: "Left", type: "boolean", defaultValue: true },
       { key: "titleBorderTopLeft", label: "Top Left", type: "boolean", defaultValue: true },
       { key: "titleBorderTopRight", label: "Top Right", type: "boolean", defaultValue: true },
       { key: "titleBorderBottomRight", label: "Bottom Right", type: "boolean", defaultValue: true },
@@ -228,7 +240,13 @@ const CONTROL_SECTIONS = [
       { key: "highlightEndPercent", label: "Stop", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
       { key: "highlightRadius", label: "Radius", min: 0, max: 12, step: 1, unit: "px", defaultValue: 4 },
       { key: "highlightBorderWidth", label: "Border Width", min: 0, max: 6, step: 1, unit: "px", defaultValue: 0 },
+      { key: "highlightBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
+      { key: "highlightBorderColorToken", label: "Border Color Preset", type: "string", defaultValue: "yellow" },
       { key: "highlightBorderColor", label: "Border Color", type: "color", defaultValue: "#facc1566" },
+      { key: "highlightBorderTop", label: "Top", type: "boolean", defaultValue: true },
+      { key: "highlightBorderRight", label: "Right", type: "boolean", defaultValue: true },
+      { key: "highlightBorderBottom", label: "Bottom", type: "boolean", defaultValue: true },
+      { key: "highlightBorderLeft", label: "Left", type: "boolean", defaultValue: true },
       { key: "highlightBorderTopLeft", label: "Top Left", type: "boolean", defaultValue: true },
       { key: "highlightBorderTopRight", label: "Top Right", type: "boolean", defaultValue: true },
       { key: "highlightBorderBottomRight", label: "Bottom Right", type: "boolean", defaultValue: true },
@@ -246,7 +264,13 @@ const CONTROL_SECTIONS = [
       { key: "quoteDarkOpacity", label: "Dark Edge Opacity", min: 0, max: 0.5, step: 0.01, unit: "", defaultValue: 0.15 },
       { key: "quoteBorderWidth", label: "Border Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 4 },
       { key: "quoteRadius", label: "Radius", min: 0, max: 16, step: 1, unit: "px", defaultValue: 8 },
+      { key: "quoteBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
+      { key: "quoteBorderColorToken", label: "Border Color Preset", type: "string", defaultValue: "indigo" },
       { key: "quoteBorderColor", label: "Border Color", type: "color", defaultValue: "#6366f194" },
+      { key: "quoteBorderTop", label: "Top", type: "boolean", defaultValue: true },
+      { key: "quoteBorderRight", label: "Right", type: "boolean", defaultValue: true },
+      { key: "quoteBorderBottom", label: "Bottom", type: "boolean", defaultValue: true },
+      { key: "quoteBorderLeft", label: "Left", type: "boolean", defaultValue: true },
       { key: "quoteBorderTopLeft", label: "Top Left", type: "boolean", defaultValue: false },
       { key: "quoteBorderTopRight", label: "Top Right", type: "boolean", defaultValue: true },
       { key: "quoteBorderBottomRight", label: "Bottom Right", type: "boolean", defaultValue: true },
@@ -264,7 +288,13 @@ const CONTROL_SECTIONS = [
       { key: "bgClearEnd", label: "Clear End", min: 0, max: 100, step: 1, unit: "%", defaultValue: 80 },
       { key: "bgBorderWidth", label: "Border Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
       { key: "bgRadius", label: "Radius", min: 0, max: 16, step: 1, unit: "px", defaultValue: 6 },
+      { key: "bgBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
+      { key: "bgBorderColorToken", label: "Border Color Preset", type: "string", defaultValue: "pink" },
       { key: "bgBorderColor", label: "Border Color", type: "color", defaultValue: "#f472b655" },
+      { key: "bgBorderTop", label: "Top", type: "boolean", defaultValue: true },
+      { key: "bgBorderRight", label: "Right", type: "boolean", defaultValue: true },
+      { key: "bgBorderBottom", label: "Bottom", type: "boolean", defaultValue: true },
+      { key: "bgBorderLeft", label: "Left", type: "boolean", defaultValue: true },
       { key: "bgBorderTopLeft", label: "Top Left", type: "boolean", defaultValue: true },
       { key: "bgBorderTopRight", label: "Top Right", type: "boolean", defaultValue: true },
       { key: "bgBorderBottomRight", label: "Bottom Right", type: "boolean", defaultValue: true },
@@ -284,13 +314,27 @@ const BORDER_CORNER_DEFINITIONS = [
   { name: "bottomRight", shortLabel: "BR", title: "Bottom Right" },
   { name: "bottomLeft", shortLabel: "BL", title: "Bottom Left" },
 ];
+const BORDER_SIDE_DEFINITIONS = [
+  { name: "top", shortLabel: "T", title: "Top" },
+  { name: "right", shortLabel: "R", title: "Right" },
+  { name: "bottom", shortLabel: "B", title: "Bottom" },
+  { name: "left", shortLabel: "L", title: "Left" },
+];
 const BORDER_CONTROL_GROUPS = {
   node: {
     key: "node",
     label: "Linked Block Border",
     widthKey: "nodeBorderWidth",
     radiusKey: "nodeBorderRadius",
+    modeKey: "nodeBorderColorMode",
+    tokenKey: "nodeBorderColorToken",
     colorKey: "nodeBorderColor",
+    sideKeys: {
+      top: "nodeBorderTop",
+      right: "nodeBorderRight",
+      bottom: "nodeBorderBottom",
+      left: "nodeBorderLeft",
+    },
     cornerKeys: {
       topLeft: "nodeBorderTopLeft",
       topRight: "nodeBorderTopRight",
@@ -303,7 +347,15 @@ const BORDER_CONTROL_GROUPS = {
     label: "Page Title Border",
     widthKey: "titleBorderWidth",
     radiusKey: "titleBorderRadius",
+    modeKey: "titleBorderColorMode",
+    tokenKey: "titleBorderColorToken",
     colorKey: "titleBorderColor",
+    sideKeys: {
+      top: "titleBorderTop",
+      right: "titleBorderRight",
+      bottom: "titleBorderBottom",
+      left: "titleBorderLeft",
+    },
     cornerKeys: {
       topLeft: "titleBorderTopLeft",
       topRight: "titleBorderTopRight",
@@ -316,7 +368,15 @@ const BORDER_CONTROL_GROUPS = {
     label: "Highlight Border",
     widthKey: "highlightBorderWidth",
     radiusKey: "highlightRadius",
+    modeKey: "highlightBorderColorMode",
+    tokenKey: "highlightBorderColorToken",
     colorKey: "highlightBorderColor",
+    sideKeys: {
+      top: "highlightBorderTop",
+      right: "highlightBorderRight",
+      bottom: "highlightBorderBottom",
+      left: "highlightBorderLeft",
+    },
     cornerKeys: {
       topLeft: "highlightBorderTopLeft",
       topRight: "highlightBorderTopRight",
@@ -329,7 +389,15 @@ const BORDER_CONTROL_GROUPS = {
     label: "Quote Border",
     widthKey: "quoteBorderWidth",
     radiusKey: "quoteRadius",
+    modeKey: "quoteBorderColorMode",
+    tokenKey: "quoteBorderColorToken",
     colorKey: "quoteBorderColor",
+    sideKeys: {
+      top: "quoteBorderTop",
+      right: "quoteBorderRight",
+      bottom: "quoteBorderBottom",
+      left: "quoteBorderLeft",
+    },
     cornerKeys: {
       topLeft: "quoteBorderTopLeft",
       topRight: "quoteBorderTopRight",
@@ -342,7 +410,15 @@ const BORDER_CONTROL_GROUPS = {
     label: "Background Block Border",
     widthKey: "bgBorderWidth",
     radiusKey: "bgRadius",
+    modeKey: "bgBorderColorMode",
+    tokenKey: "bgBorderColorToken",
     colorKey: "bgBorderColor",
+    sideKeys: {
+      top: "bgBorderTop",
+      right: "bgBorderRight",
+      bottom: "bgBorderBottom",
+      left: "bgBorderLeft",
+    },
     cornerKeys: {
       topLeft: "bgBorderTopLeft",
       topRight: "bgBorderTopRight",
@@ -2673,6 +2749,10 @@ async function toggleLogseqTheme() {
 }
 
 function formatControlValue(control, value) {
+  if (getControlType(control) === "string") {
+    return String(value || "");
+  }
+
   if (getControlType(control) === "boolean") {
     return value ? "On" : "Off";
   }
@@ -2725,6 +2805,10 @@ function normalizeStoredControlValue(control, rawValue) {
     return normalizeHexColor(rawValue) || control.defaultValue;
   }
 
+  if (getControlType(control) === "string") {
+    return String(rawValue || control.defaultValue || "");
+  }
+
   if (getControlType(control) === "boolean") {
     return normalizeBooleanControlValue(rawValue, control.defaultValue);
   }
@@ -2744,7 +2828,112 @@ function getBorderControlColor(groupKey) {
     return "#00000000";
   }
 
+  const mode = String(panelState.controlState[group.modeKey] || "custom");
+  const token = String(panelState.controlState[group.tokenKey] || "");
+
+  if (mode === "linked") {
+    return getBorderLinkedPreviewColor(group);
+  }
+
+  if (mode === "preset" && COLOR_PRESET_MAP[token]) {
+    return getPreviewGradientFallbackColor(token);
+  }
+
   return normalizeHexColor(panelState.controlState[group.colorKey]) || "#00000000";
+}
+
+function getBorderRuntimeColor(groupKey) {
+  const group = getBorderControlGroup(groupKey);
+
+  if (!group) {
+    return "transparent";
+  }
+
+  const mode = String(panelState.controlState[group.modeKey] || "custom");
+  const token = String(panelState.controlState[group.tokenKey] || "");
+
+  if (mode === "linked") {
+    return getBorderLinkedRuntimeColor(group);
+  }
+
+  if (mode === "preset" && COLOR_PRESET_MAP[token]) {
+    return `var(--bd-${token})`;
+  }
+
+  return normalizeHexColor(panelState.controlState[group.colorKey]) || "transparent";
+}
+
+function getBorderLinkedPreviewColor(groupKey) {
+  const group = getBorderControlGroup(groupKey);
+  return group ? getGradientPreviewLinkedColor(group.key) : "transparent";
+}
+
+function getBorderLinkedRuntimeColor(groupKey) {
+  const group = getBorderControlGroup(groupKey);
+
+  if (!group) {
+    return "transparent";
+  }
+
+  if (group.key === "node" || group.key === "title") {
+    return "var(--node-color)";
+  }
+
+  if (group.key === "highlight") {
+    return "var(--ctl-highlight-color)";
+  }
+
+  if (group.key === "quote") {
+    return "var(--ctl-quote-color)";
+  }
+
+  if (group.key === "background") {
+    return "var(--ctl-bg-sweep-color)";
+  }
+
+  return "transparent";
+}
+
+function getBorderColorMode(groupKey) {
+  const group = getBorderControlGroup(groupKey);
+  return group ? String(panelState.controlState[group.modeKey] || "custom") : "custom";
+}
+
+function getBorderColorToken(groupKey) {
+  const group = getBorderControlGroup(groupKey);
+
+  if (!group) {
+    return "";
+  }
+
+  const token = String(panelState.controlState[group.tokenKey] || "");
+  return COLOR_PRESET_MAP[token] ? token : String(CONTROL_MAP[group.tokenKey]?.defaultValue || "grey");
+}
+
+function getBorderSideWidths(groupKey) {
+  const group = getBorderControlGroup(groupKey);
+
+  if (!group) {
+    return { top: 0, right: 0, bottom: 0, left: 0 };
+  }
+
+  const width = Number(panelState.controlState[group.widthKey]) || 0;
+
+  return {
+    top: panelState.controlState[group.sideKeys.top] ? width : 0,
+    right: panelState.controlState[group.sideKeys.right] ? width : 0,
+    bottom: panelState.controlState[group.sideKeys.bottom] ? width : 0,
+    left: panelState.controlState[group.sideKeys.left] ? width : 0,
+  };
+}
+
+function buildBorderWidthShorthand(groupKey) {
+  const widths = getBorderSideWidths(groupKey);
+  return `${widths.top}px ${widths.right}px ${widths.bottom}px ${widths.left}px`;
+}
+
+function buildBorderWidthDeclarations(groupKey, suffix = "") {
+  return `border-width: ${buildBorderWidthShorthand(groupKey)}${suffix}`;
 }
 
 function getBorderRadiusValues(groupKey) {
@@ -2781,6 +2970,16 @@ function getEnabledBorderCornerCount(groupKey) {
   }
 
   return Object.values(group.cornerKeys).reduce((count, controlKey) => count + (panelState.controlState[controlKey] ? 1 : 0), 0);
+}
+
+function getEnabledBorderSideCount(groupKey) {
+  const group = getBorderControlGroup(groupKey);
+
+  if (!group) {
+    return 0;
+  }
+
+  return Object.values(group.sideKeys).reduce((count, controlKey) => count + (panelState.controlState[controlKey] ? 1 : 0), 0);
 }
 
 function escapeHtml(value) {
@@ -6106,6 +6305,123 @@ function buildBorderCornerToggleMarkup(groupKey) {
   }).join("");
 }
 
+function buildBorderSideToggleMarkup(groupKey) {
+  const group = getBorderControlGroup(groupKey);
+
+  if (!group) {
+    return "";
+  }
+
+  return BORDER_SIDE_DEFINITIONS.map(({ name, shortLabel, title }) => {
+    const controlKey = group.sideKeys[name];
+    const isActive = Boolean(panelState.controlState[controlKey]);
+
+    return `
+      <button
+        class="ctl-button ctl-button-secondary ctl-button-small ctl-filter-toggle${isActive ? " is-active" : ""}"
+        type="button"
+        data-action="toggle-control-boolean"
+        data-control-boolean-key="${controlKey}"
+        aria-pressed="${isActive ? "true" : "false"}"
+        title="${title} border ${isActive ? "on" : "off"}"
+      >${shortLabel}</button>
+    `;
+  }).join("");
+}
+
+function buildBorderColorModeOptionsMarkup(groupKey) {
+  const group = getBorderControlGroup(groupKey);
+
+  if (!group) {
+    return "";
+  }
+
+  const areaConfig = GRADIENT_AREAS[group.key] || {};
+  const mode = getBorderColorMode(group);
+  const token = getBorderColorToken(group);
+  const options = [
+    {
+      title: areaConfig.linkedLabel || "Linked Color",
+      caption: "Follow the live surface color",
+      active: mode === "linked",
+      action: `data-action="set-border-color-mode" data-border-group-key="${group.key}" data-border-color-mode="linked"`,
+    },
+    {
+      title: "Custom",
+      caption: "Use the editor below",
+      active: mode === "custom",
+      action: `data-action="set-border-color-mode" data-border-group-key="${group.key}" data-border-color-mode="custom"`,
+    },
+    {
+      title: "Logseq Accent",
+      caption: "Use the current app accent",
+      active: mode === "preset" && token === "acc-app-accent",
+      action: `data-action="set-border-color-preset" data-border-group-key="${group.key}" data-border-color-token="acc-app-accent"`,
+    },
+  ];
+
+  return options.map((option) => `
+    <button
+      class="ctl-mode-option${option.active ? " is-active" : ""}"
+      type="button"
+      ${option.action}
+      title="${escapeHtml(option.caption)}"
+    >
+      <strong>${escapeHtml(option.title)}</strong>
+      <span>${escapeHtml(option.caption)}</span>
+    </button>
+  `).join("");
+}
+
+function buildBorderPresetPaletteMarkup(groupKey) {
+  const group = getBorderControlGroup(groupKey);
+
+  if (!group) {
+    return "";
+  }
+
+  const mode = getBorderColorMode(group);
+  const activeToken = getBorderColorToken(group);
+  const renderButtons = (presets) => presets.map((preset) => {
+    const style = getTagChipThemeStyle(preset.token);
+    const isActive = mode === "preset" && activeToken === preset.token;
+    const isSpecialAccent = preset.token === "acc-app-accent";
+
+    return `
+      <button
+        class="ctl-preset-option${isActive ? " is-active" : ""}${isSpecialAccent ? " ctl-preset-option-special" : ""}"
+        type="button"
+        data-action="set-border-color-preset"
+        data-border-group-key="${group.key}"
+        data-border-color-token="${preset.token}"
+        aria-label="Use ${preset.label} for this border"
+        style="background:${style.background};border-color:${style.borderColor};color:${style.color};"
+        title="Use ${preset.label} for this border"
+      >${isSpecialAccent ? "A" : ""}</button>
+    `;
+  }).join("");
+
+  const standardPresets = COLOR_PRESETS.filter((preset) => !preset.token.startsWith("acc-"));
+  const accentPresets = COLOR_PRESETS.filter((preset) => preset.token.startsWith("acc-") && preset.token !== "acc-app-accent");
+
+  return `
+    <div class="ctl-preset-row">
+      <div class="ctl-preset-column">
+        <span class="ctl-gradient-group-label">Preset Colors</span>
+        <div class="ctl-preset-grid">
+          ${renderButtons(standardPresets)}
+        </div>
+      </div>
+      <div class="ctl-preset-column">
+        <span class="ctl-gradient-group-label">Accent Colors</span>
+        <div class="ctl-preset-grid">
+          ${renderButtons(accentPresets)}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function buildBorderEditorMarkup(groupKey) {
   const group = getBorderControlGroup(groupKey);
 
@@ -6113,23 +6429,29 @@ function buildBorderEditorMarkup(groupKey) {
     return "";
   }
 
+  const isCustomMode = getBorderColorMode(group) === "custom";
+  const customColor = normalizeHexColor(panelState.controlState[group.colorKey]) || "#14b8a6";
+
   return `
     <div class="ctl-custom-color-box">
       <div class="ctl-custom-color-head">
         <strong>${escapeHtml(group.label)}</strong>
-        <span>Width, radius, color, and corners.</span>
+        <span>Width, sides, corners, and color source.</span>
       </div>
       <div class="ctl-gradient-extra">
         ${buildNumericControlsMarkup([group.widthKey, group.radiusKey])}
       </div>
       <div class="ctl-custom-color-grid">
         <section class="ctl-custom-color-panel">
-          <span class="ctl-custom-color-label">Border Color</span>
-          ${buildInlineColorEditorMarkup({
-            color: getBorderControlColor(group),
-            scope: "control-color",
-            controlColorKey: group.colorKey,
-          })}
+          <div class="ctl-control ctl-control-tight">
+            <div class="ctl-control-header">
+              <span class="ctl-control-label">Visible Sides</span>
+              <strong class="ctl-control-value" data-border-side-summary="${groupKey}">${getEnabledBorderSideCount(groupKey)}/4</strong>
+            </div>
+            <div class="ctl-filter-toggle-grid" role="group" aria-label="${escapeHtml(group.label)} visible sides">
+              ${buildBorderSideToggleMarkup(groupKey)}
+            </div>
+          </div>
         </section>
         <section class="ctl-custom-color-panel">
           <div class="ctl-control ctl-control-tight">
@@ -6143,6 +6465,28 @@ function buildBorderEditorMarkup(groupKey) {
           </div>
         </section>
       </div>
+      <section class="ctl-gradient-group">
+        <span class="ctl-gradient-group-label">Border Color Source</span>
+        <div class="ctl-mode-grid">
+          ${buildBorderColorModeOptionsMarkup(groupKey)}
+        </div>
+      </section>
+      <section class="ctl-gradient-group">
+        ${buildBorderPresetPaletteMarkup(groupKey)}
+      </section>
+      <details class="ctl-gradient-group ctl-gradient-custom-toggle"${isCustomMode ? " open" : ""}>
+        <summary class="ctl-gradient-custom-summary">
+          <span class="ctl-gradient-group-label">Custom Border Color</span>
+          <span class="ctl-gradient-custom-summary-text">Show / Hide</span>
+        </summary>
+        <div class="ctl-gradient-custom-toggle-body">
+          ${buildInlineColorEditorMarkup({
+            color: customColor,
+            scope: "control-color",
+            controlColorKey: group.colorKey,
+          })}
+        </div>
+      </details>
     </div>
   `;
 }
@@ -6793,6 +7137,10 @@ function syncControlInputs() {
     document.querySelectorAll(`[data-border-corner-summary="${groupKey}"]`).forEach((value) => {
       value.textContent = `${getEnabledBorderCornerCount(groupKey)}/4`;
     });
+
+    document.querySelectorAll(`[data-border-side-summary="${groupKey}"]`).forEach((value) => {
+      value.textContent = `${getEnabledBorderSideCount(groupKey)}/4`;
+    });
   });
 
   syncHighlightRangeControl();
@@ -7046,7 +7394,7 @@ function syncPreviewStyles() {
     backgroundImage: nodeEnabled ? buildGradientCss("node", nodePreviewLinkedColor, "preview") : "none",
     backgroundColor: isDark ? "rgba(15, 23, 42, 0.68)" : "rgba(255, 255, 255, 0.82)",
     borderStyle: "solid",
-    borderWidth: `${controls.nodeBorderWidth}px`,
+    borderWidth: buildBorderWidthShorthand("node"),
     borderColor: nodeBorderColor,
     borderRadius: buildBorderRadiusShorthand("node"),
   });
@@ -7056,7 +7404,7 @@ function syncPreviewStyles() {
     backgroundImage: titleEnabled ? buildGradientCss("title", titlePreviewLinkedColor, "preview") : "none",
     backgroundColor: isDark ? "rgba(15, 23, 42, 0.72)" : "rgba(255, 255, 255, 0.84)",
     borderStyle: "solid",
-    borderWidth: `${controls.titleBorderWidth}px`,
+    borderWidth: buildBorderWidthShorthand("title"),
     borderColor: titleBorderColor,
     borderRadius: buildBorderRadiusShorthand("title"),
   });
@@ -7069,7 +7417,7 @@ function syncPreviewStyles() {
     backgroundColor: "transparent",
     color: "inherit",
     borderStyle: "solid",
-    borderWidth: `${controls.highlightBorderWidth}px`,
+    borderWidth: buildBorderWidthShorthand("highlight"),
     borderColor: highlightBorderColor,
     borderRadius: buildBorderRadiusShorthand("highlight"),
     padding: "0 0.18em",
@@ -7096,7 +7444,7 @@ function syncPreviewStyles() {
 
   setPreviewElementStyle(document.querySelector('[data-role="preview-quote"]'), {
     opacity: quoteEnabled ? "1" : "0.65",
-    borderWidth: `${controls.quoteBorderWidth}px`,
+    borderWidth: buildBorderWidthShorthand("quote"),
     borderStyle: "solid",
     borderColor: quoteBorderColor,
     borderRadius: buildBorderRadiusShorthand("quote"),
@@ -7107,7 +7455,7 @@ function syncPreviewStyles() {
 
   setPreviewElementStyle(document.querySelector('[data-role="preview-background"]'), {
     opacity: backgroundEnabled ? "1" : "0.65",
-    borderWidth: `${controls.bgBorderWidth}px`,
+    borderWidth: buildBorderWidthShorthand("background"),
     borderStyle: "solid",
     borderColor: backgroundBorderColor,
     borderRadius: buildBorderRadiusShorthand("background"),
@@ -7449,12 +7797,18 @@ function applyInlineEditorColor(editor, color, renderMode = "soft") {
   if (editor.dataset.colorScope === "control-color") {
     const controlKey = editor.dataset.controlColorKey;
     const control = CONTROL_MAP[controlKey];
+    const group = Object.values(BORDER_CONTROL_GROUPS).find((candidate) => candidate.colorKey === controlKey);
 
     if (!control) {
       return;
     }
 
     panelState.controlState[controlKey] = normalized;
+
+    if (group) {
+      panelState.controlState[group.modeKey] = "custom";
+    }
+
     void applyManagedOverrides(false, `Adjusted ${control.label}`, renderMode);
 
     if (renderMode !== "soft") {
@@ -7720,11 +8074,11 @@ function buildManagedOverrides() {
   const titleGradient = buildGradientCss("title", "var(--node-color)");
   const highlightGradient = buildGradientCss("highlight", "var(--ctl-highlight-color)");
   const backgroundGradient = buildGradientCss("background", "var(--ctl-bg-sweep-color)");
-  const nodeBorderColor = getBorderControlColor("node");
-  const titleBorderColor = getBorderControlColor("title");
-  const highlightBorderColor = getBorderControlColor("highlight");
-  const quoteBorderColor = getBorderControlColor("quote");
-  const backgroundBorderColor = getBorderControlColor("background");
+  const nodeBorderColor = getBorderRuntimeColor("node");
+  const titleBorderColor = getBorderRuntimeColor("title");
+  const highlightBorderColor = getBorderRuntimeColor("highlight");
+  const quoteBorderColor = getBorderRuntimeColor("quote");
+  const backgroundBorderColor = getBorderRuntimeColor("background");
   const lightHighlightColor = "rgba(250, 204, 21, 0.32)";
   const darkHighlightColor = "rgba(250, 204, 21, 0.24)";
   const highlightMarkSelector = HOST_HIGHLIGHT_MARK_SELECTORS.join(",\n");
@@ -7954,7 +8308,7 @@ ${buildSearchTagChipSelector(".dark-theme ")}:hover {
 .ls-block > div:first-child[data-degrande-linked-node="true"]:not(.selected):not(.selected-block) {
   background-image: ${nodeGradient} !important;
   background-color: transparent !important;
-  border-width: ${controls.nodeBorderWidth}px !important;
+  ${buildBorderWidthDeclarations("node", " !important;")}
   border-style: solid !important;
   border-color: ${nodeBorderColor} !important;
   ${buildBorderRadiusDeclarations("node", " !important;")}
@@ -7964,7 +8318,7 @@ ${buildSearchTagChipSelector(".dark-theme ")}:hover {
 .block-main-content[data-degrande-page-title-node="true"] {
   background-image: ${titleGradient} !important;
   background-color: transparent !important;
-  border-width: ${controls.titleBorderWidth}px !important;
+  ${buildBorderWidthDeclarations("title", " !important;")}
   border-style: solid !important;
   border-color: ${titleBorderColor} !important;
   ${buildBorderRadiusDeclarations("title", " !important;")}
@@ -7980,7 +8334,7 @@ ${highlightMarkSelector} {
   -webkit-background-clip: border-box !important;
   box-shadow: none !important;
   background-color: transparent !important;
-  border-width: ${controls.highlightBorderWidth}px !important;
+  ${buildBorderWidthDeclarations("highlight", " !important;")}
   border-style: solid !important;
   border-color: ${highlightBorderColor} !important;
   ${buildBorderRadiusDeclarations("highlight", " !important;")}
@@ -8001,7 +8355,7 @@ ${darkHighlightMarkSelector} {
     quotes: `
 div[data-node-type="quote"] {
   --ctl-quote-color: rgba(99, 102, 241, ${controls.quoteLightOpacity});
-  border-width: ${controls.quoteBorderWidth}px !important;
+  ${buildBorderWidthDeclarations("quote", " !important;")}
   border-style: solid !important;
   border-color: ${quoteBorderColor} !important;
   ${buildBorderRadiusDeclarations("quote", " !important;")}
@@ -8030,7 +8384,7 @@ ${quoteColorRules}
   --ctl-bg-sweep-color: rgba(244, 114, 182, 0.16);
   background-image: ${backgroundGradient} !important;
   background-color: transparent !important;
-  border-width: ${controls.bgBorderWidth}px !important;
+  ${buildBorderWidthDeclarations("background", " !important;")}
   border-style: solid !important;
   border-color: ${backgroundBorderColor} !important;
   ${buildBorderRadiusDeclarations("background", " !important;")}
@@ -8287,6 +8641,34 @@ function mountPanel() {
 
       panelState.controlState[controlKey] = !panelState.controlState[controlKey];
       void applyManagedOverrides(false, `Adjusted ${control.label}`, "soft");
+      schedulePersistControls();
+      return;
+    }
+
+    if (action === "set-border-color-mode") {
+      const group = getBorderControlGroup(target.dataset.borderGroupKey || "");
+
+      if (!group) {
+        return;
+      }
+
+      panelState.controlState[group.modeKey] = target.dataset.borderColorMode === "linked" ? "linked" : "custom";
+      void applyManagedOverrides(false, `Adjusted ${group.label}`, "preview");
+      schedulePersistControls();
+      return;
+    }
+
+    if (action === "set-border-color-preset") {
+      const group = getBorderControlGroup(target.dataset.borderGroupKey || "");
+      const token = target.dataset.borderColorToken || "";
+
+      if (!group || !COLOR_PRESET_MAP[token]) {
+        return;
+      }
+
+      panelState.controlState[group.modeKey] = "preset";
+      panelState.controlState[group.tokenKey] = token;
+      void applyManagedOverrides(false, `Adjusted ${group.label}`, "preview");
       schedulePersistControls();
       return;
     }
