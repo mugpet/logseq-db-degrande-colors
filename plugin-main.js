@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.53";
+const FALLBACK_PLUGIN_VERSION = "0.4.54";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -591,7 +591,42 @@ function exposeDegrandeKillSwitch() {
     const hostWindow = getHostWindow();
     hostWindow.__degrandeKillObservers = killAllDegrandeObservers;
     hostWindow.__degrandeRestoreObservers = restoreAllDegrandeObservers;
+    hostWindow.__degrandeNeuter = () => { try { hostWindow.localStorage.setItem('degrandeNeuter','1'); } catch(_){} hostWindow.console?.warn?.('[degrande] neutered. Reload Logseq.'); };
+    hostWindow.__degrandeUnneuter = () => { try { hostWindow.localStorage.removeItem('degrandeNeuter'); } catch(_){} hostWindow.console?.warn?.('[degrande] unneutered. Reload Logseq.'); };
+    hostWindow.__degrandePerf = (on = true) => { try { hostWindow.localStorage.setItem('degrandePerfLog', on ? '1' : '0'); } catch(_){} hostWindow.console?.warn?.('[degrande] perf log', on ? 'ON' : 'OFF'); };
   } catch (_) {}
+}
+
+function isDegrandeNeutered() {
+  try {
+    return getHostWindow()?.localStorage?.getItem?.('degrandeNeuter') === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function isDegrandePerfLogOn() {
+  try {
+    return getHostWindow()?.localStorage?.getItem?.('degrandePerfLog') === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function degrandeTime(label, fn, extra) {
+  if (!isDegrandePerfLogOn()) {
+    return fn();
+  }
+  const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  try {
+    return fn();
+  } finally {
+    const t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    const dt = t1 - t0;
+    if (dt > 1) {
+      try { getHostWindow().console?.log?.(`[degrande] ${label} ${dt.toFixed(1)}ms` + (extra !== undefined ? ` (${extra})` : '')); } catch (_) {}
+    }
+  }
 }
 
 function canAccessExternalHostDocument() {
@@ -5741,6 +5776,8 @@ function buildAppearanceDiagnosticsMarkup() {
         <button class="ctl-button ctl-button-secondary" data-action="degrande-kill-observers">Disable Observers Now</button>
         <button class="ctl-button ctl-button-secondary" data-action="degrande-restore-observers">Re-enable Observers</button>
         <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-boot-skip">Toggle Boot Skip</button>
+        <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-neuter">Toggle Full Neuter (reload)</button>
+        <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-perflog">Toggle Perf Log</button>
         <span data-role="degrande-killswitch-status" style="align-self:center; opacity:.75; font-size:12px;"></span>
       </div>
     </section>
@@ -8026,6 +8063,34 @@ function mountPanel() {
       return;
     }
 
+    if (action === "degrande-toggle-neuter") {
+      try {
+        const hostWindow = getHostWindow();
+        const cur = hostWindow.localStorage.getItem('degrandeNeuter') === '1';
+        if (cur) hostWindow.localStorage.removeItem('degrandeNeuter');
+        else hostWindow.localStorage.setItem('degrandeNeuter', '1');
+        const status = document.querySelector('[data-role="degrande-killswitch-status"]');
+        if (status) status.textContent = cur
+          ? "Neuter OFF. Reload Logseq."
+          : "Neuter ON. Reload Logseq — every Degrande callback will no-op and host styles will be empty. If Logseq is STILL slow after reload, the cost is in the plugin iframe/SDK itself, not in our code.";
+      } catch (_) {}
+      return;
+    }
+
+    if (action === "degrande-toggle-perflog") {
+      try {
+        const hostWindow = getHostWindow();
+        const cur = hostWindow.localStorage.getItem('degrandePerfLog') === '1';
+        if (cur) hostWindow.localStorage.removeItem('degrandePerfLog');
+        else hostWindow.localStorage.setItem('degrandePerfLog', '1');
+        const status = document.querySelector('[data-role="degrande-killswitch-status"]');
+        if (status) status.textContent = cur
+          ? "Perf log OFF."
+          : "Perf log ON. Open Logseq DevTools console; any Degrande callback >1ms will print as [degrande] <name> <ms>ms. Click slow toolbar icons and report the loudest line.";
+      } catch (_) {}
+      return;
+    }
+
     if (action === "clear-tag-color") {
       if (!panelState.selectedTag) {
         return;
@@ -8560,25 +8625,30 @@ async function main() {
   await loadStoredTagColors();
   await loadStoredGradients();
   setSyncState("synced");
-  bindHostTagContextMenu();
+  if (!isDegrandeNeutered()) bindHostTagContextMenu();
 
   const userConfigs = await logseq.App.getUserConfigs();
   setThemeMode(userConfigs?.preferredThemeMode);
   logseq.App.onThemeModeChanged(({ mode }) => {
-    setThemeMode(mode);
-    rebuildTagDrivenNodeStyleState();
-    syncAllTagDrivenNodeStyles();
-    renderPanel(`Logseq theme: ${mode}`);
+    if (isDegrandeNeutered()) return;
+    degrandeTime("onThemeModeChanged", () => {
+      setThemeMode(mode);
+      rebuildTagDrivenNodeStyleState();
+      syncAllTagDrivenNodeStyles();
+      renderPanel(`Logseq theme: ${mode}`);
+    });
   });
 
   if (typeof logseq.App.onCurrentGraphChanged === "function") {
     logseq.App.onCurrentGraphChanged(() => {
-      void handleCurrentGraphChanged();
+      if (isDegrandeNeutered()) return;
+      degrandeTime("onCurrentGraphChanged", () => { void handleCurrentGraphChanged(); });
     });
   }
 
   if (typeof logseq.App.onGraphAfterIndexed === "function") {
     logseq.App.onGraphAfterIndexed(({ repo }) => {
+      if (isDegrandeNeutered()) return;
       if (!doesRepoMatchGraph(repo)) {
         return;
       }
@@ -8599,35 +8669,47 @@ async function main() {
 
   if (typeof logseq.DB?.onChanged === "function") {
     logseq.DB.onChanged(({ txData }) => {
-      if (!Array.isArray(txData) || !txData.length) {
-        return;
-      }
+      if (isDegrandeNeutered()) return;
+      degrandeTime("DB.onChanged", () => {
+        if (!Array.isArray(txData) || !txData.length) {
+          return;
+        }
 
-      const changeSummary = doesTxDataTouchDegrandeState(txData);
+        const changeSummary = doesTxDataTouchDegrandeState(txData);
 
-      if (!changeSummary.touched) {
-        return;
-      }
+        if (!changeSummary.touched) {
+          return;
+        }
 
-      if (changeSummary.syncStateChanged) {
-        schedulePersistedAppearanceSync({
-          reason: "Updated synced graph appearance",
-          fallbackToPrevious: false,
-          refreshTagCatalog: false,
-        });
-      }
+        if (changeSummary.syncStateChanged) {
+          schedulePersistedAppearanceSync({
+            reason: "Updated synced graph appearance",
+            fallbackToPrevious: false,
+            refreshTagCatalog: false,
+          });
+        }
 
-      if (changeSummary.tagCatalogChanged) {
-        scheduleTagCatalogRefresh();
-      }
+        if (changeSummary.tagCatalogChanged) {
+          scheduleTagCatalogRefresh();
+        }
+      }, txData?.length || 0);
     });
   }
 
   await reloadThemeCss(false, false);
   exposeDegrandeKillSwitch();
 
-  if (shouldSkipObserversAtBoot()) {
-    try { getHostWindow().console?.warn?.('[degrande] observers skipped at boot via localStorage.degrandeKillObservers=1'); } catch (_) {}
+  if (isDegrandeNeutered()) {
+    try {
+      // Wipe injected host styles so this is a true zero-impact mode.
+      setHostStyleText(BASE_STYLE_ELEMENT_ID, "");
+      setHostStyleText(MANAGED_STYLE_ELEMENT_ID, "");
+      getHostWindow().console?.warn?.('[degrande] FULL NEUTER active. All callbacks no-op, host styles wiped.');
+    } catch (_) {}
+  }
+
+  if (shouldSkipObserversAtBoot() || isDegrandeNeutered()) {
+    try { getHostWindow().console?.warn?.('[degrande] observers skipped at boot'); } catch (_) {}
   } else {
     observeHostColorTargets();
     observeTagDrivenNodeStyles();
