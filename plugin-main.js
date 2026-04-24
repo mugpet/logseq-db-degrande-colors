@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.54";
+const FALLBACK_PLUGIN_VERSION = "0.4.55";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -600,6 +600,14 @@ function exposeDegrandeKillSwitch() {
 function isDegrandeNeutered() {
   try {
     return getHostWindow()?.localStorage?.getItem?.('degrandeNeuter') === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function isDbOnChangedDisabled() {
+  try {
+    return getHostWindow()?.localStorage?.getItem?.('degrandeDisableDbOnChanged') === '1';
   } catch (_) {
     return false;
   }
@@ -5777,6 +5785,7 @@ function buildAppearanceDiagnosticsMarkup() {
         <button class="ctl-button ctl-button-secondary" data-action="degrande-restore-observers">Re-enable Observers</button>
         <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-boot-skip">Toggle Boot Skip</button>
         <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-neuter">Toggle Full Neuter (reload)</button>
+        <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-db-onchanged">Toggle DB.onChanged (reload)</button>
         <button class="ctl-button ctl-button-secondary" data-action="degrande-toggle-perflog">Toggle Perf Log</button>
         <span data-role="degrande-killswitch-status" style="align-self:center; opacity:.75; font-size:12px;"></span>
       </div>
@@ -8091,6 +8100,21 @@ function mountPanel() {
       return;
     }
 
+    if (action === "degrande-toggle-db-onchanged") {
+      try {
+        const hostWindow = getHostWindow();
+        const cur = hostWindow.localStorage.getItem('degrandeDisableDbOnChanged') === '1';
+        if (cur) hostWindow.localStorage.removeItem('degrandeDisableDbOnChanged');
+        else hostWindow.localStorage.setItem('degrandeDisableDbOnChanged', '1');
+        const status = document.querySelector('[data-role="degrande-killswitch-status"]');
+        if (status) status.textContent = cur
+          ? "DB.onChanged ENABLED on next reload."
+          : "DB.onChanged subscription will be SKIPPED on next reload. This is the unique-to-colors callback that calendar/bullet-threading do not use; Logseq fires it on every transaction. Reload Logseq, test toolbar/Ctrl+K speed, and report whether the freezes are gone.";
+      } catch (_) {}
+      return;
+    }
+
+
     if (action === "clear-tag-color") {
       if (!panelState.selectedTag) {
         return;
@@ -8629,71 +8653,82 @@ async function main() {
 
   const userConfigs = await logseq.App.getUserConfigs();
   setThemeMode(userConfigs?.preferredThemeMode);
-  logseq.App.onThemeModeChanged(({ mode }) => {
-    if (isDegrandeNeutered()) return;
-    degrandeTime("onThemeModeChanged", () => {
-      setThemeMode(mode);
-      rebuildTagDrivenNodeStyleState();
-      syncAllTagDrivenNodeStyles();
-      renderPanel(`Logseq theme: ${mode}`);
+
+  // v0.4.55: when neutered, do NOT register SDK callbacks at all.
+  // Just no-op'ing the body still pays the bridge cost on every fire.
+  if (!isDegrandeNeutered()) {
+    logseq.App.onThemeModeChanged(({ mode }) => {
+      degrandeTime("onThemeModeChanged", () => {
+        setThemeMode(mode);
+        rebuildTagDrivenNodeStyleState();
+        syncAllTagDrivenNodeStyles();
+        renderPanel(`Logseq theme: ${mode}`);
+      });
     });
-  });
 
-  if (typeof logseq.App.onCurrentGraphChanged === "function") {
-    logseq.App.onCurrentGraphChanged(() => {
-      if (isDegrandeNeutered()) return;
-      degrandeTime("onCurrentGraphChanged", () => { void handleCurrentGraphChanged(); });
-    });
-  }
+    if (typeof logseq.App.onCurrentGraphChanged === "function") {
+      logseq.App.onCurrentGraphChanged(() => {
+        degrandeTime("onCurrentGraphChanged", () => { void handleCurrentGraphChanged(); });
+      });
+    }
 
-  if (typeof logseq.App.onGraphAfterIndexed === "function") {
-    logseq.App.onGraphAfterIndexed(({ repo }) => {
-      if (isDegrandeNeutered()) return;
-      if (!doesRepoMatchGraph(repo)) {
-        return;
-      }
+    if (typeof logseq.App.onGraphAfterIndexed === "function") {
+      logseq.App.onGraphAfterIndexed(({ repo }) => {
+        degrandeTime("onGraphAfterIndexed", () => {
+          if (!doesRepoMatchGraph(repo)) {
+            return;
+          }
 
-      panelState.graphIndexed = true;
+          panelState.graphIndexed = true;
 
-      void (async () => {
-        await flushDeferredGraphSyncWrites();
-        await syncPersistedAppearance({
-          reason: "Reloaded synced graph appearance",
-          fallbackToPrevious: false,
-          forceRender: true,
-          refreshTagCatalog: Boolean(logseq.isMainUIVisible && panelState.activeTab === "tags"),
+          void (async () => {
+            await flushDeferredGraphSyncWrites();
+            await syncPersistedAppearance({
+              reason: "Reloaded synced graph appearance",
+              fallbackToPrevious: false,
+              forceRender: true,
+              refreshTagCatalog: Boolean(logseq.isMainUIVisible && panelState.activeTab === "tags"),
+            });
+          })();
         });
-      })();
-    });
-  }
+      });
+    }
 
-  if (typeof logseq.DB?.onChanged === "function") {
-    logseq.DB.onChanged(({ txData }) => {
-      if (isDegrandeNeutered()) return;
-      degrandeTime("DB.onChanged", () => {
-        if (!Array.isArray(txData) || !txData.length) {
-          return;
-        }
+    // v0.4.55: DB.onChanged is the unique-to-colors callback. Calendar and bullet-threading
+    // do not subscribe at all. Logseq fires it on every transaction (including focus/route
+    // side-effects), and the cost lands BEFORE our handler runs because txData has to be
+    // serialized across the iframe bridge. Skip registration entirely when the user opts out.
+    if (typeof logseq.DB?.onChanged === "function" && !isDbOnChangedDisabled()) {
+      logseq.DB.onChanged(({ txData }) => {
+        degrandeTime("DB.onChanged", () => {
+          if (!Array.isArray(txData) || !txData.length) {
+            return;
+          }
 
-        const changeSummary = doesTxDataTouchDegrandeState(txData);
+          const changeSummary = doesTxDataTouchDegrandeState(txData);
 
-        if (!changeSummary.touched) {
-          return;
-        }
+          if (!changeSummary.touched) {
+            return;
+          }
 
-        if (changeSummary.syncStateChanged) {
-          schedulePersistedAppearanceSync({
-            reason: "Updated synced graph appearance",
-            fallbackToPrevious: false,
-            refreshTagCatalog: false,
-          });
-        }
+          if (changeSummary.syncStateChanged) {
+            schedulePersistedAppearanceSync({
+              reason: "Updated synced graph appearance",
+              fallbackToPrevious: false,
+              refreshTagCatalog: false,
+            });
+          }
 
-        if (changeSummary.tagCatalogChanged) {
-          scheduleTagCatalogRefresh();
-        }
-      }, txData?.length || 0);
-    });
+          if (changeSummary.tagCatalogChanged) {
+            scheduleTagCatalogRefresh();
+          }
+        }, txData?.length || 0);
+      });
+    } else if (typeof logseq.DB?.onChanged === "function") {
+      try { getHostWindow().console?.warn?.('[degrande] DB.onChanged subscription SKIPPED via localStorage.degrandeDisableDbOnChanged=1'); } catch (_) {}
+    }
+  } else {
+    try { getHostWindow().console?.warn?.('[degrande] FULL NEUTER: SDK callbacks not registered.'); } catch (_) {}
   }
 
   await reloadThemeCss(false, false);
