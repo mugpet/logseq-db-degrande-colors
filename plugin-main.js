@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.4.63";
+const FALLBACK_PLUGIN_VERSION = "0.4.64";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -8737,33 +8737,37 @@ async function main() {
     }
 
     if (!_skipIndexed && typeof logseq.App.onGraphAfterIndexed === "function") {
-      logseq.App.onGraphAfterIndexed(({ repo }) => {
+      // v0.4.64: Logseq fires onGraphAfterIndexed many times during normal use,
+      // not just once on boot. Previously each fire ran the full
+      // syncPersistedAppearance (4 bridge round-trips: loadGraphSyncRevisionState +
+      // loadStoredControls + loadStoredGradients + loadStoredTagColors), which
+      // stalled toolbar clicks, Ctrl+K, and [[ autocomplete. Now we use this
+      // callback only for its one critical job: kicking off the deferred boot
+      // data-load. After that, graph switches are handled by onCurrentGraphChanged,
+      // and intra-graph state changes by DB.onChanged. Subsequent fires early-return.
+      let _unsubscribeAfterIndexed = null;
+      const _indexedHandler = ({ repo }) => {
+        if (panelState.bootLoadStarted) {
+          // Already handled. Try to unsubscribe so we don't even pay the bridge
+          // cost on future fires.
+          try { _unsubscribeAfterIndexed?.(); } catch (_) {}
+          return;
+        }
         degrandeTime("onGraphAfterIndexed", () => {
           if (!doesRepoMatchGraph(repo)) {
             return;
           }
-
           panelState.graphIndexed = true;
-
-          // v0.4.62: first fire — run the deferred boot data-load now that the
-          // DB worker is actually ready. On subsequent fires (graph change), the
-          // boot load has already run so re-sync appearance for the new graph.
-          if (!panelState.bootLoadStarted && typeof panelState._runBootDataLoad === "function") {
+          if (typeof panelState._runBootDataLoad === "function") {
             void panelState._runBootDataLoad('onGraphAfterIndexed');
-            return;
           }
-
-          void (async () => {
-            await flushDeferredGraphSyncWrites();
-            await syncPersistedAppearance({
-              reason: "Reloaded synced graph appearance",
-              fallbackToPrevious: false,
-              forceRender: true,
-              refreshTagCatalog: Boolean(logseq.isMainUIVisible && panelState.activeTab === "tags"),
-            });
-          })();
         });
-      });
+      };
+      try {
+        _unsubscribeAfterIndexed = logseq.App.onGraphAfterIndexed(_indexedHandler);
+      } catch (_) {
+        logseq.App.onGraphAfterIndexed(_indexedHandler);
+      }
     } else if (_skipIndexed) {
       try { getHostWindow().console?.warn?.('[degrande] BISECT: onGraphAfterIndexed skipped'); } catch (_) {}
     }
