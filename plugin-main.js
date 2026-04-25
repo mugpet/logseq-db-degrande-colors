@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.21";
+const FALLBACK_PLUGIN_VERSION = "0.5.22";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1641,6 +1641,7 @@ const panelState = {
   themeDraftName: "",
   themeSavePending: false,
   themeLoadPending: false,
+  themeDeletePending: false,
   themeTransferPending: false,
   loadedThemeId: "",
   loadedThemeSnapshotKey: "",
@@ -8110,7 +8111,7 @@ function buildThemeListMarkup() {
         data-action="select-theme"
         data-theme-id="${escapeAttributeValue(theme.id)}"
         aria-pressed="${isActive ? "true" : "false"}"
-        ${panelState.themeSavePending || panelState.themeLoadPending ? "disabled" : ""}
+        ${panelState.themeSavePending || panelState.themeLoadPending || panelState.themeDeletePending ? "disabled" : ""}
       >
         <div class="ctl-theme-list-head">
           <strong>${escapeHtml(theme.name)}</strong>
@@ -8128,7 +8129,10 @@ function buildThemeListMarkup() {
 function getThemeActionState() {
   const selectedTheme = syncSelectedThemeState();
   const themeName = panelState.themeDraftName || selectedTheme?.name || "";
-  const themeActionPending = panelState.themeSavePending || panelState.themeLoadPending || panelState.themeTransferPending;
+  const themeActionPending = panelState.themeSavePending
+    || panelState.themeLoadPending
+    || panelState.themeDeletePending
+    || panelState.themeTransferPending;
   const normalizedThemeName = normalizeThemeName(themeName);
   const duplicateTheme = normalizedThemeName
     ? panelState.savedThemes.find((theme) => theme.id === buildThemeId(normalizedThemeName)) || null
@@ -8222,7 +8226,7 @@ function buildThemesPaneMarkup() {
             <button class="ctl-button ctl-button-secondary" type="button" data-action="export-theme-file"${actionDisabled ? " disabled" : ""}>Export File</button>
             <button class="ctl-button ctl-button-secondary" type="button" data-action="export-theme-clipboard"${actionDisabled ? " disabled" : ""}>Copy Theme</button>
             <button class="ctl-button ctl-button-secondary${panelState.themeLoadPending ? " is-busy" : ""}" type="button" data-action="load-theme"${actionDisabled ? " disabled" : ""}>${panelState.themeLoadPending ? "Loading..." : "Load Theme"}</button>
-            <button class="ctl-button ctl-button-secondary" type="button" data-action="delete-theme"${actionDisabled ? " disabled" : ""}>Delete Theme</button>
+            <button class="ctl-button ctl-button-secondary${panelState.themeDeletePending ? " is-busy" : ""}" type="button" data-action="delete-theme"${actionDisabled ? " disabled" : ""}>${panelState.themeDeletePending ? "Deleting..." : "Delete Theme"}</button>
           </div>
         </div>
         <div class="ctl-themes-preview-window">
@@ -8529,6 +8533,7 @@ async function deleteSelectedTheme() {
     return false;
   }
 
+  panelState.themeDeletePending = true;
   panelState.savedThemes = panelState.savedThemes.filter((theme) => theme.id !== selectedTheme.id);
 
   if (selectedTheme.id === panelState.loadedThemeId) {
@@ -8537,11 +8542,17 @@ async function deleteSelectedTheme() {
 
   syncSelectedThemeState();
   panelState.themeDraftName = getSelectedThemeEntry()?.name || "";
-
-  const saved = await persistThemeLibrary("themes-delete");
   renderThemesPane();
-  syncPanelMeta(saved ? `Deleted theme ${selectedTheme.name}` : `Unable to delete theme ${selectedTheme.name}`);
-  return saved;
+  syncPanelMeta(`Deleting theme ${selectedTheme.name}...`);
+
+  try {
+    const saved = await persistThemeLibrary("themes-delete");
+    syncPanelMeta(saved ? `Deleted theme ${selectedTheme.name}` : `Unable to delete theme ${selectedTheme.name}`);
+    return saved;
+  } finally {
+    panelState.themeDeletePending = false;
+    renderThemesPane();
+  }
 }
 
 function buildTagsPaneMarkup() {
