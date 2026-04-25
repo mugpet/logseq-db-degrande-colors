@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.9";
+const FALLBACK_PLUGIN_VERSION = "0.5.10";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -7372,7 +7372,6 @@ async function syncPersistedAppearance(options = {}) {
   await loadStoredControls();
   await loadStoredGradients();
   await loadStoredTagColors({ allowEntityFallback: false, fallbackToCurrent: true });
-  clearHistoryState();
 
   if (refreshTagCatalog) {
     await refreshTags({ showToast: false, fallbackToPrevious });
@@ -7381,6 +7380,10 @@ async function syncPersistedAppearance(options = {}) {
   const nextSnapshot = buildPersistedAppearanceSnapshot();
   const changed = previousSnapshot !== nextSnapshot
     || previousSelectedTag !== String(panelState.selectedTag || "").toLowerCase();
+
+  if (changed) {
+    clearHistoryState();
+  }
 
   if (!changed && !forceRender && !showToast) {
     setSyncState("synced");
