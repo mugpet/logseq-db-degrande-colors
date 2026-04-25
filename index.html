@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors v0.5.27</title>
-    <meta name="degrande-colors-version" content="0.5.27">
+    <title>Degrande Colors v0.5.28</title>
+    <meta name="degrande-colors-version" content="0.5.28">
     <style>
       :root {
         color-scheme: light;
@@ -868,14 +868,18 @@
         box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18), 0 10px 18px rgba(15, 23, 42, 0.22);
       }
 
-      .ctl-gradient-toolbar {
+      .ctl-gradient-primary-controls {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 12px;
         align-items: end;
       }
 
       .ctl-gradient-angle {
+        margin-top: 0;
+      }
+
+      .ctl-gradient-primary-controls .ctl-control {
         margin-top: 0;
       }
 
@@ -1865,7 +1869,7 @@
         }
 
         .ctl-gradient-inspector-grid,
-        .ctl-gradient-toolbar,
+        .ctl-gradient-primary-controls,
         .ctl-custom-color-row {
           grid-template-columns: 1fr;
         }

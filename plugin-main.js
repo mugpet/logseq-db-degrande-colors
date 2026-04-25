@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.27";
+const FALLBACK_PLUGIN_VERSION = "0.5.28";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -8655,6 +8655,8 @@ function buildGradientEditorMarkup(areaKey, previewMarkup, controlKeys = [], ext
   const areaConfig = GRADIENT_AREAS[areaKey];
   const selectedIndex = getSelectedGradientStopIndex(areaKey);
   const selectedStop = area.stops[selectedIndex];
+  const primaryControlKeys = controlKeys.filter((key) => /Padding[XY]$/.test(key));
+  const secondaryControlKeys = controlKeys.filter((key) => !primaryControlKeys.includes(key));
   const selectedLabel = selectedStop.source === "linked"
     ? areaConfig.linkedLabel
     : selectedStop.source === "preset"
@@ -8667,7 +8669,7 @@ function buildGradientEditorMarkup(areaKey, previewMarkup, controlKeys = [], ext
     <section class="ctl-section ctl-section-inline ctl-gradient-editor">
       <div class="ctl-gradient-column ctl-gradient-column-main">
         ${previewMarkup}
-        <div class="ctl-gradient-toolbar">
+        <div class="ctl-gradient-primary-controls">
           <label class="ctl-control ctl-control-tight ctl-gradient-angle" for="gradient-angle-${areaKey}">
             <div class="ctl-control-header">
               <span class="ctl-control-label">Angle</span>
@@ -8675,8 +8677,9 @@ function buildGradientEditorMarkup(areaKey, previewMarkup, controlKeys = [], ext
             </div>
             <input class="ctl-range" id="gradient-angle-${areaKey}" type="range" min="0" max="360" step="1" value="${area.angle}" data-gradient-angle="${areaKey}">
           </label>
+          ${primaryControlKeys.length ? buildNumericControlsMarkup(primaryControlKeys) : ""}
         </div>
-        ${controlKeys.length ? `<div class="ctl-gradient-extra">${buildNumericControlsMarkup(controlKeys)}</div>` : ""}
+        ${secondaryControlKeys.length ? `<div class="ctl-gradient-extra">${buildNumericControlsMarkup(secondaryControlKeys)}</div>` : ""}
         <div class="ctl-gradient-detail-grid${extraMarkup ? "" : " is-single"}">
           <aside class="ctl-gradient-inspector ctl-gradient-column ctl-gradient-column-side">
             <div class="ctl-gradient-inspector-head">
