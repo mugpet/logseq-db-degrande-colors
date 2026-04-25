@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.19";
+const FALLBACK_PLUGIN_VERSION = "0.5.20";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -7976,6 +7976,7 @@ function buildBorderEditorMarkup(groupKey) {
 function buildGradientModeOptionsMarkup(areaKey, stopIndex, selectedStop, areaConfig) {
   const options = [
     { mode: "linked", title: areaConfig.linkedLabel, caption: areaConfig.linkedCaption || "Follows the live graph color" },
+    { mode: "custom", title: "Custom", caption: "Use the editor below" },
     { mode: "transparent", title: "Transparent", caption: "Leaves the stop clear" },
   ];
 
@@ -8229,7 +8230,7 @@ function buildGradientEditorMarkup(areaKey, previewMarkup, controlKeys = [], ext
               </label>
             </section>
             <section class="ctl-gradient-group">
-              <span class="ctl-gradient-group-label">Quick Modes</span>
+              <span class="ctl-gradient-group-label">Step Color Source</span>
               <div class="ctl-mode-grid">
                 ${buildGradientModeOptionsMarkup(areaKey, selectedIndex, selectedStop, areaConfig)}
               </div>
