@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.22";
+const FALLBACK_PLUGIN_VERSION = "0.5.23";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -8176,6 +8176,7 @@ function buildThemesPaneMarkup() {
     updateDisabled,
     actionDisabled,
   } = getThemeActionState();
+  const themeNameInputDisabled = panelState.themeSavePending || panelState.themeTransferPending;
   const { currentTheme, dirtyThemeId } = getLoadedThemeStatus();
   const selectedThemeStatus = selectedTheme?.id === dirtyThemeId
     ? "This theme is loaded, but the live settings have changed and are not saved here yet."
@@ -8201,7 +8202,7 @@ function buildThemesPaneMarkup() {
         <div class="ctl-themes-save-box">
           <label class="ctl-field">
             <span>Theme Name</span>
-            <input class="ctl-input" type="text" value="${escapeAttributeValue(themeName)}" placeholder="Nord Quotes" data-theme-name${themeActionPending ? " disabled" : ""}>
+            <input class="ctl-input" type="text" value="${escapeAttributeValue(themeName)}" placeholder="My Theme" data-theme-name${themeNameInputDisabled ? " disabled" : ""}>
           </label>
           <div class="ctl-theme-save-actions">
             <button class="ctl-button ctl-button-primary${panelState.themeSavePending ? " is-busy" : ""}" type="button" data-action="save-new-theme"${saveDisabled ? " disabled" : ""}>${panelState.themeSavePending ? "Saving..." : "Save New Theme"}</button>
