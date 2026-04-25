@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.13";
+const FALLBACK_PLUGIN_VERSION = "0.5.14";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -13,6 +13,7 @@ const GRAPH_SYNC_GRADIENT_PROPERTY = "mugpet_degrande_colors_gradients";
 const GRAPH_SYNC_TAG_COLOR_PROPERTY = "mugpet_degrande_colors_tag_colors";
 const GRAPH_SYNC_THEME_LIBRARY_PROPERTY = "mugpet_degrande_colors_themes";
 const GRAPH_SYNC_REVISION_PROPERTY = "mugpet_degrande_colors_sync_revision";
+const THEME_EXPORT_FORMAT = "degrande-colors-theme";
 const SYNC_REVISION_EVENT_NAME = "degrande:sync-revision-changed";
 const SETTINGS_CONTROL_STATE_KEY = "degrandeControlState";
 const SETTINGS_GRADIENT_STATE_KEY = "degrandeGradientState";
@@ -634,6 +635,7 @@ const panelState = {
   themeDraftName: "",
   themeSavePending: false,
   themeLoadPending: false,
+  themeTransferPending: false,
   activeTab: "tags",
   lastAppliedAt: null,
   mounted: false,
@@ -4359,6 +4361,61 @@ function getThemeLibrarySnapshot() {
   return JSON.stringify(panelState.savedThemes);
 }
 
+function buildThemeExportPayload(theme) {
+  return {
+    format: THEME_EXPORT_FORMAT,
+    version: 1,
+    pluginVersion: PLUGIN_VERSION,
+    exportedAt: Date.now(),
+    theme: normalizeStoredThemeEntry(theme, 0),
+  };
+}
+
+function buildThemeExportFileName(theme) {
+  const slug = String(theme?.name || "degrande-theme")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    || "degrande-theme";
+
+  return `${slug}.degrande-theme.json`;
+}
+
+function parseImportedThemes(rawText) {
+  const parsed = JSON.parse(String(rawText || ""));
+  const themes = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(parsed?.themes)
+      ? parsed.themes
+      : parsed?.theme && typeof parsed.theme === "object"
+        ? [parsed.theme]
+        : parsed && typeof parsed === "object" && (parsed.name || parsed.id || parsed.snapshot)
+          ? [parsed]
+          : [];
+  const mergedThemes = mergeStoredThemes(themes);
+
+  if (!mergedThemes.length) {
+    throw new Error("No themes found in import payload.");
+  }
+
+  return mergedThemes;
+}
+
+function downloadThemeExport(theme) {
+  const payload = JSON.stringify(buildThemeExportPayload(theme), null, 2);
+  const blob = new Blob([payload], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = buildThemeExportFileName(theme);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 function getSelectedThemeEntry() {
   return panelState.savedThemes.find((theme) => theme.id === panelState.selectedThemeId) || null;
 }
@@ -5981,8 +6038,17 @@ async function loadStoredThemes() {
     const previousThemeDraftName = panelState.themeDraftName;
     const localMirror = parseLocalMirrorValue(await loadStoredItemWithLegacyFallback(THEME_LIBRARY_STORAGE_KEY), mergeStoredThemes);
     const graphBackedState = await loadGraphBackedPageState(GRAPH_SYNC_THEME_LIBRARY_PROPERTY, mergeStoredThemes);
+    const localMirrorRevision = normalizeGraphSyncRevision(localMirror.revision);
+    const syncRevision = normalizeGraphSyncRevision(panelState.syncRevision);
+    const shouldPreferSessionMirror = localMirror.exists
+      && localMirrorRevision === normalizeGraphSyncRevision(panelState.lastLocalSyncRevision)
+      && localMirrorRevision >= syncRevision
+      && (
+        !graphBackedState.exists
+        || JSON.stringify(localMirror.value) !== JSON.stringify(graphBackedState.value)
+      );
 
-    if (localMirror.exists && shouldPromoteLocalMirrorRevision(localMirror.revision)) {
+    if (localMirror.exists && (shouldPromoteLocalMirrorRevision(localMirror.revision) || shouldPreferSessionMirror)) {
       panelState.savedThemes = localMirror.value;
       syncSelectedThemeState({ preferredId: previousSelectedThemeId, preferredName: previousThemeDraftName, syncDraftName: false });
       syncLocalThemeLibraryMirror(localMirror.revision);
@@ -6961,8 +7027,9 @@ function buildThemeListMarkup() {
 function buildThemesPaneMarkup() {
   const selectedTheme = syncSelectedThemeState();
   const themeName = panelState.themeDraftName || selectedTheme?.name || "";
-  const saveDisabled = panelState.themeSavePending || panelState.themeLoadPending || !normalizeThemeName(themeName);
-  const actionDisabled = panelState.themeSavePending || panelState.themeLoadPending || !selectedTheme;
+  const themeActionPending = panelState.themeSavePending || panelState.themeLoadPending || panelState.themeTransferPending;
+  const saveDisabled = themeActionPending || !normalizeThemeName(themeName);
+  const actionDisabled = themeActionPending || !selectedTheme;
 
   return `
     ${buildPaneIntroMarkup(
@@ -6974,9 +7041,20 @@ function buildThemesPaneMarkup() {
         <div class="ctl-themes-save-box">
           <label class="ctl-field">
             <span>Theme Name</span>
-            <input class="ctl-input" type="text" value="${escapeAttributeValue(themeName)}" placeholder="Nord Quotes" data-theme-name${panelState.themeSavePending || panelState.themeLoadPending ? " disabled" : ""}>
+            <input class="ctl-input" type="text" value="${escapeAttributeValue(themeName)}" placeholder="Nord Quotes" data-theme-name${themeActionPending ? " disabled" : ""}>
           </label>
           <button class="ctl-button ctl-button-primary${panelState.themeSavePending ? " is-busy" : ""}" type="button" data-action="save-theme"${saveDisabled ? " disabled" : ""}>${panelState.themeSavePending ? "Saving..." : "Save Current Theme"}</button>
+        </div>
+        <div class="ctl-theme-transfer-box">
+          <div class="ctl-theme-transfer-group">
+            <strong>Import Themes</strong>
+            <span>Bring in Degrande theme JSON from a file or the clipboard.</span>
+          </div>
+          <div class="ctl-toolbar-actions">
+            <button class="ctl-button ctl-button-secondary${panelState.themeTransferPending ? " is-busy" : ""}" type="button" data-action="import-theme-file"${themeActionPending ? " disabled" : ""}>${panelState.themeTransferPending ? "Importing..." : "Import File"}</button>
+            <button class="ctl-button ctl-button-secondary" type="button" data-action="import-theme-clipboard"${themeActionPending ? " disabled" : ""}>Paste Clipboard</button>
+          </div>
+          <input type="file" accept=".json,application/json" data-role="theme-import-file" hidden>
         </div>
         <div class="ctl-themes-list" data-role="theme-list">
           ${buildThemeListMarkup()}
@@ -6989,6 +7067,8 @@ function buildThemesPaneMarkup() {
             <span>${selectedTheme ? "Review the saved snapshot before loading it." : "Choose a saved theme to preview it here."}</span>
           </div>
           <div class="ctl-toolbar-actions">
+            <button class="ctl-button ctl-button-secondary" type="button" data-action="export-theme-file"${actionDisabled ? " disabled" : ""}>Export File</button>
+            <button class="ctl-button ctl-button-secondary" type="button" data-action="export-theme-clipboard"${actionDisabled ? " disabled" : ""}>Copy Theme</button>
             <button class="ctl-button ctl-button-secondary${panelState.themeLoadPending ? " is-busy" : ""}" type="button" data-action="load-theme"${actionDisabled ? " disabled" : ""}>${panelState.themeLoadPending ? "Loading..." : "Load Theme"}</button>
             <button class="ctl-button ctl-button-secondary" type="button" data-action="delete-theme"${actionDisabled ? " disabled" : ""}>Delete Theme</button>
           </div>
@@ -7110,6 +7190,122 @@ async function saveCurrentTheme() {
   } finally {
     panelState.themeSavePending = false;
     renderThemesPane();
+  }
+}
+
+async function exportSelectedThemeToFile() {
+  const selectedTheme = getSelectedThemeEntry();
+
+  if (!selectedTheme) {
+    return false;
+  }
+
+  try {
+    downloadThemeExport(selectedTheme);
+    syncPanelMeta(`Exported theme ${selectedTheme.name} to file`);
+    return true;
+  } catch (error) {
+    console.error("[Degrande Colors] Failed to export theme to file", error);
+    syncPanelMeta(`Unable to export theme ${selectedTheme.name}`);
+    return false;
+  }
+}
+
+async function exportSelectedThemeToClipboard() {
+  const selectedTheme = getSelectedThemeEntry();
+
+  if (!selectedTheme) {
+    return false;
+  }
+
+  if (!navigator.clipboard?.writeText) {
+    syncPanelMeta("Clipboard export is not available in this context.");
+    return false;
+  }
+
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(buildThemeExportPayload(selectedTheme), null, 2));
+    syncPanelMeta(`Copied theme ${selectedTheme.name} to the clipboard`);
+    return true;
+  } catch (error) {
+    console.error("[Degrande Colors] Failed to copy theme to clipboard", error);
+    syncPanelMeta(`Unable to copy theme ${selectedTheme.name}`);
+    return false;
+  }
+}
+
+async function importThemesFromText(rawText, sourceLabel = "clipboard") {
+  let importedThemes;
+
+  try {
+    importedThemes = parseImportedThemes(rawText);
+  } catch (error) {
+    console.error(`[Degrande Colors] Failed to parse imported themes from ${sourceLabel}`, error);
+    syncPanelMeta(`Unable to import themes from ${sourceLabel}`);
+    return false;
+  }
+
+  const previousThemes = panelState.savedThemes.slice();
+  const previousSelectedThemeId = panelState.selectedThemeId;
+  const previousThemeDraftName = panelState.themeDraftName;
+  const importedCount = importedThemes.length;
+  const preferredTheme = importedThemes[0];
+
+  panelState.savedThemes = mergeStoredThemes([...importedThemes, ...panelState.savedThemes]);
+  syncSelectedThemeState({ preferredId: preferredTheme.id, preferredName: preferredTheme.name, syncDraftName: true });
+
+  panelState.themeTransferPending = true;
+  renderThemesPane();
+  syncPanelMeta(`Importing ${importedCount} theme${importedCount === 1 ? "" : "s"} from ${sourceLabel}...`);
+
+  try {
+    const saved = await persistThemeLibrary(importedCount === 1 ? "themes-import" : "themes-import-bulk");
+
+    if (!saved) {
+      panelState.savedThemes = previousThemes;
+      syncSelectedThemeState({ preferredId: previousSelectedThemeId, preferredName: previousThemeDraftName, syncDraftName: true });
+    }
+
+    syncPanelMeta(
+      saved
+        ? `Imported ${importedCount} theme${importedCount === 1 ? "" : "s"} from ${sourceLabel}`
+        : `Unable to import themes from ${sourceLabel}`
+    );
+    return saved;
+  } finally {
+    panelState.themeTransferPending = false;
+    renderThemesPane();
+  }
+}
+
+async function importThemesFromClipboard() {
+  if (!navigator.clipboard?.readText) {
+    syncPanelMeta("Clipboard import is not available in this context.");
+    return false;
+  }
+
+  try {
+    const rawText = await navigator.clipboard.readText();
+    return await importThemesFromText(rawText, "clipboard");
+  } catch (error) {
+    console.error("[Degrande Colors] Failed to read theme data from clipboard", error);
+    syncPanelMeta("Unable to read theme data from the clipboard");
+    return false;
+  }
+}
+
+async function importThemesFromFile(file) {
+  if (!file) {
+    return false;
+  }
+
+  try {
+    const rawText = await file.text();
+    return await importThemesFromText(rawText, file.name || "file");
+  } catch (error) {
+    console.error(`[Degrande Colors] Failed to read imported theme file ${file?.name || ""}`.trim(), error);
+    syncPanelMeta(`Unable to import themes from ${file?.name || "file"}`);
+    return false;
   }
 }
 
@@ -9772,6 +9968,32 @@ function mountPanel() {
       return;
     }
 
+    if (action === "export-theme-file") {
+      await exportSelectedThemeToFile();
+      return;
+    }
+
+    if (action === "export-theme-clipboard") {
+      await exportSelectedThemeToClipboard();
+      return;
+    }
+
+    if (action === "import-theme-file") {
+      const themeImportInput = document.querySelector('[data-role="theme-import-file"]');
+
+      if (themeImportInput) {
+        themeImportInput.value = "";
+        themeImportInput.click();
+      }
+
+      return;
+    }
+
+    if (action === "import-theme-clipboard") {
+      await importThemesFromClipboard();
+      return;
+    }
+
     if (action === "load-theme") {
       await loadSelectedTheme();
       return;
@@ -10176,7 +10398,20 @@ function mountPanel() {
     void applyManagedOverrides(false, `Adjusted ${control.label}`, "soft");
   });
 
-  app.addEventListener("change", (event) => {
+  app.addEventListener("change", async (event) => {
+    const themeImportInput = event.target.closest('[data-role="theme-import-file"]');
+
+    if (themeImportInput) {
+      const file = themeImportInput.files?.[0] || null;
+      themeImportInput.value = "";
+
+      if (file) {
+        await importThemesFromFile(file);
+      }
+
+      return;
+    }
+
     const inlineColorHexInput = event.target.closest("[data-inline-color-hex]");
     const inlineColorHue = event.target.closest("[data-inline-color-hue]");
     const inlineColorAlpha = event.target.closest("[data-inline-color-alpha]");

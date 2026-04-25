@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors v0.5.13</title>
-    <meta name="degrande-colors-version" content="0.5.13">
+    <title>Degrande Colors v0.5.14</title>
+    <meta name="degrande-colors-version" content="0.5.14">
     <style>
       :root {
         color-scheme: light;
@@ -1144,6 +1144,33 @@
       .ctl-themes-save-box {
         display: grid;
         gap: 10px;
+      }
+
+      .ctl-theme-transfer-box {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid var(--ctl-border);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.32);
+      }
+
+      .theme-dark .ctl-theme-transfer-box {
+        background: rgba(15, 23, 42, 0.34);
+      }
+
+      .ctl-theme-transfer-group {
+        display: grid;
+        gap: 4px;
+      }
+
+      .ctl-theme-transfer-group strong {
+        font-size: 12px;
+      }
+
+      .ctl-theme-transfer-group span {
+        font-size: 11px;
+        color: var(--ctl-text-muted);
       }
 
       .ctl-themes-list {
