@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.17";
+const FALLBACK_PLUGIN_VERSION = "0.5.18";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -636,6 +636,8 @@ const panelState = {
   themeSavePending: false,
   themeLoadPending: false,
   themeTransferPending: false,
+  loadedThemeId: "",
+  loadedThemeSnapshotKey: "",
   activeTab: "tags",
   lastAppliedAt: null,
   mounted: false,
@@ -4326,6 +4328,47 @@ function createThemeSnapshot() {
   };
 }
 
+function getThemeSnapshotKey(snapshot = {}) {
+  return JSON.stringify(normalizeStoredThemeSnapshot(snapshot));
+}
+
+function findThemeBySnapshotKey(snapshotKey) {
+  if (!snapshotKey) {
+    return null;
+  }
+
+  return panelState.savedThemes.find((theme) => getThemeSnapshotKey(theme.snapshot) === snapshotKey) || null;
+}
+
+function setLoadedThemeState(theme = null, snapshot = null) {
+  const resolvedTheme = theme && typeof theme === "object"
+    ? theme
+    : panelState.savedThemes.find((entry) => entry.id === String(theme || "")) || null;
+
+  panelState.loadedThemeId = resolvedTheme?.id || "";
+  panelState.loadedThemeSnapshotKey = resolvedTheme ? getThemeSnapshotKey(snapshot || resolvedTheme.snapshot) : "";
+}
+
+function getLoadedThemeStatus() {
+  const currentSnapshotKey = getThemeSnapshotKey(createThemeSnapshot());
+  const loadedTheme = panelState.savedThemes.find((theme) => theme.id === panelState.loadedThemeId) || null;
+  const currentTheme = findThemeBySnapshotKey(currentSnapshotKey)
+    || (loadedTheme && panelState.loadedThemeSnapshotKey === currentSnapshotKey ? loadedTheme : null);
+  const isDirty = Boolean(
+    loadedTheme
+    && panelState.loadedThemeSnapshotKey
+    && panelState.loadedThemeSnapshotKey !== currentSnapshotKey
+    && !currentTheme
+  );
+
+  return {
+    currentTheme,
+    loadedTheme,
+    isDirty,
+    dirtyThemeId: isDirty ? loadedTheme.id : "",
+  };
+}
+
 function normalizeStoredThemeSnapshot(snapshot = {}) {
   return {
     appearanceState: mergeStoredAppearanceState(snapshot.appearanceState),
@@ -6851,10 +6894,14 @@ function buildSelectedThemePreviewMarkup(theme) {
     `;
   }
 
+  const { currentTheme, dirtyThemeId } = getLoadedThemeStatus();
+
   return `
     <div class="ctl-theme-preview-shell" data-role="theme-preview-root">
       <div class="ctl-theme-preview-meta">
         <strong>${escapeHtml(theme.name)}</strong>
+        ${theme.id === currentTheme?.id ? '<span class="ctl-theme-status-badge is-current">Current</span>' : ""}
+        ${theme.id === dirtyThemeId ? '<span class="ctl-theme-status-badge is-dirty">Modified</span>' : ""}
         <span>Updated ${escapeHtml(formatThemeTimestamp(theme.updatedAt))}</span>
         <span>${Object.keys(theme.snapshot.tagColorAssignments || {}).length} saved tag colors</span>
       </div>
@@ -7043,8 +7090,12 @@ function buildThemeListMarkup() {
     return `<div class="ctl-theme-list-empty">No saved themes yet.</div>`;
   }
 
+  const { currentTheme, dirtyThemeId } = getLoadedThemeStatus();
+
   return panelState.savedThemes.map((theme) => {
     const isActive = theme.id === panelState.selectedThemeId;
+    const isCurrent = theme.id === currentTheme?.id;
+    const isDirty = theme.id === dirtyThemeId;
 
     return `
       <button
@@ -7055,7 +7106,13 @@ function buildThemeListMarkup() {
         aria-pressed="${isActive ? "true" : "false"}"
         ${panelState.themeSavePending || panelState.themeLoadPending ? "disabled" : ""}
       >
-        <strong>${escapeHtml(theme.name)}</strong>
+        <div class="ctl-theme-list-head">
+          <strong>${escapeHtml(theme.name)}</strong>
+          <span class="ctl-theme-list-badges">
+            ${isCurrent ? '<span class="ctl-theme-status-badge is-current">Current</span>' : ""}
+            ${isDirty ? '<span class="ctl-theme-status-badge is-dirty">Modified</span>' : ""}
+          </span>
+        </div>
         <span>Updated ${escapeHtml(formatThemeTimestamp(theme.updatedAt))}</span>
       </button>
     `;
@@ -7109,6 +7166,14 @@ function buildThemesPaneMarkup() {
     updateDisabled,
     actionDisabled,
   } = getThemeActionState();
+  const { currentTheme, dirtyThemeId } = getLoadedThemeStatus();
+  const selectedThemeStatus = selectedTheme?.id === dirtyThemeId
+    ? "This theme is loaded, but the live settings have changed and are not saved here yet."
+    : selectedTheme?.id === currentTheme?.id
+      ? "This theme matches the current live settings."
+      : currentTheme?.name
+        ? `Current live theme: ${currentTheme.name}.`
+        : (selectedTheme ? "Review the saved snapshot before loading it." : "Choose a saved theme to preview it here.");
   const importActionsMarkup = `
     <input type="file" accept=".json,application/json" data-role="theme-import-file" hidden>
     <button class="ctl-button ctl-button-secondary ctl-button-small${panelState.themeTransferPending ? " is-busy" : ""}" type="button" data-action="import-theme-file"${themeActionPending ? " disabled" : ""}>${panelState.themeTransferPending ? "Importing..." : "Import File"}</button>
@@ -7140,8 +7205,12 @@ function buildThemesPaneMarkup() {
       <section class="ctl-themes-preview-pane">
         <div class="ctl-themes-preview-toolbar">
           <div>
-            <strong>${escapeHtml(selectedTheme?.name || "Theme Preview")}</strong>
-            <span>${selectedTheme ? "Review the saved snapshot before loading it." : "Choose a saved theme to preview it here."}</span>
+            <div class="ctl-theme-preview-title-row">
+              <strong>${escapeHtml(selectedTheme?.name || "Theme Preview")}</strong>
+              ${selectedTheme?.id === currentTheme?.id ? '<span class="ctl-theme-status-badge is-current">Current</span>' : ""}
+              ${selectedTheme?.id === dirtyThemeId ? '<span class="ctl-theme-status-badge is-dirty">Modified</span>' : ""}
+            </div>
+            <span>${escapeHtml(selectedThemeStatus)}</span>
           </div>
           <div class="ctl-toolbar-actions">
             <button class="ctl-button ctl-button-secondary" type="button" data-action="export-theme-file"${actionDisabled ? " disabled" : ""}>Export File</button>
@@ -7279,6 +7348,8 @@ async function saveThemeEntry(mode = "create") {
     if (!saved) {
       panelState.savedThemes = previousThemes;
       syncSelectedThemeState();
+    } else {
+      setLoadedThemeState(nextTheme, nextTheme.snapshot);
     }
 
     syncPanelMeta(
@@ -7434,6 +7505,7 @@ async function loadSelectedTheme() {
   try {
     applyThemeSnapshotToPanelState(selectedTheme.snapshot);
     const persisted = await persistAppliedThemeState();
+    setLoadedThemeState(selectedTheme, selectedTheme.snapshot);
     await applyManagedOverrides(false, persisted ? `Loaded theme ${selectedTheme.name}` : `Applied theme ${selectedTheme.name} locally`);
     renderThemesPane();
     return persisted;
@@ -7452,6 +7524,11 @@ async function deleteSelectedTheme() {
   }
 
   panelState.savedThemes = panelState.savedThemes.filter((theme) => theme.id !== selectedTheme.id);
+
+  if (selectedTheme.id === panelState.loadedThemeId) {
+    setLoadedThemeState(null);
+  }
+
   syncSelectedThemeState();
   panelState.themeDraftName = getSelectedThemeEntry()?.name || "";
 
@@ -8239,6 +8316,7 @@ async function handleCurrentGraphChanged() {
   panelState.savedThemes = [];
   panelState.selectedThemeId = "";
   panelState.themeDraftName = "";
+  setLoadedThemeState(null);
   clearHistoryState();
   renderPanel(`Graph changed to ${graphInfo?.name || "current graph"}. Refreshing local tags...`);
   await loadStoredAppearanceState();
@@ -8390,7 +8468,7 @@ async function syncPersistedAppearance(options = {}) {
     renderMode
   );
 
-  if (themeLibraryChanged && panelState.mounted) {
+  if ((themeLibraryChanged || (appearanceChanged && panelState.activeTab === "themes")) && panelState.mounted) {
     renderThemesPane();
   }
 

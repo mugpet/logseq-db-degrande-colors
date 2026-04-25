@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors v0.5.17</title>
-    <meta name="degrande-colors-version" content="0.5.17">
+    <title>Degrande Colors v0.5.18</title>
+    <meta name="degrande-colors-version" content="0.5.18">
     <style>
       :root {
         color-scheme: light;
@@ -1191,6 +1191,20 @@
         transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease, background 0.14s ease;
       }
 
+      .ctl-theme-list-head,
+      .ctl-theme-preview-title-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .ctl-theme-list-badges {
+        display: inline-flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
       .theme-dark .ctl-theme-list-item {
         background: rgba(15, 23, 42, 0.56);
       }
@@ -1208,6 +1222,43 @@
 
       .ctl-theme-list-item strong {
         font-size: 12px;
+      }
+
+      .ctl-theme-status-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 20px;
+        padding: 0 8px;
+        border-radius: 999px;
+        border: 1px solid var(--ctl-border);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        background: rgba(255, 255, 255, 0.54);
+        color: var(--ctl-text-muted);
+        white-space: nowrap;
+      }
+
+      .theme-dark .ctl-theme-status-badge {
+        background: rgba(15, 23, 42, 0.52);
+      }
+
+      .ctl-theme-status-badge.is-current {
+        border-color: rgba(15, 118, 110, 0.35);
+        background: rgba(15, 118, 110, 0.12);
+        color: var(--ctl-accent);
+      }
+
+      .ctl-theme-status-badge.is-dirty {
+        border-color: rgba(245, 158, 11, 0.35);
+        background: rgba(245, 158, 11, 0.12);
+        color: #b45309;
+      }
+
+      .theme-dark .ctl-theme-status-badge.is-dirty {
+        color: #fbbf24;
       }
 
       .ctl-theme-list-item span,
