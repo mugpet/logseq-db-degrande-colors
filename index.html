@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors v0.5.10</title>
-    <meta name="degrande-colors-version" content="0.5.10">
+    <title>Degrande Colors v0.5.11</title>
+    <meta name="degrande-colors-version" content="0.5.11">
     <style>
       :root {
         color-scheme: light;
@@ -1084,6 +1084,166 @@
         align-items: stretch;
       }
 
+      .ctl-themes-layout {
+        display: grid;
+        grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+        gap: 16px;
+        min-height: 0;
+        overflow: hidden;
+        align-items: stretch;
+      }
+
+      .ctl-themes-sidebar,
+      .ctl-themes-preview-pane {
+        border: 1px solid var(--ctl-border);
+        border-radius: 20px;
+        background: linear-gradient(180deg, rgba(15, 118, 110, 0.04), transparent 20%), var(--ctl-bg-muted);
+        padding: 16px;
+        display: grid;
+        gap: 14px;
+        min-height: 0;
+        align-content: start;
+      }
+
+      .ctl-themes-sidebar {
+        grid-template-rows: auto minmax(0, 1fr);
+        overflow: hidden;
+      }
+
+      .ctl-themes-preview-pane {
+        grid-template-rows: auto minmax(0, 1fr);
+        overflow: hidden;
+      }
+
+      .ctl-themes-save-box {
+        display: grid;
+        gap: 10px;
+      }
+
+      .ctl-themes-list {
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-right: 8px;
+        display: grid;
+        gap: 8px;
+        align-content: start;
+        overscroll-behavior: contain;
+      }
+
+      .ctl-theme-list-item {
+        display: grid;
+        gap: 4px;
+        text-align: left;
+        border: 1px solid var(--ctl-border);
+        border-radius: 14px;
+        padding: 10px 12px;
+        background: rgba(255, 255, 255, 0.52);
+        color: var(--ctl-text);
+        font: inherit;
+        cursor: pointer;
+        transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+      }
+
+      .theme-dark .ctl-theme-list-item {
+        background: rgba(15, 23, 42, 0.56);
+      }
+
+      .ctl-theme-list-item:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1);
+      }
+
+      .ctl-theme-list-item.is-active {
+        border-color: rgba(15, 118, 110, 0.46);
+        background: linear-gradient(180deg, rgba(15, 118, 110, 0.12), rgba(15, 118, 110, 0.04));
+        box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12);
+      }
+
+      .ctl-theme-list-item strong {
+        font-size: 12px;
+      }
+
+      .ctl-theme-list-item span,
+      .ctl-theme-list-empty,
+      .ctl-theme-empty-state span,
+      .ctl-theme-preview-meta span,
+      .ctl-themes-preview-toolbar span {
+        font-size: 11px;
+        color: var(--ctl-text-muted);
+      }
+
+      .ctl-theme-list-empty,
+      .ctl-theme-empty-state {
+        border: 1px dashed var(--ctl-border);
+        border-radius: 16px;
+        padding: 16px;
+        display: grid;
+        gap: 6px;
+        align-content: center;
+        justify-items: start;
+        min-height: 140px;
+        background: rgba(255, 255, 255, 0.28);
+      }
+
+      .theme-dark .ctl-theme-list-empty,
+      .theme-dark .ctl-theme-empty-state {
+        background: rgba(15, 23, 42, 0.32);
+      }
+
+      .ctl-theme-empty-state strong,
+      .ctl-themes-preview-toolbar strong,
+      .ctl-theme-preview-meta strong {
+        font-size: 13px;
+      }
+
+      .ctl-themes-preview-toolbar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: start;
+      }
+
+      .ctl-themes-preview-toolbar > div:first-child {
+        display: grid;
+        gap: 4px;
+      }
+
+      .ctl-themes-preview-window {
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-right: 8px;
+        overscroll-behavior: contain;
+      }
+
+      .ctl-theme-preview-shell {
+        display: grid;
+        gap: 14px;
+      }
+
+      .ctl-theme-preview-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 12px;
+        align-items: center;
+      }
+
+      .ctl-theme-preview-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        align-items: start;
+      }
+
+      .ctl-theme-preview-card {
+        min-height: 0;
+      }
+
+      .ctl-theme-preview-stage {
+        min-height: 88px;
+      }
+
       .ctl-tags-browser,
       .ctl-tags-detail {
         border: 1px solid var(--ctl-border);
@@ -1597,6 +1757,12 @@
         }
 
         .ctl-gradient-extra {
+          grid-template-columns: 1fr;
+        }
+
+        .ctl-themes-layout,
+        .ctl-theme-preview-grid,
+        .ctl-themes-preview-toolbar {
           grid-template-columns: 1fr;
         }
 

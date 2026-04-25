@@ -1,15 +1,17 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.10";
+const FALLBACK_PLUGIN_VERSION = "0.5.11";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
+const THEME_LIBRARY_STORAGE_KEY = "custom-theme-loader-themes.json";
 const GRAPH_SYNC_CONFIG_KEY = "mugpet-degrande-colors";
 const GRAPH_SYNC_TAG_COLOR_VERSION = 1;
 const GRAPH_SYNC_STORAGE_PAGE_NAME = "mugpet-degrande-colors-sync-state";
 const GRAPH_SYNC_CONTROL_PROPERTY = "mugpet_degrande_colors_controls";
 const GRAPH_SYNC_GRADIENT_PROPERTY = "mugpet_degrande_colors_gradients";
 const GRAPH_SYNC_TAG_COLOR_PROPERTY = "mugpet_degrande_colors_tag_colors";
+const GRAPH_SYNC_THEME_LIBRARY_PROPERTY = "mugpet_degrande_colors_themes";
 const GRAPH_SYNC_REVISION_PROPERTY = "mugpet_degrande_colors_sync_revision";
 const SYNC_REVISION_EVENT_NAME = "degrande:sync-revision-changed";
 const SETTINGS_CONTROL_STATE_KEY = "degrandeControlState";
@@ -627,6 +629,9 @@ const panelState = {
     tags: true,
     pages: true,
   },
+  savedThemes: [],
+  selectedThemeId: "",
+  themeDraftName: "",
   activeTab: "tags",
   lastAppliedAt: null,
   mounted: false,
@@ -4285,6 +4290,106 @@ function mergeStoredAppearanceState(saved) {
   return merged;
 }
 
+function normalizeThemeName(name) {
+  return String(name || "").trim().replace(/\s+/g, " ");
+}
+
+function buildThemeId(name) {
+  return normalizeThemeName(name).toLowerCase();
+}
+
+function createThemeSnapshot() {
+  return {
+    appearanceState: { ...panelState.appearanceState },
+    controlState: { ...panelState.controlState },
+    gradientState: cloneGradientState(panelState.gradientState),
+    tagColorAssignments: mergeStoredTagColors(panelState.tagColorAssignments),
+  };
+}
+
+function normalizeStoredThemeSnapshot(snapshot = {}) {
+  return {
+    appearanceState: mergeStoredAppearanceState(snapshot.appearanceState),
+    controlState: mergeStoredControls(snapshot.controlState),
+    gradientState: mergeStoredGradients(snapshot.gradientState),
+    tagColorAssignments: mergeStoredTagColors(snapshot.tagColorAssignments),
+  };
+}
+
+function normalizeStoredThemeEntry(rawTheme, index = 0) {
+  const fallbackName = `Theme ${index + 1}`;
+  const name = normalizeThemeName(rawTheme?.name || fallbackName) || fallbackName;
+  const id = String(rawTheme?.id || buildThemeId(name) || `theme-${index + 1}`);
+  const createdAt = Number(rawTheme?.createdAt) || Date.now();
+  const updatedAt = Number(rawTheme?.updatedAt) || createdAt;
+
+  return {
+    id,
+    name,
+    createdAt,
+    updatedAt,
+    snapshot: normalizeStoredThemeSnapshot(rawTheme?.snapshot || rawTheme),
+  };
+}
+
+function mergeStoredThemes(saved) {
+  const source = Array.isArray(saved)
+    ? saved
+    : Array.isArray(saved?.themes)
+      ? saved.themes
+      : [];
+  const seenIds = new Set();
+
+  return source.reduce((themes, rawTheme, index) => {
+    const theme = normalizeStoredThemeEntry(rawTheme, index);
+
+    if (!theme.id || seenIds.has(theme.id)) {
+      return themes;
+    }
+
+    seenIds.add(theme.id);
+    themes.push(theme);
+    return themes;
+  }, []).sort((left, right) => right.updatedAt - left.updatedAt || left.name.localeCompare(right.name));
+}
+
+function getThemeLibrarySnapshot() {
+  return JSON.stringify(panelState.savedThemes);
+}
+
+function getSelectedThemeEntry() {
+  return panelState.savedThemes.find((theme) => theme.id === panelState.selectedThemeId) || null;
+}
+
+function syncSelectedThemeState() {
+  const selectedTheme = getSelectedThemeEntry();
+
+  if (selectedTheme) {
+    panelState.selectedThemeId = selectedTheme.id;
+    return selectedTheme;
+  }
+
+  panelState.selectedThemeId = panelState.savedThemes[0]?.id || "";
+  return getSelectedThemeEntry();
+}
+
+function formatThemeTimestamp(timestamp) {
+  const date = new Date(Number(timestamp) || Date.now());
+  return Number.isNaN(date.getTime()) ? "Unknown" : date.toLocaleString();
+}
+
+function applyThemeSnapshotToPanelState(snapshot) {
+  const normalizedSnapshot = normalizeStoredThemeSnapshot(snapshot);
+  panelState.appearanceState = normalizedSnapshot.appearanceState;
+  panelState.controlState = normalizedSnapshot.controlState;
+  panelState.gradientState = normalizedSnapshot.gradientState;
+  panelState.tagColorAssignments = normalizedSnapshot.tagColorAssignments;
+  panelState.gradientSelections = Object.fromEntries(Object.entries(panelState.gradientState).map(([areaKey, area]) => [
+    areaKey,
+    Math.min(panelState.gradientSelections?.[areaKey] || 0, Math.max((area?.stops?.length || 1) - 1, 0)),
+  ]));
+}
+
 function getCssTextStats(cssText) {
   const normalized = String(cssText || "").trim();
 
@@ -4786,6 +4891,10 @@ function syncLocalGradientMirror(revision = panelState.lastLocalSyncRevision || 
   writeLocalPersistedItem(GRADIENT_STORAGE_KEY, buildLocalMirrorPayload(panelState.gradientState, revision));
 }
 
+function syncLocalThemeLibraryMirror(revision = panelState.lastLocalSyncRevision || panelState.syncRevision) {
+  writeLocalPersistedItem(THEME_LIBRARY_STORAGE_KEY, buildLocalMirrorPayload(panelState.savedThemes, revision));
+}
+
 function hasPendingTagColorSync() {
   return Boolean(
     panelState.tagPersistTimer
@@ -5023,6 +5132,8 @@ function getGraphSyncPropertyDisplayName(propertyKey) {
       return "Degrande Colors Gradients";
     case GRAPH_SYNC_TAG_COLOR_PROPERTY:
       return "Degrande Colors Tag Sync";
+    case GRAPH_SYNC_THEME_LIBRARY_PROPERTY:
+      return "Degrande Colors Themes";
     case GRAPH_SYNC_REVISION_PROPERTY:
       return "Degrande Colors Revision";
     default:
@@ -5839,6 +5950,85 @@ async function loadStoredGradients() {
   }
 }
 
+async function loadStoredThemes() {
+  try {
+    const localMirror = parseLocalMirrorValue(await loadStoredItemWithLegacyFallback(THEME_LIBRARY_STORAGE_KEY), mergeStoredThemes);
+    const graphBackedState = await loadGraphBackedPageState(GRAPH_SYNC_THEME_LIBRARY_PROPERTY, mergeStoredThemes);
+
+    if (localMirror.exists && shouldPromoteLocalMirrorRevision(localMirror.revision)) {
+      panelState.savedThemes = localMirror.value;
+      syncSelectedThemeState();
+      syncLocalThemeLibraryMirror(localMirror.revision);
+      await saveGraphBackedPageState(GRAPH_SYNC_THEME_LIBRARY_PROPERTY, panelState.savedThemes, {
+        suppressReadyErrors: true,
+        deferUntilIndexed: true,
+      });
+      return;
+    }
+
+    if (graphBackedState.exists) {
+      panelState.savedThemes = graphBackedState.value;
+      syncSelectedThemeState();
+      syncLocalThemeLibraryMirror(panelState.syncRevision);
+      return;
+    }
+
+    if (!localMirror.exists) {
+      panelState.savedThemes = [];
+      syncSelectedThemeState();
+      return;
+    }
+
+    panelState.savedThemes = localMirror.value;
+    syncSelectedThemeState();
+    syncLocalThemeLibraryMirror(localMirror.revision);
+
+    if (shouldPromoteLocalMirrorRevision(localMirror.revision)) {
+      await saveGraphBackedPageState(GRAPH_SYNC_THEME_LIBRARY_PROPERTY, panelState.savedThemes, {
+        suppressReadyErrors: true,
+        deferUntilIndexed: true,
+      });
+    }
+  } catch (error) {
+    if (isMissingStorageError(error)) {
+      panelState.savedThemes = [];
+      syncSelectedThemeState();
+      return;
+    }
+
+    console.error("[Degrande Colors] Failed to load stored themes", error);
+  }
+}
+
+async function persistThemeLibrary(reason = "themes") {
+  setSyncState("pending");
+  const localRevision = getNextGraphSyncRevision();
+  syncSelectedThemeState();
+  syncLocalThemeLibraryMirror(localRevision);
+
+  try {
+    const saved = await saveGraphBackedPageState(GRAPH_SYNC_THEME_LIBRARY_PROPERTY, panelState.savedThemes, {
+      suppressReadyErrors: true,
+      deferUntilIndexed: true,
+    });
+
+    if (!saved) {
+      setSyncState("pending");
+      return false;
+    }
+
+    await bumpGraphSyncRevision(reason, localRevision);
+    setSyncState("synced");
+    return true;
+  } catch (error) {
+    console.error("[Degrande Colors] Failed to persist theme library", error);
+    setSyncState("pending");
+    return false;
+  } finally {
+    syncSyncIndicator();
+  }
+}
+
 function schedulePersistControls() {
   setSyncState("pending");
   const localRevision = getNextGraphSyncRevision();
@@ -6474,6 +6664,399 @@ function buildPreviewCardHeadMarkup(sectionKey, title, subtitle) {
       </div>
     </div>
   `;
+}
+
+function queryThemePreviewElement(root, role) {
+  return root?.querySelector(`[data-theme-preview-role="${role}"]`) || null;
+}
+
+function withTemporaryThemeState(snapshot, callback) {
+  const previousState = {
+    appearanceState: panelState.appearanceState,
+    controlState: panelState.controlState,
+    gradientState: panelState.gradientState,
+    tagColorAssignments: panelState.tagColorAssignments,
+  };
+  const normalizedSnapshot = normalizeStoredThemeSnapshot(snapshot);
+
+  panelState.appearanceState = normalizedSnapshot.appearanceState;
+  panelState.controlState = normalizedSnapshot.controlState;
+  panelState.gradientState = cloneGradientState(normalizedSnapshot.gradientState);
+  panelState.tagColorAssignments = normalizedSnapshot.tagColorAssignments;
+
+  try {
+    return callback(normalizedSnapshot);
+  } finally {
+    panelState.appearanceState = previousState.appearanceState;
+    panelState.controlState = previousState.controlState;
+    panelState.gradientState = previousState.gradientState;
+    panelState.tagColorAssignments = previousState.tagColorAssignments;
+  }
+}
+
+function buildThemePreviewCardMarkup(title, subtitle, bodyMarkup) {
+  return `
+    <article class="ctl-preview-card ctl-theme-preview-card">
+      <div class="ctl-preview-card-head">
+        <div class="ctl-preview-card-head-copy">
+          <strong>${escapeHtml(title)}</strong>
+          <span>${escapeHtml(subtitle)}</span>
+        </div>
+      </div>
+      <div class="ctl-preview-card-body">
+        ${bodyMarkup}
+      </div>
+    </article>
+  `;
+}
+
+function buildSelectedThemePreviewMarkup(theme) {
+  if (!theme) {
+    return `
+      <div class="ctl-theme-empty-state">
+        <strong>No saved themes yet</strong>
+        <span>Save the current settings to create a reusable theme for this graph.</span>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="ctl-theme-preview-shell" data-role="theme-preview-root">
+      <div class="ctl-theme-preview-meta">
+        <strong>${escapeHtml(theme.name)}</strong>
+        <span>Updated ${escapeHtml(formatThemeTimestamp(theme.updatedAt))}</span>
+        <span>${Object.keys(theme.snapshot.tagColorAssignments || {}).length} saved tag colors</span>
+      </div>
+      <div class="ctl-theme-preview-grid">
+        ${buildThemePreviewCardMarkup(
+          "Tags",
+          "Inline chips",
+          `
+            <div class="ctl-preview-stage ctl-preview-stage-tags ctl-theme-preview-stage">
+              <span class="ctl-preview-tag" data-theme-preview-role="preview-tag-primary">#Gradient</span>
+              <span class="ctl-preview-tag ctl-preview-tag-hover" data-theme-preview-role="preview-tag-hover">#Hover</span>
+            </div>
+          `
+        )}
+        ${buildThemePreviewCardMarkup(
+          "Linked Blocks",
+          "Tag-based fill",
+          `
+            <div class="ctl-preview-block ctl-gradient-preview-surface" data-theme-preview-role="preview-block">
+              <div class="ctl-preview-meta">#Project</div>
+              <div class="ctl-preview-heading">Theme preview block</div>
+              <p>Saved gradients, borders, padding, and fades appear here.</p>
+            </div>
+          `
+        )}
+        ${buildThemePreviewCardMarkup(
+          "Page Titles",
+          "Title accent",
+          `
+            <div class="ctl-preview-title-card ctl-gradient-preview-surface" data-theme-preview-role="preview-title-card">
+              <div class="ctl-preview-meta">Journal</div>
+              <h3 class="ctl-preview-title">Project Compass</h3>
+            </div>
+          `
+        )}
+        ${buildThemePreviewCardMarkup(
+          "Highlights",
+          "Inline mark fill",
+          `
+            <div class="ctl-preview-highlight" data-theme-preview-role="preview-highlight">
+              <p class="ctl-preview-highlight-line">This sample uses a <mark class="ctl-preview-highlight-mark ctl-gradient-preview-surface" data-theme-preview-role="preview-highlight-mark">highlighted phrase</mark> inside ordinary text.</p>
+            </div>
+          `
+        )}
+        ${buildThemePreviewCardMarkup(
+          "Quotes",
+          "Edge glow",
+          `
+            <blockquote class="ctl-preview-quote ctl-gradient-preview-surface" data-theme-preview-role="preview-quote">
+              <div>A preview should make the saved feel obvious before you load it.</div>
+            </blockquote>
+          `
+        )}
+        ${buildThemePreviewCardMarkup(
+          "Background Block",
+          "Standalone fill",
+          `
+            <div class="ctl-preview-background ctl-gradient-preview-surface" data-theme-preview-role="preview-background">
+              <div>Saved background treatments, borders, and padding show here.</div>
+            </div>
+          `
+        )}
+      </div>
+    </div>
+  `;
+}
+
+function syncSelectedThemePreview(root, theme) {
+  if (!root || !theme?.snapshot) {
+    return;
+  }
+
+  withTemporaryThemeState(theme.snapshot, () => {
+    const controls = panelState.controlState;
+    const chipsEnabled = isAppearanceSectionEnabled("tagChips");
+    const nodeEnabled = isAppearanceSectionEnabled("linkedBlocks");
+    const titleEnabled = isAppearanceSectionEnabled("pageTitles");
+    const highlightEnabled = isAppearanceSectionEnabled("highlights");
+    const quoteEnabled = isAppearanceSectionEnabled("quotes");
+    const backgroundEnabled = isAppearanceSectionEnabled("backgroundBlocks");
+    const isDark = panelState.themeMode === "dark";
+    const nodeBorderColor = getBorderControlColor("node");
+    const titleBorderColor = getBorderControlColor("title");
+    const highlightBorderColor = getBorderControlColor("highlight");
+    const quoteBorderColor = getBorderControlColor("quote");
+    const backgroundBorderColor = getBorderControlColor("background");
+
+    const tagBase = {
+      borderRadius: `${controls.tagRadius}px`,
+      fontSize: `${controls.tagFontSize}px`,
+      height: `${controls.tagHeight}px`,
+      padding: `0 ${controls.tagPaddingX}px`,
+      borderWidth: `${controls.tagBorderWidth}px`,
+      borderStyle: "solid",
+      borderColor: isDark ? "rgba(96, 165, 250, 0.48)" : "rgba(37, 99, 235, 0.22)",
+      background: isDark ? "rgba(37, 99, 235, 0.18)" : "rgba(59, 130, 246, 0.12)",
+      color: isDark ? "#dbeafe" : "#1d4ed8",
+    };
+
+    setPreviewElementStyle(queryThemePreviewElement(root, "preview-tag-primary"), {
+      ...tagBase,
+      opacity: chipsEnabled ? "1" : "0.55",
+      transform: "translateY(0px)",
+      boxShadow: "none",
+    });
+
+    setPreviewElementStyle(queryThemePreviewElement(root, "preview-tag-hover"), {
+      ...tagBase,
+      opacity: chipsEnabled ? "1" : "0.55",
+      transform: chipsEnabled ? `translateY(-${controls.tagHoverLift}px)` : "translateY(0px)",
+      boxShadow: chipsEnabled ? (isDark ? "0 12px 28px rgba(2, 6, 23, 0.44)" : "0 10px 20px rgba(15, 23, 42, 0.12)") : "none",
+    });
+
+    setPreviewElementStyle(queryThemePreviewElement(root, "preview-block"), {
+      opacity: nodeEnabled ? "1" : "0.65",
+      backgroundImage: nodeEnabled ? buildGradientCss("node", getGradientPreviewLinkedColor("node"), "preview") : "none",
+      backgroundColor: isDark ? "rgba(15, 23, 42, 0.68)" : "rgba(255, 255, 255, 0.82)",
+      borderStyle: "solid",
+      borderWidth: buildBorderWidthShorthand("node"),
+      borderColor: nodeBorderColor,
+      borderRadius: buildBorderRadiusShorthand("node"),
+      padding: `${controls.nodePaddingY}px ${controls.nodePaddingX}px`,
+    });
+
+    setPreviewElementStyle(queryThemePreviewElement(root, "preview-title-card"), {
+      opacity: titleEnabled ? "1" : "0.65",
+      backgroundImage: titleEnabled ? buildGradientCss("title", getGradientPreviewLinkedColor("title"), "preview") : "none",
+      backgroundColor: isDark ? "rgba(15, 23, 42, 0.72)" : "rgba(255, 255, 255, 0.84)",
+      borderStyle: "solid",
+      borderWidth: buildBorderWidthShorthand("title"),
+      borderColor: titleBorderColor,
+      borderRadius: buildBorderRadiusShorthand("title"),
+      padding: `${controls.titlePaddingY}px ${controls.titlePaddingX}px`,
+    });
+
+    setPreviewElementStyle(queryThemePreviewElement(root, "preview-highlight"), {
+      opacity: highlightEnabled ? "1" : "0.65",
+    });
+
+    const previewHighlightMark = queryThemePreviewElement(root, "preview-highlight-mark");
+
+    setPreviewElementStyle(previewHighlightMark, {
+      backgroundColor: "transparent",
+      color: "inherit",
+      borderStyle: "solid",
+      borderWidth: buildBorderWidthShorthand("highlight"),
+      borderColor: highlightBorderColor,
+      borderRadius: buildBorderRadiusShorthand("highlight"),
+      padding: `${controls.highlightPaddingY}px ${controls.highlightPaddingX}px`,
+      boxDecorationBreak: "clone",
+      WebkitBoxDecorationBreak: "clone",
+    });
+
+    if (previewHighlightMark) {
+      previewHighlightMark.style.setProperty("--ctl-preview-highlight-gradient", highlightEnabled ? buildGradientCss("highlight", getGradientPreviewLinkedColor("highlight"), "preview") : "none");
+      previewHighlightMark.style.setProperty("--ctl-preview-highlight-size", highlightEnabled ? buildHighlightBandBackgroundSizeCss(controls.highlightStartPercent, controls.highlightEndPercent) : "100% 0%");
+      previewHighlightMark.style.setProperty("--ctl-preview-highlight-position", highlightEnabled ? buildHighlightBandBackgroundPositionCss(controls.highlightStartPercent, controls.highlightEndPercent) : "0% 0%");
+    }
+
+    setPreviewElementStyle(queryThemePreviewElement(root, "preview-quote"), {
+      opacity: quoteEnabled ? "1" : "0.65",
+      borderWidth: buildBorderWidthShorthand("quote"),
+      borderStyle: "solid",
+      borderColor: quoteBorderColor,
+      borderRadius: buildBorderRadiusShorthand("quote"),
+      padding: `${controls.quotePaddingY}px ${controls.quotePaddingX}px`,
+      backgroundImage: quoteEnabled ? buildGradientCss("quote", getGradientPreviewLinkedColor("quote"), "preview") : "none",
+      backgroundColor: isDark ? "rgba(15, 23, 42, 0.72)" : "rgba(255, 255, 255, 0.82)",
+    });
+
+    setPreviewElementStyle(queryThemePreviewElement(root, "preview-background"), {
+      opacity: backgroundEnabled ? "1" : "0.65",
+      borderWidth: buildBorderWidthShorthand("background"),
+      borderStyle: "solid",
+      borderColor: backgroundBorderColor,
+      borderRadius: buildBorderRadiusShorthand("background"),
+      padding: `${controls.bgPaddingY}px ${controls.bgPaddingX}px`,
+      backgroundImage: backgroundEnabled ? buildGradientCss("background", getGradientPreviewLinkedColor("background"), "preview") : "none",
+      backgroundColor: isDark ? "rgba(30, 41, 59, 0.8)" : "rgba(255, 255, 255, 0.85)",
+    });
+  });
+}
+
+function buildThemeListMarkup() {
+  if (!panelState.savedThemes.length) {
+    return `<div class="ctl-theme-list-empty">No saved themes yet.</div>`;
+  }
+
+  return panelState.savedThemes.map((theme) => {
+    const isActive = theme.id === panelState.selectedThemeId;
+
+    return `
+      <button
+        class="ctl-theme-list-item${isActive ? " is-active" : ""}"
+        type="button"
+        data-action="select-theme"
+        data-theme-id="${escapeAttributeValue(theme.id)}"
+        aria-pressed="${isActive ? "true" : "false"}"
+      >
+        <strong>${escapeHtml(theme.name)}</strong>
+        <span>Updated ${escapeHtml(formatThemeTimestamp(theme.updatedAt))}</span>
+      </button>
+    `;
+  }).join("");
+}
+
+function buildThemesPaneMarkup() {
+  const selectedTheme = syncSelectedThemeState();
+  const themeName = panelState.themeDraftName || selectedTheme?.name || "";
+
+  return `
+    ${buildPaneIntroMarkup(
+      "Themes",
+      "Save the current Degrande settings as reusable named themes, then preview, load, or delete them from this graph-backed library."
+    )}
+    <div class="ctl-themes-layout">
+      <section class="ctl-themes-sidebar">
+        <div class="ctl-themes-save-box">
+          <label class="ctl-field">
+            <span>Theme Name</span>
+            <input class="ctl-input" type="text" value="${escapeAttributeValue(themeName)}" placeholder="Nord Quotes" data-theme-name>
+          </label>
+          <button class="ctl-button ctl-button-primary" type="button" data-action="save-theme"${normalizeThemeName(themeName) ? "" : " disabled"}>Save Current Theme</button>
+        </div>
+        <div class="ctl-themes-list" data-role="theme-list">
+          ${buildThemeListMarkup()}
+        </div>
+      </section>
+      <section class="ctl-themes-preview-pane">
+        <div class="ctl-themes-preview-toolbar">
+          <div>
+            <strong>${escapeHtml(selectedTheme?.name || "Theme Preview")}</strong>
+            <span>${selectedTheme ? "Review the saved snapshot before loading it." : "Choose a saved theme to preview it here."}</span>
+          </div>
+          <div class="ctl-toolbar-actions">
+            <button class="ctl-button ctl-button-secondary" type="button" data-action="load-theme"${selectedTheme ? "" : " disabled"}>Load Theme</button>
+            <button class="ctl-button ctl-button-secondary" type="button" data-action="delete-theme"${selectedTheme ? "" : " disabled"}>Delete Theme</button>
+          </div>
+        </div>
+        <div class="ctl-themes-preview-window">
+          ${buildSelectedThemePreviewMarkup(selectedTheme)}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function syncThemesPaneState() {
+  const selectedTheme = getSelectedThemeEntry();
+  const previewRoot = document.querySelector('[data-role="theme-preview-root"]');
+
+  if (previewRoot && selectedTheme) {
+    syncSelectedThemePreview(previewRoot, selectedTheme);
+  }
+}
+
+function renderThemesPane() {
+  const container = document.querySelector('[data-pane="themes"]');
+
+  if (!container) {
+    return;
+  }
+
+  container.innerHTML = buildThemesPaneMarkup();
+  syncThemesPaneState();
+}
+
+async function saveCurrentTheme() {
+  const themeName = normalizeThemeName(panelState.themeDraftName);
+
+  if (!themeName) {
+    syncPanelMeta("Enter a theme name before saving.");
+    return false;
+  }
+
+  const themeId = buildThemeId(themeName);
+  const existingTheme = panelState.savedThemes.find((theme) => theme.id === themeId) || null;
+  const now = Date.now();
+  const nextTheme = {
+    id: themeId,
+    name: themeName,
+    createdAt: existingTheme?.createdAt || now,
+    updatedAt: now,
+    snapshot: createThemeSnapshot(),
+  };
+
+  panelState.savedThemes = [
+    nextTheme,
+    ...panelState.savedThemes.filter((theme) => theme.id !== themeId),
+  ].sort((left, right) => right.updatedAt - left.updatedAt || left.name.localeCompare(right.name));
+  panelState.selectedThemeId = themeId;
+  panelState.themeDraftName = themeName;
+
+  const saved = await persistThemeLibrary(existingTheme ? "themes-update" : "themes-create");
+  renderThemesPane();
+  syncPanelMeta(saved ? `${existingTheme ? "Updated" : "Saved"} theme ${themeName}` : `Unable to save theme ${themeName}`);
+  return saved;
+}
+
+async function loadSelectedTheme() {
+  const selectedTheme = getSelectedThemeEntry();
+
+  if (!selectedTheme) {
+    return false;
+  }
+
+  captureHistorySnapshot(`load-theme:${selectedTheme.id}`);
+  applyThemeSnapshotToPanelState(selectedTheme.snapshot);
+  persistAppearanceState();
+  schedulePersistControls();
+  schedulePersistGradients();
+  schedulePersistTagColors(Object.keys(panelState.tagColorAssignments));
+  await applyManagedOverrides(false, `Loaded theme ${selectedTheme.name}`);
+  finishHistoryCapture(`load-theme:${selectedTheme.id}`);
+  renderThemesPane();
+  return true;
+}
+
+async function deleteSelectedTheme() {
+  const selectedTheme = getSelectedThemeEntry();
+
+  if (!selectedTheme) {
+    return false;
+  }
+
+  panelState.savedThemes = panelState.savedThemes.filter((theme) => theme.id !== selectedTheme.id);
+  syncSelectedThemeState();
+  panelState.themeDraftName = getSelectedThemeEntry()?.name || "";
+
+  const saved = await persistThemeLibrary("themes-delete");
+  renderThemesPane();
+  syncPanelMeta(saved ? `Deleted theme ${selectedTheme.name}` : `Unable to delete theme ${selectedTheme.name}`);
+  return saved;
 }
 
 function buildTagsPaneMarkup() {
@@ -7251,12 +7834,16 @@ async function handleCurrentGraphChanged() {
   panelState.appearanceState = { ...DEFAULT_APPEARANCE_STATE };
   panelState.gradientState = createDefaultGradientState();
   panelState.gradientSelections = Object.fromEntries(Object.keys(GRADIENT_AREAS).map((areaKey) => [areaKey, 0]));
+  panelState.savedThemes = [];
+  panelState.selectedThemeId = "";
+  panelState.themeDraftName = "";
   clearHistoryState();
   renderPanel(`Graph changed to ${graphInfo?.name || "current graph"}. Refreshing local tags...`);
   await loadStoredAppearanceState();
   await loadGraphSyncRevisionState();
   await loadStoredControls();
   await loadStoredGradients();
+  await loadStoredThemes();
   await refreshTags({ showToast: false, fallbackToPrevious: false });
   await loadStoredTagColors();
   await applyManagedOverrides(false, `Loaded synced graph state for ${graphInfo?.name || "current graph"}`, "soft");
@@ -7267,6 +7854,7 @@ function doesTxDataTouchDegrandeState(txData = []) {
     ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_CONTROL_PROPERTY),
     ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_GRADIENT_PROPERTY),
     ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_TAG_COLOR_PROPERTY),
+    ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_THEME_LIBRARY_PROPERTY),
     ...getGraphSyncPropertyAttrCandidates(GRAPH_SYNC_REVISION_PROPERTY),
   ].filter(Boolean));
   const tagCatalogAttributes = new Set([
@@ -7295,6 +7883,7 @@ function doesTxDataTouchDegrandeState(txData = []) {
       || value === GRAPH_SYNC_CONTROL_PROPERTY
       || value === GRAPH_SYNC_GRADIENT_PROPERTY
       || value === GRAPH_SYNC_TAG_COLOR_PROPERTY
+      || value === GRAPH_SYNC_THEME_LIBRARY_PROPERTY
       || value === GRAPH_SYNC_REVISION_PROPERTY
     ) {
       syncStateChanged = true;
@@ -7363,6 +7952,7 @@ async function syncPersistedAppearance(options = {}) {
   } = options;
   const previousRevision = panelState.syncRevision;
   const previousSnapshot = buildPersistedAppearanceSnapshot();
+  const previousThemeLibrarySnapshot = getThemeLibrarySnapshot();
   const previousSelectedTag = String(panelState.selectedTag || "").toLowerCase();
 
   setSyncState("pending");
@@ -7372,34 +7962,40 @@ async function syncPersistedAppearance(options = {}) {
   await loadStoredControls();
   await loadStoredGradients();
   await loadStoredTagColors({ allowEntityFallback: false, fallbackToCurrent: true });
+  await loadStoredThemes();
 
   if (refreshTagCatalog) {
     await refreshTags({ showToast: false, fallbackToPrevious });
   }
 
   const nextSnapshot = buildPersistedAppearanceSnapshot();
-  const changed = previousSnapshot !== nextSnapshot
+  const appearanceChanged = previousSnapshot !== nextSnapshot
     || previousSelectedTag !== String(panelState.selectedTag || "").toLowerCase();
+  const themeLibraryChanged = previousThemeLibrarySnapshot !== getThemeLibrarySnapshot();
 
-  if (changed) {
+  if (appearanceChanged) {
     clearHistoryState();
   }
 
-  if (!changed && !forceRender && !showToast) {
+  if (!appearanceChanged && !themeLibraryChanged && !forceRender && !showToast) {
     setSyncState("synced");
     return false;
   }
 
   await applyManagedOverrides(
     showToast,
-    changed ? reason : "Synced graph state is already current",
+    appearanceChanged || themeLibraryChanged ? reason : "Synced graph state is already current",
     renderMode
   );
+
+  if (themeLibraryChanged && panelState.mounted) {
+    renderThemesPane();
+  }
 
   panelState.lastNotifiedSyncRevision = Math.max(previousRevision, panelState.syncRevision);
   setSyncState("synced");
 
-  return changed;
+  return appearanceChanged || themeLibraryChanged;
 }
 
 function buildControlsMarkup() {
@@ -8374,6 +8970,7 @@ function refreshPanel(statusMessage, { rerenderPreview = false, rerenderTags = f
   syncPreviewStyles();
   syncGradientEditorState();
   syncTagsPaneState();
+  syncThemesPaneState();
   syncTabState();
 }
 
@@ -8448,10 +9045,14 @@ function rerenderTagsPanePreservingFocus(statusMessage) {
 }
 
 function setActiveTab(tab) {
-  panelState.activeTab = ["preview", "tags", "diagnostics"].includes(tab) ? tab : "tags";
+  panelState.activeTab = ["preview", "tags", "themes", "diagnostics"].includes(tab) ? tab : "tags";
 
   if (panelState.activeTab === "diagnostics") {
     renderDiagnosticsPane();
+  }
+
+  if (panelState.activeTab === "themes") {
+    renderThemesPane();
   }
 
   syncTabState();
@@ -8930,6 +9531,7 @@ function mountPanel() {
         <div class="ctl-tabbar" role="tablist" aria-label="Theme panel views">
           <button class="ctl-tab" type="button" data-tab="tags" role="tab" aria-selected="true">Tags</button>
           <button class="ctl-tab" type="button" data-tab="preview" role="tab" aria-selected="false">Appearance</button>
+          <button class="ctl-tab" type="button" data-tab="themes" role="tab" aria-selected="false">Themes</button>
           <button class="ctl-tab" type="button" data-tab="diagnostics" role="tab" aria-selected="false">Diagnostics</button>
         </div>
         <div class="ctl-main">
@@ -8939,6 +9541,9 @@ function mountPanel() {
             </div>
             <div class="ctl-pane ctl-pane-preview" data-pane="preview" hidden>
               ${buildPreviewMarkup()}
+            </div>
+            <div class="ctl-pane ctl-pane-preview" data-pane="themes" hidden>
+              ${buildThemesPaneMarkup()}
             </div>
             <div class="ctl-pane ctl-pane-preview" data-pane="diagnostics" hidden>
               ${buildDiagnosticsPaneMarkup()}
@@ -9055,6 +9660,28 @@ function mountPanel() {
         forceRender: true,
         fallbackToPrevious: false,
       });
+      return;
+    }
+
+    if (action === "select-theme") {
+      panelState.selectedThemeId = target.dataset.themeId || "";
+      panelState.themeDraftName = getSelectedThemeEntry()?.name || panelState.themeDraftName;
+      renderThemesPane();
+      return;
+    }
+
+    if (action === "save-theme") {
+      await saveCurrentTheme();
+      return;
+    }
+
+    if (action === "load-theme") {
+      await loadSelectedTheme();
+      return;
+    }
+
+    if (action === "delete-theme") {
+      await deleteSelectedTheme();
       return;
     }
 
@@ -9412,6 +10039,16 @@ function mountPanel() {
       panelState.tagFilter = tagFilterInput.value || "";
       syncTagBrowserState();
       syncTagsPaneState();
+      return;
+    }
+
+    const themeNameInput = event.target.closest("[data-theme-name]");
+
+    if (themeNameInput) {
+      panelState.themeDraftName = themeNameInput.value || "";
+      document.querySelectorAll('[data-action="save-theme"]').forEach((button) => {
+        button.disabled = !normalizeThemeName(panelState.themeDraftName);
+      });
       return;
     }
 
