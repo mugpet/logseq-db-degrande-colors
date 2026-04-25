@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors v0.5.6</title>
-    <meta name="degrande-colors-version" content="0.5.6">
+    <title>Degrande Colors v0.5.7</title>
+    <meta name="degrande-colors-version" content="0.5.7">
     <style>
       :root {
         color-scheme: light;
@@ -1025,6 +1025,24 @@
         gap: 10px 14px;
       }
 
+      .ctl-gradient-detail-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        align-items: start;
+      }
+
+      .ctl-gradient-detail-grid.is-single {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .ctl-gradient-detail-side {
+        min-width: 0;
+        display: grid;
+        gap: 10px;
+        align-content: start;
+      }
+
       .ctl-gradient-custom-toggle {
         margin: 0;
         padding: 0;
@@ -1551,6 +1569,10 @@
           grid-template-columns: 1fr;
         }
 
+        .ctl-gradient-detail-grid {
+          grid-template-columns: 1fr;
+        }
+
         .ctl-gradient-extra {
           grid-template-columns: 1fr;
         }
@@ -1591,8 +1613,8 @@
   </head>
   <body>
     <div id="app"></div>
-    <script src="./lsplugin.user.js?v=0.5.6"></script>
-    <script src="./plugin.js?v=0.5.6"></script>
+    <script src="./lsplugin.user.js?v=0.5.7"></script>
+    <script src="./plugin.js?v=0.5.7"></script>
   </body>
 </html>
 

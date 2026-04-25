@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.6";
+const FALLBACK_PLUGIN_VERSION = "0.5.7";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -6853,42 +6853,45 @@ function buildGradientEditorMarkup(areaKey, previewMarkup, controlKeys = [], ext
             <input class="ctl-range" id="gradient-angle-${areaKey}" type="range" min="0" max="360" step="1" value="${area.angle}" data-gradient-angle="${areaKey}">
           </label>
         </div>
-        ${(controlKeys.length || extraMarkup) ? `<div class="ctl-gradient-extra">${buildNumericControlsMarkup(controlKeys)}${extraMarkup}</div>` : ""}
-      </div>
-      <aside class="ctl-gradient-inspector ctl-gradient-column ctl-gradient-column-side">
-        <div class="ctl-gradient-inspector-head">
-          <strong data-gradient-selected-index="${areaKey}">Stop ${selectedIndex + 1}</strong>
-          <span data-gradient-selected-label="${areaKey}">${selectedLabel} · ${Math.round(selectedStop.position)}%</span>
-        </div>
-        ${buildGradientStopPickerMarkup(areaKey, area, areaConfig, selectedIndex)}
-        <section class="ctl-gradient-group">
-          <label class="ctl-control ctl-control-tight" for="gradient-alpha-${areaKey}">
-            <div class="ctl-control-header">
-              <span class="ctl-control-label">Stop Opacity</span>
-              <strong class="ctl-control-value" data-gradient-alpha-value="${areaKey}">${typeof selectedStop.alpha === "number" ? selectedStop.alpha : 100}%</strong>
+        ${controlKeys.length ? `<div class="ctl-gradient-extra">${buildNumericControlsMarkup(controlKeys)}</div>` : ""}
+        <div class="ctl-gradient-detail-grid${extraMarkup ? "" : " is-single"}">
+          <aside class="ctl-gradient-inspector ctl-gradient-column ctl-gradient-column-side">
+            <div class="ctl-gradient-inspector-head">
+              <strong data-gradient-selected-index="${areaKey}">Stop ${selectedIndex + 1}</strong>
+              <span data-gradient-selected-label="${areaKey}">${selectedLabel} · ${Math.round(selectedStop.position)}%</span>
             </div>
-            <input class="ctl-range" id="gradient-alpha-${areaKey}" type="range" min="0" max="100" step="1" value="${typeof selectedStop.alpha === "number" ? selectedStop.alpha : 100}" data-gradient-alpha="${areaKey}">
-          </label>
-        </section>
-        <section class="ctl-gradient-group">
-          <span class="ctl-gradient-group-label">Quick Modes</span>
-          <div class="ctl-mode-grid">
-            ${buildGradientModeOptionsMarkup(areaKey, selectedIndex, selectedStop, areaConfig)}
-          </div>
-        </section>
-        <section class="ctl-gradient-group">
-          ${buildGradientPresetPaletteMarkup(areaKey, selectedIndex, selectedStop)}
-        </section>
-        <details class="ctl-gradient-group ctl-gradient-custom-toggle"${selectedStop.source === "custom" ? " open" : ""}>
-          <summary class="ctl-gradient-custom-summary">
-            <span class="ctl-gradient-group-label">Custom Color</span>
-            <span class="ctl-gradient-custom-summary-text">Show / Hide</span>
-          </summary>
-          <div class="ctl-gradient-custom-toggle-body">
-            ${buildGradientCustomColorMarkup(areaKey, selectedIndex, selectedStop)}
-          </div>
-        </details>
-      </aside>
+            ${buildGradientStopPickerMarkup(areaKey, area, areaConfig, selectedIndex)}
+            <section class="ctl-gradient-group">
+              <label class="ctl-control ctl-control-tight" for="gradient-alpha-${areaKey}">
+                <div class="ctl-control-header">
+                  <span class="ctl-control-label">Stop Opacity</span>
+                  <strong class="ctl-control-value" data-gradient-alpha-value="${areaKey}">${typeof selectedStop.alpha === "number" ? selectedStop.alpha : 100}%</strong>
+                </div>
+                <input class="ctl-range" id="gradient-alpha-${areaKey}" type="range" min="0" max="100" step="1" value="${typeof selectedStop.alpha === "number" ? selectedStop.alpha : 100}" data-gradient-alpha="${areaKey}">
+              </label>
+            </section>
+            <section class="ctl-gradient-group">
+              <span class="ctl-gradient-group-label">Quick Modes</span>
+              <div class="ctl-mode-grid">
+                ${buildGradientModeOptionsMarkup(areaKey, selectedIndex, selectedStop, areaConfig)}
+              </div>
+            </section>
+            <section class="ctl-gradient-group">
+              ${buildGradientPresetPaletteMarkup(areaKey, selectedIndex, selectedStop)}
+            </section>
+            <details class="ctl-gradient-group ctl-gradient-custom-toggle"${selectedStop.source === "custom" ? " open" : ""}>
+              <summary class="ctl-gradient-custom-summary">
+                <span class="ctl-gradient-group-label">Custom Color</span>
+                <span class="ctl-gradient-custom-summary-text">Show / Hide</span>
+              </summary>
+              <div class="ctl-gradient-custom-toggle-body">
+                ${buildGradientCustomColorMarkup(areaKey, selectedIndex, selectedStop)}
+              </div>
+            </details>
+          </aside>
+          ${extraMarkup ? `<div class="ctl-gradient-detail-side">${extraMarkup}</div>` : ""}
+        </div>
+      </div>
     </section>
   `;
 }
