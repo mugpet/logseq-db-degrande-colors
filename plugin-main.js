@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.16";
+const FALLBACK_PLUGIN_VERSION = "0.5.17";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -7062,7 +7062,7 @@ function buildThemeListMarkup() {
   }).join("");
 }
 
-function buildThemesPaneMarkup() {
+function getThemeActionState() {
   const selectedTheme = syncSelectedThemeState();
   const themeName = panelState.themeDraftName || selectedTheme?.name || "";
   const themeActionPending = panelState.themeSavePending || panelState.themeLoadPending || panelState.themeTransferPending;
@@ -7073,6 +7073,42 @@ function buildThemesPaneMarkup() {
   const saveDisabled = themeActionPending || !normalizedThemeName || Boolean(duplicateTheme);
   const updateDisabled = themeActionPending || !selectedTheme || !normalizedThemeName || Boolean(duplicateTheme && duplicateTheme.id !== selectedTheme.id);
   const actionDisabled = themeActionPending || !selectedTheme;
+
+  return {
+    selectedTheme,
+    themeName,
+    themeActionPending,
+    normalizedThemeName,
+    duplicateTheme,
+    saveDisabled,
+    updateDisabled,
+    actionDisabled,
+  };
+}
+
+function syncThemeActionButtons() {
+  const { saveDisabled, updateDisabled } = getThemeActionState();
+  const saveNewButton = document.querySelector('[data-action="save-new-theme"]');
+  const updateButton = document.querySelector('[data-action="update-current-theme"]');
+
+  if (saveNewButton) {
+    saveNewButton.disabled = saveDisabled;
+  }
+
+  if (updateButton) {
+    updateButton.disabled = updateDisabled;
+  }
+}
+
+function buildThemesPaneMarkup() {
+  const {
+    selectedTheme,
+    themeName,
+    themeActionPending,
+    saveDisabled,
+    updateDisabled,
+    actionDisabled,
+  } = getThemeActionState();
   const importActionsMarkup = `
     <input type="file" accept=".json,application/json" data-role="theme-import-file" hidden>
     <button class="ctl-button ctl-button-secondary ctl-button-small${panelState.themeTransferPending ? " is-busy" : ""}" type="button" data-action="import-theme-file"${themeActionPending ? " disabled" : ""}>${panelState.themeTransferPending ? "Importing..." : "Import File"}</button>
@@ -10443,7 +10479,7 @@ function mountPanel() {
 
     if (themeNameInput) {
       panelState.themeDraftName = themeNameInput.value || "";
-      renderThemesPane();
+      syncThemeActionButtons();
       return;
     }
 
