@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.28";
+const FALLBACK_PLUGIN_VERSION = "0.5.29";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -6916,6 +6916,15 @@ function getActivePageTitleLinkedPreviewColor() {
 function getGradientPreviewLinkedColor(areaKey) {
   const areaConfig = GRADIENT_AREAS[areaKey] || {};
   const previewFallback = areaConfig.previewLinkedColor || "transparent";
+
+  if (areaKey === "quote") {
+    const rawOpacity = panelState.themeMode === "dark"
+      ? Number(panelState.controlState.quoteDarkOpacity)
+      : Number(panelState.controlState.quoteLightOpacity);
+    const opacity = Number.isFinite(rawOpacity) ? clamp(rawOpacity, 0, 1) : 0.18;
+
+    return `rgba(99, 102, 241, ${opacity})`;
+  }
 
   if (areaKey === "title") {
     const activePageTitleColor = getActivePageTitleLinkedPreviewColor();
