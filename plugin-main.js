@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.12";
+const FALLBACK_PLUGIN_VERSION = "0.5.13";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -4363,16 +4363,39 @@ function getSelectedThemeEntry() {
   return panelState.savedThemes.find((theme) => theme.id === panelState.selectedThemeId) || null;
 }
 
-function syncSelectedThemeState() {
-  const selectedTheme = getSelectedThemeEntry();
+function syncSelectedThemeState(options = {}) {
+  const preferredId = String(options.preferredId ?? panelState.selectedThemeId ?? "");
+  const preferredName = normalizeThemeName(options.preferredName ?? panelState.themeDraftName);
+  const shouldSyncDraftName = options.syncDraftName ?? !normalizeThemeName(panelState.themeDraftName);
+  let selectedTheme = panelState.savedThemes.find((theme) => theme.id === preferredId) || null;
+
+  if (!selectedTheme && preferredName) {
+    const preferredThemeId = buildThemeId(preferredName);
+
+    selectedTheme = panelState.savedThemes.find((theme) => (
+      theme.id === preferredThemeId || theme.name.toLowerCase() === preferredName.toLowerCase()
+    )) || null;
+  }
 
   if (selectedTheme) {
     panelState.selectedThemeId = selectedTheme.id;
+
+    if (shouldSyncDraftName) {
+      panelState.themeDraftName = selectedTheme.name;
+    }
+
     return selectedTheme;
   }
 
   panelState.selectedThemeId = panelState.savedThemes[0]?.id || "";
-  return getSelectedThemeEntry();
+
+  selectedTheme = getSelectedThemeEntry();
+
+  if (selectedTheme && shouldSyncDraftName) {
+    panelState.themeDraftName = selectedTheme.name;
+  }
+
+  return selectedTheme;
 }
 
 function formatThemeTimestamp(timestamp) {
@@ -5954,12 +5977,14 @@ async function loadStoredGradients() {
 
 async function loadStoredThemes() {
   try {
+    const previousSelectedThemeId = panelState.selectedThemeId;
+    const previousThemeDraftName = panelState.themeDraftName;
     const localMirror = parseLocalMirrorValue(await loadStoredItemWithLegacyFallback(THEME_LIBRARY_STORAGE_KEY), mergeStoredThemes);
     const graphBackedState = await loadGraphBackedPageState(GRAPH_SYNC_THEME_LIBRARY_PROPERTY, mergeStoredThemes);
 
     if (localMirror.exists && shouldPromoteLocalMirrorRevision(localMirror.revision)) {
       panelState.savedThemes = localMirror.value;
-      syncSelectedThemeState();
+      syncSelectedThemeState({ preferredId: previousSelectedThemeId, preferredName: previousThemeDraftName, syncDraftName: false });
       syncLocalThemeLibraryMirror(localMirror.revision);
       await saveGraphBackedPageState(GRAPH_SYNC_THEME_LIBRARY_PROPERTY, panelState.savedThemes, {
         suppressReadyErrors: true,
@@ -5970,19 +5995,19 @@ async function loadStoredThemes() {
 
     if (graphBackedState.exists) {
       panelState.savedThemes = graphBackedState.value;
-      syncSelectedThemeState();
+      syncSelectedThemeState({ preferredId: previousSelectedThemeId, preferredName: previousThemeDraftName, syncDraftName: false });
       syncLocalThemeLibraryMirror(panelState.syncRevision);
       return;
     }
 
     if (!localMirror.exists) {
       panelState.savedThemes = [];
-      syncSelectedThemeState();
+      syncSelectedThemeState({ preferredId: previousSelectedThemeId, preferredName: previousThemeDraftName, syncDraftName: false });
       return;
     }
 
     panelState.savedThemes = localMirror.value;
-    syncSelectedThemeState();
+    syncSelectedThemeState({ preferredId: previousSelectedThemeId, preferredName: previousThemeDraftName, syncDraftName: false });
     syncLocalThemeLibraryMirror(localMirror.revision);
 
     if (shouldPromoteLocalMirrorRevision(localMirror.revision)) {
@@ -5994,7 +6019,7 @@ async function loadStoredThemes() {
   } catch (error) {
     if (isMissingStorageError(error)) {
       panelState.savedThemes = [];
-      syncSelectedThemeState();
+      syncSelectedThemeState({ preferredId: panelState.selectedThemeId, preferredName: panelState.themeDraftName, syncDraftName: false });
       return;
     }
 
