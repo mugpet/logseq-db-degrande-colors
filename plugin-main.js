@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.14";
+const FALLBACK_PLUGIN_VERSION = "0.5.15";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -6097,6 +6097,7 @@ async function persistThemeLibrary(reason = "themes") {
   setSyncState("pending");
   const localRevision = getNextGraphSyncRevision();
   syncSelectedThemeState();
+  panelState.lastLocalSyncRevision = localRevision;
   syncLocalThemeLibraryMirror(localRevision);
 
   try {
@@ -6107,7 +6108,7 @@ async function persistThemeLibrary(reason = "themes") {
 
     if (!saved) {
       setSyncState("pending");
-      return false;
+      return true;
     }
 
     await bumpGraphSyncRevision(reason, localRevision);
@@ -6674,7 +6675,7 @@ function buildInlineColorEditorMarkup({ color, scope, areaKey = "", stopIndex = 
   `;
 }
 
-function buildPaneIntroMarkup(title, description) {
+function buildPaneIntroMarkup(title, description, actionsMarkup = "") {
   return `
     <section class="ctl-section ctl-section-inline">
       <div class="ctl-section-head">
@@ -6682,6 +6683,7 @@ function buildPaneIntroMarkup(title, description) {
           <h2>${escapeHtml(title)}</h2>
           <p>${escapeHtml(description)}</p>
         </div>
+        ${actionsMarkup ? `<div class="ctl-pane-intro-actions">${actionsMarkup}</div>` : ""}
       </div>
     </section>
   `;
@@ -7028,13 +7030,24 @@ function buildThemesPaneMarkup() {
   const selectedTheme = syncSelectedThemeState();
   const themeName = panelState.themeDraftName || selectedTheme?.name || "";
   const themeActionPending = panelState.themeSavePending || panelState.themeLoadPending || panelState.themeTransferPending;
-  const saveDisabled = themeActionPending || !normalizeThemeName(themeName);
+  const normalizedThemeName = normalizeThemeName(themeName);
+  const duplicateTheme = normalizedThemeName
+    ? panelState.savedThemes.find((theme) => theme.id === buildThemeId(normalizedThemeName)) || null
+    : null;
+  const saveDisabled = themeActionPending || !normalizedThemeName || Boolean(duplicateTheme);
+  const updateDisabled = themeActionPending || !selectedTheme || !normalizedThemeName || Boolean(duplicateTheme && duplicateTheme.id !== selectedTheme.id);
   const actionDisabled = themeActionPending || !selectedTheme;
+  const importActionsMarkup = `
+    <input type="file" accept=".json,application/json" data-role="theme-import-file" hidden>
+    <button class="ctl-button ctl-button-secondary ctl-button-small${panelState.themeTransferPending ? " is-busy" : ""}" type="button" data-action="import-theme-file"${themeActionPending ? " disabled" : ""}>${panelState.themeTransferPending ? "Importing..." : "Import File"}</button>
+    <button class="ctl-button ctl-button-secondary ctl-button-small" type="button" data-action="import-theme-clipboard"${themeActionPending ? " disabled" : ""}>Paste Clipboard</button>
+  `;
 
   return `
     ${buildPaneIntroMarkup(
       "Themes",
-      "Save the current Degrande settings as reusable named themes, then preview, load, or delete them from this graph-backed library."
+      "Save the current Degrande settings as reusable named themes, then preview, load, or delete them from this graph-backed library.",
+      importActionsMarkup
     )}
     <div class="ctl-themes-layout">
       <section class="ctl-themes-sidebar">
@@ -7043,18 +7056,10 @@ function buildThemesPaneMarkup() {
             <span>Theme Name</span>
             <input class="ctl-input" type="text" value="${escapeAttributeValue(themeName)}" placeholder="Nord Quotes" data-theme-name${themeActionPending ? " disabled" : ""}>
           </label>
-          <button class="ctl-button ctl-button-primary${panelState.themeSavePending ? " is-busy" : ""}" type="button" data-action="save-theme"${saveDisabled ? " disabled" : ""}>${panelState.themeSavePending ? "Saving..." : "Save Current Theme"}</button>
-        </div>
-        <div class="ctl-theme-transfer-box">
-          <div class="ctl-theme-transfer-group">
-            <strong>Import Themes</strong>
-            <span>Bring in Degrande theme JSON from a file or the clipboard.</span>
+          <div class="ctl-theme-save-actions">
+            <button class="ctl-button ctl-button-primary${panelState.themeSavePending ? " is-busy" : ""}" type="button" data-action="save-new-theme"${saveDisabled ? " disabled" : ""}>${panelState.themeSavePending ? "Saving..." : "Save New Theme"}</button>
+            <button class="ctl-button ctl-button-secondary${panelState.themeSavePending ? " is-busy" : ""}" type="button" data-action="update-current-theme"${updateDisabled ? " disabled" : ""}>${panelState.themeSavePending ? "Updating..." : "Update Current Theme"}</button>
           </div>
-          <div class="ctl-toolbar-actions">
-            <button class="ctl-button ctl-button-secondary${panelState.themeTransferPending ? " is-busy" : ""}" type="button" data-action="import-theme-file"${themeActionPending ? " disabled" : ""}>${panelState.themeTransferPending ? "Importing..." : "Import File"}</button>
-            <button class="ctl-button ctl-button-secondary" type="button" data-action="import-theme-clipboard"${themeActionPending ? " disabled" : ""}>Paste Clipboard</button>
-          </div>
-          <input type="file" accept=".json,application/json" data-role="theme-import-file" hidden>
         </div>
         <div class="ctl-themes-list" data-role="theme-list">
           ${buildThemeListMarkup()}
@@ -7146,8 +7151,10 @@ async function persistAppliedThemeState() {
   }
 }
 
-async function saveCurrentTheme() {
+async function saveThemeEntry(mode = "create") {
   const themeName = normalizeThemeName(panelState.themeDraftName);
+  const selectedTheme = getSelectedThemeEntry();
+  const isUpdate = mode === "update";
 
   if (!themeName) {
     syncPanelMeta("Enter a theme name before saving.");
@@ -7156,41 +7163,70 @@ async function saveCurrentTheme() {
 
   const themeId = buildThemeId(themeName);
   const existingTheme = panelState.savedThemes.find((theme) => theme.id === themeId) || null;
+
+  if (isUpdate && !selectedTheme) {
+    syncPanelMeta("Select a saved theme before updating it.");
+    return false;
+  }
+
+  if (!isUpdate && existingTheme) {
+    syncPanelMeta(`Theme ${themeName} already exists. Use Update Current Theme or choose another name.`);
+    return false;
+  }
+
+  if (isUpdate && existingTheme && existingTheme.id !== selectedTheme.id) {
+    syncPanelMeta(`Theme ${themeName} already exists. Choose another name or update that theme directly.`);
+    return false;
+  }
+
   const previousThemes = panelState.savedThemes.slice();
   const now = Date.now();
+  const themeToReplaceId = isUpdate ? selectedTheme.id : themeId;
   const nextTheme = {
     id: themeId,
     name: themeName,
-    createdAt: existingTheme?.createdAt || now,
+    createdAt: isUpdate ? (selectedTheme.createdAt || now) : now,
     updatedAt: now,
     snapshot: createThemeSnapshot(),
   };
 
   panelState.savedThemes = [
     nextTheme,
-    ...panelState.savedThemes.filter((theme) => theme.id !== themeId),
+    ...panelState.savedThemes.filter((theme) => theme.id !== themeToReplaceId && theme.id !== themeId),
   ].sort((left, right) => right.updatedAt - left.updatedAt || left.name.localeCompare(right.name));
   panelState.selectedThemeId = themeId;
   panelState.themeDraftName = themeName;
 
   panelState.themeSavePending = true;
   renderThemesPane();
-  syncPanelMeta(`${existingTheme ? "Updating" : "Saving"} theme ${themeName}...`);
+  syncPanelMeta(`${isUpdate ? "Updating" : "Saving"} theme ${themeName}...`);
 
   try {
-    const saved = await persistThemeLibrary(existingTheme ? "themes-update" : "themes-create");
+    const saved = await persistThemeLibrary(isUpdate ? "themes-update" : "themes-create");
 
     if (!saved) {
       panelState.savedThemes = previousThemes;
       syncSelectedThemeState();
     }
 
-    syncPanelMeta(saved ? `${existingTheme ? "Updated" : "Saved"} theme ${themeName}` : `Unable to save theme ${themeName}`);
+    syncPanelMeta(
+      saved
+        ? `${isUpdate ? "Updated" : "Saved"} theme ${themeName}${panelState.syncState === "pending" ? " locally. Graph sync is still pending." : ""}`
+        : `Unable to ${isUpdate ? "update" : "save"} theme ${themeName}`
+    );
     return saved;
   } finally {
     panelState.themeSavePending = false;
     renderThemesPane();
   }
+}
+
+async function saveCurrentTheme() {
+  return saveThemeEntry("create");
+}
+
+async function updateCurrentTheme() {
+  return saveThemeEntry("update");
 }
 
 async function exportSelectedThemeToFile() {
@@ -9963,8 +9999,13 @@ function mountPanel() {
       return;
     }
 
-    if (action === "save-theme") {
+    if (action === "save-new-theme") {
       await saveCurrentTheme();
+      return;
+    }
+
+    if (action === "update-current-theme") {
+      await updateCurrentTheme();
       return;
     }
 
@@ -10365,9 +10406,7 @@ function mountPanel() {
 
     if (themeNameInput) {
       panelState.themeDraftName = themeNameInput.value || "";
-      document.querySelectorAll('[data-action="save-theme"]').forEach((button) => {
-        button.disabled = panelState.themeSavePending || panelState.themeLoadPending || !normalizeThemeName(panelState.themeDraftName);
-      });
+      renderThemesPane();
       return;
     }
 

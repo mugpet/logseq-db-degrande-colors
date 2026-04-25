@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors v0.5.14</title>
-    <meta name="degrande-colors-version" content="0.5.14">
+    <title>Degrande Colors v0.5.15</title>
+    <meta name="degrande-colors-version" content="0.5.15">
     <style>
       :root {
         color-scheme: light;
@@ -194,11 +194,25 @@
         margin-top: 14px;
       }
 
+      .ctl-section-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: start;
+      }
+
       .ctl-section-head h2 {
         margin: 0;
         font-size: 13px;
         line-height: 1.2;
         letter-spacing: 0.02em;
+      }
+
+      .ctl-pane-intro-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
       }
 
       .ctl-section-head p {
@@ -1146,31 +1160,10 @@
         gap: 10px;
       }
 
-      .ctl-theme-transfer-box {
+      .ctl-theme-save-actions {
         display: grid;
-        gap: 10px;
-        padding: 12px;
-        border: 1px solid var(--ctl-border);
-        border-radius: 16px;
-        background: rgba(255, 255, 255, 0.32);
-      }
-
-      .theme-dark .ctl-theme-transfer-box {
-        background: rgba(15, 23, 42, 0.34);
-      }
-
-      .ctl-theme-transfer-group {
-        display: grid;
-        gap: 4px;
-      }
-
-      .ctl-theme-transfer-group strong {
-        font-size: 12px;
-      }
-
-      .ctl-theme-transfer-group span {
-        font-size: 11px;
-        color: var(--ctl-text-muted);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
       }
 
       .ctl-themes-list {
@@ -1813,9 +1806,18 @@
           grid-template-columns: 1fr;
         }
 
+        .ctl-section-head,
         .ctl-themes-layout,
         .ctl-theme-preview-grid,
         .ctl-themes-preview-toolbar {
+          grid-template-columns: 1fr;
+        }
+
+        .ctl-pane-intro-actions {
+          justify-content: flex-start;
+        }
+
+        .ctl-theme-save-actions {
           grid-template-columns: 1fr;
         }
 
