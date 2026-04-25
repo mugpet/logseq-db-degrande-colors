@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.20";
+const FALLBACK_PLUGIN_VERSION = "0.5.21";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -546,6 +546,973 @@ const APPEARANCE_SECTIONS = [
 ];
 const APPEARANCE_SECTION_MAP = Object.fromEntries(APPEARANCE_SECTIONS.map((section) => [section.key, section]));
 const DEFAULT_APPEARANCE_STATE = Object.fromEntries(APPEARANCE_SECTIONS.map((section) => [section.key, true]));
+const DEFAULT_THEME_EXPORT_SOURCE = JSON.parse(String.raw`{
+  "format": "degrande-colors-theme",
+  "version": 1,
+  "pluginVersion": "0.5.20",
+  "exportedAt": 1777108886935,
+  "theme": {
+    "id": "mpe",
+    "name": "mpe",
+    "createdAt": 1777100811768,
+    "updatedAt": 1777105619029,
+    "snapshot": {
+      "appearanceState": {
+        "tagColors": true,
+        "tagChips": true,
+        "linkedBlocks": true,
+        "pageTitles": true,
+        "highlights": true,
+        "quotes": true,
+        "backgroundBlocks": true
+      },
+      "controlState": {
+        "tagRadius": 6,
+        "tagFontSize": 11,
+        "tagHeight": 18,
+        "tagPaddingX": 6,
+        "tagBorderWidth": 1,
+        "tagHoverLift": 1,
+        "nodeAngle": 90,
+        "nodePeak": 50,
+        "nodeFadeEnd": 80,
+        "nodeBorderWidth": 0,
+        "nodeBorderTopWidth": 0,
+        "nodeBorderRightWidth": 0,
+        "nodeBorderBottomWidth": 0,
+        "nodeBorderLeftWidth": 0,
+        "nodeBorderRadius": 4,
+        "nodeBorderOpacity": 100,
+        "nodeBorderColorMode": "linked",
+        "nodeBorderColorToken": "acc-app-accent",
+        "nodeBorderColor": "#905959",
+        "nodePaddingY": 0,
+        "nodePaddingX": 0,
+        "nodeBorderTop": true,
+        "nodeBorderRight": true,
+        "nodeBorderBottom": true,
+        "nodeBorderLeft": true,
+        "nodeBorderTopLeft": true,
+        "nodeBorderTopRight": true,
+        "nodeBorderBottomRight": true,
+        "nodeBorderBottomLeft": true,
+        "titleAngle": 90,
+        "titlePeak": 30,
+        "titleFadeEnd": 60,
+        "darkTitlePeak": 3,
+        "darkTitleFadeEnd": 35,
+        "titleBorderWidth": 1,
+        "titleBorderTopWidth": 1,
+        "titleBorderRightWidth": 1,
+        "titleBorderBottomWidth": 1,
+        "titleBorderLeftWidth": 1,
+        "titleBorderRadius": 12,
+        "titleBorderOpacity": 38,
+        "titleBorderColorMode": "linked",
+        "titleBorderColorToken": "amber",
+        "titleBorderColor": "#f59e0b55",
+        "titlePaddingY": 24,
+        "titlePaddingX": 16,
+        "titleBorderTop": true,
+        "titleBorderRight": true,
+        "titleBorderBottom": true,
+        "titleBorderLeft": true,
+        "titleBorderTopLeft": true,
+        "titleBorderTopRight": true,
+        "titleBorderBottomRight": true,
+        "titleBorderBottomLeft": true,
+        "highlightStartPercent": 0,
+        "highlightEndPercent": 100,
+        "highlightRadius": 4,
+        "highlightBorderWidth": 1,
+        "highlightBorderTopWidth": 1,
+        "highlightBorderRightWidth": 1,
+        "highlightBorderBottomWidth": 1,
+        "highlightBorderLeftWidth": 1,
+        "highlightBorderOpacity": 100,
+        "highlightBorderColorMode": "custom",
+        "highlightBorderColorToken": "acc-app-accent",
+        "highlightBorderColor": "#ffcc00",
+        "highlightPaddingY": 2,
+        "highlightPaddingX": 4,
+        "highlightBorderTop": true,
+        "highlightBorderRight": true,
+        "highlightBorderBottom": true,
+        "highlightBorderLeft": true,
+        "highlightBorderTopLeft": true,
+        "highlightBorderTopRight": true,
+        "highlightBorderBottomRight": true,
+        "highlightBorderBottomLeft": true,
+        "quoteAngle": 130,
+        "quoteClearStart": 40,
+        "quoteClearEnd": 70,
+        "quoteLightOpacity": 0.1,
+        "quoteDarkOpacity": 0.15,
+        "quoteBorderWidth": 3,
+        "quoteBorderTopWidth": 1,
+        "quoteBorderRightWidth": 1,
+        "quoteBorderBottomWidth": 1,
+        "quoteBorderLeftWidth": 4,
+        "quoteRadius": 1,
+        "quoteBorderOpacity": 100,
+        "quoteBorderColorMode": "linked",
+        "quoteBorderColorToken": "acc-app-accent",
+        "quoteBorderColor": "#6366f194",
+        "quoteBorderTop": true,
+        "quoteBorderRight": true,
+        "quoteBorderBottom": true,
+        "quoteBorderLeft": true,
+        "quoteBorderTopLeft": false,
+        "quoteBorderTopRight": true,
+        "quoteBorderBottomRight": true,
+        "quoteBorderBottomLeft": false,
+        "quotePaddingY": 16,
+        "quotePaddingX": 21,
+        "bgAngle": 170,
+        "bgClearStart": 30,
+        "bgClearEnd": 80,
+        "bgBorderWidth": 0,
+        "bgBorderTopWidth": 0,
+        "bgBorderRightWidth": 0,
+        "bgBorderBottomWidth": 0,
+        "bgBorderLeftWidth": 0,
+        "bgRadius": 5,
+        "bgBorderOpacity": 100,
+        "bgBorderColorMode": "custom",
+        "bgBorderColorToken": "pink",
+        "bgBorderColor": "#f472b655",
+        "bgBorderTop": true,
+        "bgBorderRight": true,
+        "bgBorderBottom": true,
+        "bgBorderLeft": true,
+        "bgBorderTopLeft": true,
+        "bgBorderTopRight": true,
+        "bgBorderBottomRight": true,
+        "bgBorderBottomLeft": true,
+        "bgPaddingY": 4,
+        "bgPaddingX": 6
+      },
+      "gradientState": {
+        "node": {
+          "angle": 120,
+          "stops": [
+            {
+              "source": "linked",
+              "position": 0,
+              "track": "bottom",
+              "alpha": 5
+            },
+            {
+              "source": "linked",
+              "position": 39,
+              "track": "bottom",
+              "alpha": 3
+            },
+            {
+              "source": "linked",
+              "position": 39,
+              "track": "top",
+              "alpha": 10
+            },
+            {
+              "source": "linked",
+              "position": 68,
+              "track": "top",
+              "alpha": 35
+            },
+            {
+              "source": "linked",
+              "position": 68,
+              "track": "bottom",
+              "alpha": 53
+            },
+            {
+              "source": "linked",
+              "position": 72,
+              "track": "top",
+              "alpha": 59
+            },
+            {
+              "source": "linked",
+              "position": 72,
+              "track": "bottom",
+              "alpha": 70
+            },
+            {
+              "source": "linked",
+              "position": 88,
+              "track": "top",
+              "alpha": 59
+            },
+            {
+              "source": "linked",
+              "position": 88,
+              "track": "bottom",
+              "alpha": 100
+            }
+          ]
+        },
+        "title": {
+          "angle": 120,
+          "stops": [
+            {
+              "source": "linked",
+              "position": 0,
+              "track": "top",
+              "alpha": 0
+            },
+            {
+              "source": "linked",
+              "position": 19,
+              "track": "bottom",
+              "alpha": 0
+            },
+            {
+              "source": "linked",
+              "position": 19,
+              "track": "top",
+              "alpha": 7
+            },
+            {
+              "source": "linked",
+              "position": 39,
+              "track": "top",
+              "alpha": 11
+            },
+            {
+              "source": "linked",
+              "position": 66,
+              "track": "top",
+              "alpha": 2
+            },
+            {
+              "source": "linked",
+              "position": 66,
+              "track": "bottom",
+              "alpha": 12
+            },
+            {
+              "source": "linked",
+              "position": 72,
+              "track": "top",
+              "alpha": 12
+            },
+            {
+              "source": "linked",
+              "position": 72,
+              "track": "bottom",
+              "alpha": 100
+            },
+            {
+              "source": "linked",
+              "position": 75,
+              "track": "top",
+              "alpha": 100
+            },
+            {
+              "source": "linked",
+              "position": 75,
+              "track": "bottom",
+              "alpha": 48
+            },
+            {
+              "source": "linked",
+              "position": 78,
+              "track": "bottom",
+              "alpha": 42
+            },
+            {
+              "source": "linked",
+              "position": 78,
+              "track": "top",
+              "alpha": 25
+            },
+            {
+              "source": "linked",
+              "position": 100,
+              "track": "top",
+              "alpha": 18
+            }
+          ]
+        },
+        "highlight": {
+          "angle": 135,
+          "stops": [
+            {
+              "source": "custom",
+              "position": 0,
+              "track": "top",
+              "color": "#f2ff00"
+            },
+            {
+              "source": "custom",
+              "position": 23,
+              "track": "top",
+              "color": "#f2ff00",
+              "alpha": 37
+            },
+            {
+              "source": "custom",
+              "position": 59,
+              "track": "top",
+              "color": "#f2ff00",
+              "alpha": 64
+            },
+            {
+              "source": "custom",
+              "position": 100,
+              "track": "top",
+              "color": "#f2ff00",
+              "alpha": 37
+            }
+          ]
+        },
+        "quote": {
+          "angle": 120,
+          "stops": [
+            {
+              "source": "linked",
+              "position": 0,
+              "track": "top",
+              "alpha": 28
+            },
+            {
+              "source": "linked",
+              "position": 4,
+              "track": "top",
+              "alpha": 50
+            },
+            {
+              "source": "linked",
+              "position": 4,
+              "track": "top",
+              "alpha": 30
+            },
+            {
+              "source": "linked",
+              "position": 70,
+              "track": "top",
+              "alpha": 20
+            },
+            {
+              "source": "linked",
+              "position": 70,
+              "track": "bottom",
+              "alpha": 40
+            },
+            {
+              "source": "linked",
+              "position": 100,
+              "track": "top",
+              "alpha": 10
+            }
+          ]
+        },
+        "background": {
+          "angle": 90,
+          "stops": [
+            {
+              "source": "linked",
+              "position": 0,
+              "track": "top",
+              "alpha": 0
+            },
+            {
+              "source": "linked",
+              "position": 37,
+              "track": "top",
+              "alpha": 13
+            },
+            {
+              "source": "linked",
+              "position": 70,
+              "track": "top",
+              "alpha": 40
+            },
+            {
+              "source": "linked",
+              "position": 85,
+              "track": "top",
+              "alpha": 15
+            },
+            {
+              "source": "linked",
+              "position": 100,
+              "track": "top",
+              "alpha": 10
+            }
+          ]
+        }
+      },
+      "tagColorAssignments": {
+        "token": {
+          "type": "preset",
+          "token": "purple"
+        },
+        "energyconnect": {
+          "type": "preset",
+          "token": "sky"
+        },
+        "test": {
+          "type": "preset",
+          "token": "slate"
+        },
+        "$$$views": {
+          "type": "preset",
+          "token": "acc-lt-blue"
+        },
+        "annotation color": {
+          "type": "preset",
+          "token": "grey"
+        },
+        "annotation data": {
+          "type": "preset",
+          "token": "green"
+        },
+        "annotation image": {
+          "type": "preset",
+          "token": "blue"
+        },
+        "annotation page": {
+          "type": "preset",
+          "token": "acc-rose"
+        },
+        "annotation type": {
+          "type": "preset",
+          "token": "acc-apricot"
+        },
+        "background color": {
+          "type": "preset",
+          "token": "acc-rose"
+        },
+        "code mode": {
+          "type": "preset",
+          "token": "acc-coral"
+        },
+        "file checksum": {
+          "type": "preset",
+          "token": "blue"
+        },
+        "file size": {
+          "type": "preset",
+          "token": "acc-sky"
+        },
+        "file type": {
+          "type": "preset",
+          "token": "acc-salmon"
+        },
+        "ls-type": {
+          "type": "preset",
+          "token": "acc-blush"
+        },
+        "mar 30th, 2026": {
+          "type": "preset",
+          "token": "acc-lilac"
+        },
+        "node display type": {
+          "type": "preset",
+          "token": "acc-coral"
+        },
+        "node page": {
+          "type": "preset",
+          "token": "lime"
+        },
+        "access": {
+          "type": "preset",
+          "token": "acc-lilac"
+        },
+        "active": {
+          "type": "preset",
+          "token": "blue"
+        },
+        "ai": {
+          "type": "preset",
+          "token": "purple"
+        },
+        "ai tools": {
+          "type": "preset",
+          "token": "purple"
+        },
+        "alias": {
+          "type": "preset",
+          "token": "acc-coral"
+        },
+        "anders": {
+          "type": "preset",
+          "token": "lime"
+        },
+        "anders and": {
+          "type": "preset",
+          "token": "acc-lt-blue"
+        },
+        "animal": {
+          "type": "preset",
+          "token": "indigo"
+        },
+        "apply template to tags": {
+          "type": "preset",
+          "token": "acc-rose"
+        },
+        "architect": {
+          "type": "preset",
+          "token": "acc-teal"
+        },
+        "asset": {
+          "type": "preset",
+          "token": "orange"
+        },
+        "azure": {
+          "type": "preset",
+          "token": "acc-salmon"
+        },
+        "bidirectional property title": {
+          "type": "preset",
+          "token": "acc-apricot"
+        },
+        "card": {
+          "type": "preset",
+          "token": "acc-lavender"
+        },
+        "cards": {
+          "type": "preset",
+          "token": "acc-lilac"
+        },
+        "code": {
+          "type": "preset",
+          "token": "acc-app-accent"
+        },
+        "company": {
+          "type": "preset",
+          "token": "mint"
+        },
+        "crimson desert": {
+          "type": "preset",
+          "token": "acc-blush"
+        },
+        "csharp": {
+          "type": "preset",
+          "token": "acc-indigo"
+        },
+        "customer contact": {
+          "type": "preset",
+          "token": "acc-lt-blue"
+        },
+        "deadline": {
+          "type": "preset",
+          "token": "acc-lilac"
+        },
+        "description": {
+          "type": "preset",
+          "token": "acc-rose"
+        },
+        "development": {
+          "type": "preset",
+          "token": "acc-rose"
+        },
+        "devops": {
+          "type": "preset",
+          "token": "acc-sky"
+        },
+        "director": {
+          "type": "preset",
+          "token": "red"
+        },
+        "dsfsdfasd": {
+          "type": "preset",
+          "token": "acc-blush"
+        },
+        "due": {
+          "type": "preset",
+          "token": "acc-cyan"
+        },
+        "email": {
+          "type": "preset",
+          "token": "acc-sky"
+        },
+        "enable property history": {
+          "type": "preset",
+          "token": "red"
+        },
+        "energy connect": {
+          "type": "preset",
+          "token": "acc-app-accent"
+        },
+        "extends": {
+          "type": "preset",
+          "token": "grey"
+        },
+        "fellowmind": {
+          "type": "preset",
+          "token": "sky"
+        },
+        "fellowmind contact": {
+          "type": "preset",
+          "token": "acc-app-accent"
+        },
+        "hakon baunsgaard": {
+          "type": "preset",
+          "token": "acc-blush"
+        },
+        "heidi lundgaard sørensen": {
+          "type": "preset",
+          "token": "acc-blush"
+        },
+        "hide empty value": {
+          "type": "preset",
+          "token": "acc-lilac"
+        },
+        "hide from node": {
+          "type": "preset",
+          "token": "mint"
+        },
+        "hours": {
+          "type": "preset",
+          "token": "grey"
+        },
+        "idm provisioning": {
+          "type": "preset",
+          "token": "acc-app-accent"
+        },
+        "image": {
+          "type": "preset",
+          "token": "yellow"
+        },
+        "important": {
+          "type": "preset",
+          "token": "red"
+        },
+        "jix": {
+          "type": "preset",
+          "token": "acc-sage"
+        },
+        "journal": {
+          "type": "preset",
+          "token": "acc-app-accent"
+        },
+        "jurgi": {
+          "type": "preset",
+          "token": "acc-lt-blue"
+        },
+        "karate": {
+          "type": "preset",
+          "token": "acc-apricot"
+        },
+        "kat": {
+          "type": "preset",
+          "token": "acc-apricot"
+        },
+        "kristine bjørkman": {
+          "type": "preset",
+          "token": "slate"
+        },
+        "login": {
+          "type": "preset",
+          "token": "pink"
+        },
+        "logseq": {
+          "type": "preset",
+          "token": "mint"
+        },
+        "maja dagmar petersen": {
+          "type": "preset",
+          "token": "sky"
+        },
+        "manager": {
+          "type": "preset",
+          "token": "amber"
+        },
+        "math": {
+          "type": "preset",
+          "token": "acc-cyan"
+        },
+        "meeting": {
+          "type": "preset",
+          "token": "mint"
+        },
+        "mon, 27.04.2026": {
+          "type": "preset",
+          "token": "rose"
+        },
+        "mugo petersen": {
+          "type": "preset",
+          "token": "acc-rose"
+        },
+        "mugpet_degrande_colors_controls": {
+          "type": "preset",
+          "token": "acc-teal"
+        },
+        "mugpet_degrande_colors_gradients": {
+          "type": "preset",
+          "token": "grey"
+        },
+        "mugpet_degrande_colors_sync_revision": {
+          "type": "preset",
+          "token": "acc-lilac"
+        },
+        "mugpet_degrande_colors_tag_colors": {
+          "type": "preset",
+          "token": "rose"
+        },
+        "mugpet-degrande-colors-sync-state": {
+          "type": "preset",
+          "token": "mint"
+        },
+        "music": {
+          "type": "preset",
+          "token": "lime"
+        },
+        "niels vestergaard": {
+          "type": "preset",
+          "token": "acc-lt-blue"
+        },
+        "nne": {
+          "type": "preset",
+          "token": "acc-sky"
+        },
+        "nne tic2": {
+          "type": "preset",
+          "token": "acc-teal"
+        },
+        "pa": {
+          "type": "preset",
+          "token": "yellow"
+        },
+        "page": {
+          "type": "preset",
+          "token": "acc-blush"
+        },
+        "pageman": {
+          "type": "preset",
+          "token": "rose"
+        },
+        "password": {
+          "type": "preset",
+          "token": "acc-apricot"
+        },
+        "person": {
+          "type": "preset",
+          "token": "acc-coral"
+        },
+        "peter pan": {
+          "type": "preset",
+          "token": "acc-indigo"
+        },
+        "phone": {
+          "type": "preset",
+          "token": "acc-teal"
+        },
+        "plugin": {
+          "type": "preset",
+          "token": "slate"
+        },
+        "principal architect": {
+          "type": "preset",
+          "token": "rose"
+        },
+        "principal consultant": {
+          "type": "preset",
+          "token": "acc-coral"
+        },
+        "priority": {
+          "type": "preset",
+          "token": "green"
+        },
+        "profile": {
+          "type": "preset",
+          "token": "acc-apricot"
+        },
+        "programming": {
+          "type": "preset",
+          "token": "acc-salmon"
+        },
+        "project": {
+          "type": "preset",
+          "token": "acc-teal"
+        },
+        "property": {
+          "type": "preset",
+          "token": "red"
+        },
+        "qms": {
+          "type": "custom",
+          "lightBackgroundColor": "#00f2ff36",
+          "lightForegroundColor": "#003037",
+          "darkBackgroundColor": "#006f62",
+          "darkForegroundColor": "#e0ebff"
+        },
+        "qms for regions sjælland": {
+          "type": "preset",
+          "token": "acc-coral"
+        },
+        "query": {
+          "type": "preset",
+          "token": "acc-rose"
+        },
+        "questions": {
+          "type": "custom",
+          "lightBackgroundColor": "#ffc80038",
+          "lightForegroundColor": "#00587e",
+          "darkBackgroundColor": "#006f62",
+          "darkForegroundColor": "#e0ebff"
+        },
+        "quote": {
+          "type": "preset",
+          "token": "acc-teal"
+        },
+        "region": {
+          "type": "preset",
+          "token": "teal"
+        },
+        "region sjælland": {
+          "type": "preset",
+          "token": "green"
+        },
+        "role": {
+          "type": "preset",
+          "token": "teal"
+        },
+        "root tag": {
+          "type": "preset",
+          "token": "acc-indigo"
+        },
+        "scheduled": {
+          "type": "preset",
+          "token": "acc-rose"
+        },
+        "senior architect": {
+          "type": "preset",
+          "token": "acc-coral"
+        },
+        "spørgsmål": {
+          "type": "preset",
+          "token": "mint"
+        },
+        "state": {
+          "type": "preset",
+          "token": "pink"
+        },
+        "status": {
+          "type": "preset",
+          "token": "acc-app-accent"
+        },
+        "tag": {
+          "type": "preset",
+          "token": "acc-sky"
+        },
+        "tag properties": {
+          "type": "preset",
+          "token": "orange"
+        },
+        "task": {
+          "type": "preset",
+          "token": "amber"
+        },
+        "template": {
+          "type": "preset",
+          "token": "blue"
+        },
+        "thomas gustafsson": {
+          "type": "preset",
+          "token": "yellow"
+        },
+        "thu, 16.04.2026": {
+          "type": "preset",
+          "token": "acc-app-accent"
+        },
+        "thursday 16 aprip": {
+          "type": "preset",
+          "token": "amber"
+        },
+        "tilbud": {
+          "type": "preset",
+          "token": "acc-lavender"
+        },
+        "tue, 12.05.2026": {
+          "type": "preset",
+          "token": "sky"
+        },
+        "tue, 14.04.2026": {
+          "type": "preset",
+          "token": "acc-salmon"
+        },
+        "user email": {
+          "type": "preset",
+          "token": "acc-indigo"
+        },
+        "user name": {
+          "type": "preset",
+          "token": "acc-sky"
+        },
+        "username": {
+          "type": "preset",
+          "token": "acc-indigo"
+        },
+        "work": {
+          "type": "preset",
+          "token": "lime"
+        },
+        "mugpet": {
+          "type": "preset",
+          "token": "acc-rose"
+        },
+        "netflix": {
+          "type": "preset",
+          "token": "acc-periwinkle"
+        },
+        "canceled": {
+          "type": "preset",
+          "token": "yellow"
+        },
+        "on hold": {
+          "type": "preset",
+          "token": "purple"
+        },
+        "authentication": {
+          "type": "preset",
+          "token": "acc-coral"
+        },
+        "integration": {
+          "type": "custom",
+          "lightBackgroundColor": "#4ac9ff24",
+          "lightForegroundColor": "#00648f",
+          "darkBackgroundColor": "#4ac9ff24",
+          "darkForegroundColor": "#95ceff"
+        },
+        "user story": {
+          "type": "preset",
+          "token": "blue"
+        },
+        "vpn": {
+          "type": "preset",
+          "token": "red"
+        }
+      }
+    }
+  }
+}`);
+const PLUGIN_DEFAULT_THEME_SNAPSHOT = normalizeStoredThemeSnapshot(DEFAULT_THEME_EXPORT_SOURCE.theme?.snapshot || {});
+
+function createPluginDefaultGradientState() {
+  return cloneGradientState(PLUGIN_DEFAULT_THEME_SNAPSHOT.gradientState);
+}
+
+function createPluginDefaultTagColorAssignments() {
+  return mergeStoredTagColors(PLUGIN_DEFAULT_THEME_SNAPSHOT.tagColorAssignments);
+}
+
+function createPluginDefaultSnapshot() {
+  return {
+    appearanceState: { ...PLUGIN_DEFAULT_THEME_SNAPSHOT.appearanceState },
+    controlState: { ...PLUGIN_DEFAULT_THEME_SNAPSHOT.controlState },
+    gradientState: createPluginDefaultGradientState(),
+    tagColorAssignments: createPluginDefaultTagColorAssignments(),
+  };
+}
+
+function applyPluginDefaultThemeToPanelState() {
+  applyThemeSnapshotToPanelState(PLUGIN_DEFAULT_THEME_SNAPSHOT);
+}
+
 const HOST_COLOR_BACKGROUND_SELECTOR = '.with-bg-color:not([data-node-type="quote"])';
 const HOST_COLOR_QUOTE_SELECTOR = 'div[data-node-type="quote"]';
 const HOST_COLOR_TARGET_SELECTOR = `${HOST_COLOR_BACKGROUND_SELECTOR}, ${HOST_COLOR_QUOTE_SELECTOR}`;
@@ -630,20 +1597,20 @@ const panelState = {
   workspaceCssLoadPromise: null,
   cssText: "",
   themeMode: "light",
-  controlState: { ...DEFAULT_CONTROL_STATE },
-  appearanceState: { ...DEFAULT_APPEARANCE_STATE },
+  controlState: { ...PLUGIN_DEFAULT_THEME_SNAPSHOT.controlState },
+  appearanceState: { ...PLUGIN_DEFAULT_THEME_SNAPSHOT.appearanceState },
   cssStats: {
     base: { lines: 0, chars: 0 },
     managed: { lines: 0, chars: 0 },
     total: { lines: 0, chars: 0 },
     sections: Object.fromEntries(APPEARANCE_SECTIONS.map((section) => [section.key, { lines: 0, chars: 0 }])),
   },
-  gradientState: createDefaultGradientState(),
+  gradientState: createPluginDefaultGradientState(),
   gradientSelections: Object.fromEntries(Object.keys(GRADIENT_AREAS).map((areaKey) => [areaKey, 0])),
   gradientDrag: null,
   colorDrag: null,
   suppressGradientClick: false,
-  tagColorAssignments: {},
+  tagColorAssignments: createPluginDefaultTagColorAssignments(),
   baseTagColorMap: {},
   tags: [],
   tagEntityMap: {},
@@ -4635,7 +5602,7 @@ async function loadStoredAppearanceState() {
     const saved = await loadStoredItemWithLegacyFallback(APPEARANCE_STATE_STORAGE_KEY);
 
     if (!saved) {
-      panelState.appearanceState = { ...DEFAULT_APPEARANCE_STATE };
+      panelState.appearanceState = { ...PLUGIN_DEFAULT_THEME_SNAPSHOT.appearanceState };
       return;
     }
 
@@ -4643,7 +5610,7 @@ async function loadStoredAppearanceState() {
     panelState.appearanceState = mergeStoredAppearanceState(parsed);
   } catch (error) {
     if (isMissingStorageError(error)) {
-      panelState.appearanceState = { ...DEFAULT_APPEARANCE_STATE };
+      panelState.appearanceState = { ...PLUGIN_DEFAULT_THEME_SNAPSHOT.appearanceState };
       return;
     }
 
@@ -4662,7 +5629,7 @@ async function primeOptimisticStartupState() {
 
     panelState.appearanceState = appearanceSaved
       ? mergeStoredAppearanceState(typeof appearanceSaved === "string" ? JSON.parse(appearanceSaved) : appearanceSaved)
-      : { ...DEFAULT_APPEARANCE_STATE };
+      : { ...PLUGIN_DEFAULT_THEME_SNAPSHOT.appearanceState };
 
     const controlMirror = parseLocalMirrorValue(controlSaved, mergeStoredControls);
 
@@ -5119,11 +6086,11 @@ function readPluginSettingValue(settingKey) {
 }
 
 function hasMeaningfulStoredControls(saved) {
-  return JSON.stringify(mergeStoredControls(saved)) !== JSON.stringify(DEFAULT_CONTROL_STATE);
+  return JSON.stringify(mergeStoredControls(saved)) !== JSON.stringify(PLUGIN_DEFAULT_THEME_SNAPSHOT.controlState);
 }
 
 function hasMeaningfulStoredGradients(saved) {
-  return JSON.stringify(mergeStoredGradients(saved)) !== JSON.stringify(createDefaultGradientState());
+  return JSON.stringify(mergeStoredGradients(saved)) !== JSON.stringify(PLUGIN_DEFAULT_THEME_SNAPSHOT.gradientState);
 }
 
 function persistPluginSettingValue(settingKey, value) {
@@ -5145,14 +6112,14 @@ function getDegrandeSettingsSchema() {
     {
       key: SETTINGS_CONTROL_STATE_KEY,
       type: "object",
-      default: { ...DEFAULT_CONTROL_STATE },
+      default: { ...PLUGIN_DEFAULT_THEME_SNAPSHOT.controlState },
       title: "Degrande Control State",
       description: "Internal persisted slider values for Degrande Colors.",
     },
     {
       key: SETTINGS_GRADIENT_STATE_KEY,
       type: "object",
-      default: createDefaultGradientState(),
+      default: createPluginDefaultGradientState(),
       title: "Degrande Gradient State",
       description: "Internal persisted gradient state for Degrande Colors.",
     },
@@ -6071,7 +7038,7 @@ async function loadStoredTagColors(options = {}) {
         return;
       }
 
-      panelState.tagColorAssignments = {};
+      panelState.tagColorAssignments = createPluginDefaultTagColorAssignments();
       return;
     }
 
@@ -8353,10 +9320,7 @@ async function handleCurrentGraphChanged() {
   }
 
   clearGraphTagState();
-  panelState.controlState = { ...DEFAULT_CONTROL_STATE };
-  panelState.appearanceState = { ...DEFAULT_APPEARANCE_STATE };
-  panelState.gradientState = createDefaultGradientState();
-  panelState.gradientSelections = Object.fromEntries(Object.keys(GRADIENT_AREAS).map((areaKey) => [areaKey, 0]));
+  applyPluginDefaultThemeToPanelState();
   panelState.savedThemes = [];
   panelState.selectedThemeId = "";
   panelState.themeDraftName = "";
@@ -10865,7 +11829,7 @@ async function reloadThemeCss(showToast = false, reopenUI = !!logseq.isMainUIVis
 
 async function resetControls() {
   const confirmed = typeof window?.confirm === "function"
-    ? window.confirm("Reset all live controls and gradients back to the base defaults?")
+    ? window.confirm("Reset all live controls back to the default theme?")
     : true;
 
   if (!confirmed) {
@@ -10873,13 +11837,10 @@ async function resetControls() {
     return;
   }
 
-  panelState.controlState = { ...DEFAULT_CONTROL_STATE };
-  panelState.gradientState = createDefaultGradientState();
-  panelState.gradientSelections = Object.fromEntries(Object.keys(GRADIENT_AREAS).map((areaKey) => [areaKey, 0]));
-
-  schedulePersistControls();
-  schedulePersistGradients();
-  await applyManagedOverrides(true, "Reset live controls to the base defaults");
+  applyPluginDefaultThemeToPanelState();
+  setLoadedThemeState(null);
+  const persisted = await persistAppliedThemeState();
+  await applyManagedOverrides(true, persisted ? "Reset live controls to the default theme" : "Applied the default theme locally");
 }
 
 async function resetTagColors() {
