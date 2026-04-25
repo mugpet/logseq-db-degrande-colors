@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.18";
+const FALLBACK_PLUGIN_VERSION = "0.5.19";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -354,6 +354,45 @@ const BORDER_SIDE_DEFINITIONS = [
   { name: "bottom", shortLabel: "B", title: "Bottom" },
   { name: "left", shortLabel: "L", title: "Left" },
 ];
+
+function buildCornerIconMarkup(name) {
+  const iconPaths = {
+    topLeft: 'M4 11V6a2 2 0 0 1 2-2h5',
+    topRight: 'M5 4h5a2 2 0 0 1 2 2v5',
+    bottomRight: 'M12 5v5a2 2 0 0 1-2 2H5',
+    bottomLeft: 'M11 12H6a2 2 0 0 1-2-2V5',
+  };
+  const path = iconPaths[name] || iconPaths.topLeft;
+
+  return `
+    <span class="ctl-toggle-icon" aria-hidden="true">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+        <rect x="2.75" y="2.75" width="10.5" height="10.5" rx="1.5" opacity="0.22"></rect>
+        <path d="${path}"></path>
+      </svg>
+    </span>
+  `;
+}
+
+function buildBorderSideIconMarkup(name) {
+  const iconPaths = {
+    top: 'M3.5 4H12.5',
+    right: 'M12 3.5V12.5',
+    bottom: 'M3.5 12H12.5',
+    left: 'M4 3.5V12.5',
+  };
+  const path = iconPaths[name] || iconPaths.top;
+
+  return `
+    <span class="ctl-toggle-icon" aria-hidden="true">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+        <rect x="2.75" y="2.75" width="10.5" height="10.5" rx="1.5" stroke-width="1.3" opacity="0.22"></rect>
+        <path d="${path}" stroke-width="2.4"></path>
+      </svg>
+    </span>
+  `;
+}
+
 const BORDER_CONTROL_GROUPS = {
   node: {
     key: "node",
@@ -7710,19 +7749,21 @@ function buildBorderCornerToggleMarkup(groupKey) {
     return "";
   }
 
-  return BORDER_CORNER_DEFINITIONS.map(({ name, shortLabel, title }) => {
+  return BORDER_CORNER_DEFINITIONS.map(({ name, title }) => {
     const controlKey = group.cornerKeys[name];
     const isActive = Boolean(panelState.controlState[controlKey]);
+    const label = `${title} radius ${isActive ? "on" : "off"}`;
 
     return `
       <button
-        class="ctl-button ctl-button-secondary ctl-button-small ctl-filter-toggle${isActive ? " is-active" : ""}"
+        class="ctl-button ctl-button-secondary ctl-button-small ctl-filter-toggle ctl-icon-toggle-button${isActive ? " is-active" : ""}"
         type="button"
         data-action="toggle-control-boolean"
         data-control-boolean-key="${controlKey}"
         aria-pressed="${isActive ? "true" : "false"}"
-        title="${title} radius ${isActive ? "on" : "off"}"
-      >${shortLabel}</button>
+        aria-label="${label}"
+        title="${label}"
+      >${buildCornerIconMarkup(name)}</button>
     `;
   }).join("");
 }
@@ -7734,23 +7775,25 @@ function buildBorderSideControlMarkup(groupKey) {
     return "";
   }
 
-  return BORDER_SIDE_DEFINITIONS.map(({ name, shortLabel, title }) => {
+  return BORDER_SIDE_DEFINITIONS.map(({ name, title }) => {
     const toggleKey = group.sideKeys[name];
     const widthKey = group.sideWidthKeys?.[name];
     const control = CONTROL_MAP[widthKey];
     const value = control ? panelState.controlState[widthKey] : 0;
     const isActive = Boolean(panelState.controlState[toggleKey]);
+    const label = `${title} border ${isActive ? "on" : "off"}`;
 
     return `
       <div class="ctl-border-side-row">
         <button
-          class="ctl-button ctl-button-secondary ctl-button-small ctl-filter-toggle${isActive ? " is-active" : ""}"
+          class="ctl-button ctl-button-secondary ctl-button-small ctl-filter-toggle ctl-icon-toggle-button${isActive ? " is-active" : ""}"
           type="button"
           data-action="toggle-control-boolean"
           data-control-boolean-key="${toggleKey}"
           aria-pressed="${isActive ? "true" : "false"}"
-          title="${title} border ${isActive ? "on" : "off"}"
-        >${shortLabel}</button>
+          aria-label="${label}"
+          title="${label}"
+        >${buildBorderSideIconMarkup(name)}</button>
         <input
           class="ctl-range ctl-border-side-range"
           id="ctl-${widthKey}"
