@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.11";
+const FALLBACK_PLUGIN_VERSION = "0.5.12";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -632,6 +632,8 @@ const panelState = {
   savedThemes: [],
   selectedThemeId: "",
   themeDraftName: "",
+  themeSavePending: false,
+  themeLoadPending: false,
   activeTab: "tags",
   lastAppliedAt: null,
   mounted: false,
@@ -6922,6 +6924,7 @@ function buildThemeListMarkup() {
         data-action="select-theme"
         data-theme-id="${escapeAttributeValue(theme.id)}"
         aria-pressed="${isActive ? "true" : "false"}"
+        ${panelState.themeSavePending || panelState.themeLoadPending ? "disabled" : ""}
       >
         <strong>${escapeHtml(theme.name)}</strong>
         <span>Updated ${escapeHtml(formatThemeTimestamp(theme.updatedAt))}</span>
@@ -6933,6 +6936,8 @@ function buildThemeListMarkup() {
 function buildThemesPaneMarkup() {
   const selectedTheme = syncSelectedThemeState();
   const themeName = panelState.themeDraftName || selectedTheme?.name || "";
+  const saveDisabled = panelState.themeSavePending || panelState.themeLoadPending || !normalizeThemeName(themeName);
+  const actionDisabled = panelState.themeSavePending || panelState.themeLoadPending || !selectedTheme;
 
   return `
     ${buildPaneIntroMarkup(
@@ -6944,9 +6949,9 @@ function buildThemesPaneMarkup() {
         <div class="ctl-themes-save-box">
           <label class="ctl-field">
             <span>Theme Name</span>
-            <input class="ctl-input" type="text" value="${escapeAttributeValue(themeName)}" placeholder="Nord Quotes" data-theme-name>
+            <input class="ctl-input" type="text" value="${escapeAttributeValue(themeName)}" placeholder="Nord Quotes" data-theme-name${panelState.themeSavePending || panelState.themeLoadPending ? " disabled" : ""}>
           </label>
-          <button class="ctl-button ctl-button-primary" type="button" data-action="save-theme"${normalizeThemeName(themeName) ? "" : " disabled"}>Save Current Theme</button>
+          <button class="ctl-button ctl-button-primary${panelState.themeSavePending ? " is-busy" : ""}" type="button" data-action="save-theme"${saveDisabled ? " disabled" : ""}>${panelState.themeSavePending ? "Saving..." : "Save Current Theme"}</button>
         </div>
         <div class="ctl-themes-list" data-role="theme-list">
           ${buildThemeListMarkup()}
@@ -6959,8 +6964,8 @@ function buildThemesPaneMarkup() {
             <span>${selectedTheme ? "Review the saved snapshot before loading it." : "Choose a saved theme to preview it here."}</span>
           </div>
           <div class="ctl-toolbar-actions">
-            <button class="ctl-button ctl-button-secondary" type="button" data-action="load-theme"${selectedTheme ? "" : " disabled"}>Load Theme</button>
-            <button class="ctl-button ctl-button-secondary" type="button" data-action="delete-theme"${selectedTheme ? "" : " disabled"}>Delete Theme</button>
+            <button class="ctl-button ctl-button-secondary${panelState.themeLoadPending ? " is-busy" : ""}" type="button" data-action="load-theme"${actionDisabled ? " disabled" : ""}>${panelState.themeLoadPending ? "Loading..." : "Load Theme"}</button>
+            <button class="ctl-button ctl-button-secondary" type="button" data-action="delete-theme"${actionDisabled ? " disabled" : ""}>Delete Theme</button>
           </div>
         </div>
         <div class="ctl-themes-preview-window">
@@ -6991,6 +6996,51 @@ function renderThemesPane() {
   syncThemesPaneState();
 }
 
+async function persistAppliedThemeState() {
+  setSyncState("pending");
+  const localRevision = getNextGraphSyncRevision();
+  const normalizedTagColors = mergeStoredTagColors(panelState.tagColorAssignments);
+
+  persistAppearanceState();
+  syncLocalControlMirror(localRevision);
+  syncLocalGradientMirror(localRevision);
+  syncLocalTagColorMirror(localRevision);
+
+  try {
+    const controlsSaved = await saveGraphBackedPageState(GRAPH_SYNC_CONTROL_PROPERTY, panelState.controlState, {
+      suppressReadyErrors: true,
+      deferUntilIndexed: true,
+    });
+    const gradientsSaved = await saveGraphBackedPageState(GRAPH_SYNC_GRADIENT_PROPERTY, panelState.gradientState, {
+      suppressReadyErrors: true,
+      deferUntilIndexed: true,
+    });
+    const tagColorsSaved = Object.keys(normalizedTagColors).length
+      ? await saveGraphBackedPageState(GRAPH_SYNC_TAG_COLOR_PROPERTY, normalizedTagColors, {
+        suppressReadyErrors: true,
+        deferUntilIndexed: true,
+      })
+      : await removeGraphBackedPageState(GRAPH_SYNC_TAG_COLOR_PROPERTY);
+
+    const saved = controlsSaved && gradientsSaved && tagColorsSaved;
+
+    if (saved) {
+      await bumpGraphSyncRevision("theme-load", localRevision);
+      setSyncState("synced");
+      return true;
+    }
+
+    setSyncState("pending");
+    return false;
+  } catch (error) {
+    console.error("[Degrande Colors] Failed to persist loaded theme state", error);
+    setSyncState("pending");
+    return false;
+  } finally {
+    syncSyncIndicator();
+  }
+}
+
 async function saveCurrentTheme() {
   const themeName = normalizeThemeName(panelState.themeDraftName);
 
@@ -7001,6 +7051,7 @@ async function saveCurrentTheme() {
 
   const themeId = buildThemeId(themeName);
   const existingTheme = panelState.savedThemes.find((theme) => theme.id === themeId) || null;
+  const previousThemes = panelState.savedThemes.slice();
   const now = Date.now();
   const nextTheme = {
     id: themeId,
@@ -7017,10 +7068,24 @@ async function saveCurrentTheme() {
   panelState.selectedThemeId = themeId;
   panelState.themeDraftName = themeName;
 
-  const saved = await persistThemeLibrary(existingTheme ? "themes-update" : "themes-create");
+  panelState.themeSavePending = true;
   renderThemesPane();
-  syncPanelMeta(saved ? `${existingTheme ? "Updated" : "Saved"} theme ${themeName}` : `Unable to save theme ${themeName}`);
-  return saved;
+  syncPanelMeta(`${existingTheme ? "Updating" : "Saving"} theme ${themeName}...`);
+
+  try {
+    const saved = await persistThemeLibrary(existingTheme ? "themes-update" : "themes-create");
+
+    if (!saved) {
+      panelState.savedThemes = previousThemes;
+      syncSelectedThemeState();
+    }
+
+    syncPanelMeta(saved ? `${existingTheme ? "Updated" : "Saved"} theme ${themeName}` : `Unable to save theme ${themeName}`);
+    return saved;
+  } finally {
+    panelState.themeSavePending = false;
+    renderThemesPane();
+  }
 }
 
 async function loadSelectedTheme() {
@@ -7030,16 +7095,23 @@ async function loadSelectedTheme() {
     return false;
   }
 
-  captureHistorySnapshot(`load-theme:${selectedTheme.id}`);
-  applyThemeSnapshotToPanelState(selectedTheme.snapshot);
-  persistAppearanceState();
-  schedulePersistControls();
-  schedulePersistGradients();
-  schedulePersistTagColors(Object.keys(panelState.tagColorAssignments));
-  await applyManagedOverrides(false, `Loaded theme ${selectedTheme.name}`);
-  finishHistoryCapture(`load-theme:${selectedTheme.id}`);
+  panelState.themeLoadPending = true;
   renderThemesPane();
-  return true;
+  syncPanelMeta(`Loading theme ${selectedTheme.name}...`);
+
+  captureHistorySnapshot(`load-theme:${selectedTheme.id}`);
+
+  try {
+    applyThemeSnapshotToPanelState(selectedTheme.snapshot);
+    const persisted = await persistAppliedThemeState();
+    await applyManagedOverrides(false, persisted ? `Loaded theme ${selectedTheme.name}` : `Applied theme ${selectedTheme.name} locally`);
+    renderThemesPane();
+    return persisted;
+  } finally {
+    finishHistoryCapture(`load-theme:${selectedTheme.id}`);
+    panelState.themeLoadPending = false;
+    renderThemesPane();
+  }
 }
 
 async function deleteSelectedTheme() {
@@ -10047,7 +10119,7 @@ function mountPanel() {
     if (themeNameInput) {
       panelState.themeDraftName = themeNameInput.value || "";
       document.querySelectorAll('[data-action="save-theme"]').forEach((button) => {
-        button.disabled = !normalizeThemeName(panelState.themeDraftName);
+        button.disabled = panelState.themeSavePending || panelState.themeLoadPending || !normalizeThemeName(panelState.themeDraftName);
       });
       return;
     }

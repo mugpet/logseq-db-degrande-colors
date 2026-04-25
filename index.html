@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors v0.5.11</title>
-    <meta name="degrande-colors-version" content="0.5.11">
+    <title>Degrande Colors v0.5.12</title>
+    <meta name="degrande-colors-version" content="0.5.12">
     <style>
       :root {
         color-scheme: light;
@@ -276,6 +276,32 @@
 
       .ctl-button:active {
         transform: translateY(0);
+      }
+
+      .ctl-button:disabled,
+      .ctl-button:disabled:hover,
+      .ctl-button:disabled:active {
+        opacity: 0.58;
+        cursor: default;
+        transform: none;
+      }
+
+      .ctl-button.is-busy {
+        position: relative;
+        overflow: hidden;
+        background-image: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.16) 35%, rgba(255, 255, 255, 0.3) 50%, rgba(255, 255, 255, 0.16) 65%, transparent 100%);
+        background-size: 220% 100%;
+        animation: ctl-button-busy-sweep 1.05s linear infinite;
+      }
+
+      @keyframes ctl-button-busy-sweep {
+        from {
+          background-position: 200% 0;
+        }
+
+        to {
+          background-position: -20% 0;
+        }
       }
 
       .ctl-button-primary {
