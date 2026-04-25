@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.5";
+const FALLBACK_PLUGIN_VERSION = "0.5.6";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -534,6 +534,8 @@ const BACKGROUND_BLOCK_RULES = [
 
 const panelState = {
   baseCssText: "",
+  workspaceCssText: "",
+  workspaceCssLoadPromise: null,
   cssText: "",
   themeMode: "light",
   controlState: { ...DEFAULT_CONTROL_STATE },
@@ -2698,17 +2700,38 @@ function registerToolbarItemSafely(config) {
   return true;
 }
 
-async function loadWorkspaceCss() {
+async function loadWorkspaceCss(forceReload = false) {
+  if (!forceReload) {
+    if (panelState.workspaceCssText) {
+      return panelState.workspaceCssText;
+    }
+
+    if (panelState.workspaceCssLoadPromise) {
+      return panelState.workspaceCssLoadPromise;
+    }
+  }
+
   const cssUrl = typeof logseq.resolveResourceFullUrl === "function"
     ? logseq.resolveResourceFullUrl("custom.css")
     : "./custom.css";
-  const response = await fetch(cssUrl, { cache: "no-store" });
 
-  if (!response.ok) {
-    throw new Error(`Unable to load custom.css (${response.status})`);
-  }
+  panelState.workspaceCssLoadPromise = fetch(cssUrl, { cache: forceReload ? "no-store" : "default" })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`Unable to load custom.css (${response.status})`);
+      }
 
-  return response.text();
+      return response.text();
+    })
+    .then((cssText) => {
+      panelState.workspaceCssText = cssText;
+      return cssText;
+    })
+    .finally(() => {
+      panelState.workspaceCssLoadPromise = null;
+    });
+
+  return panelState.workspaceCssLoadPromise;
 }
 
 function extractCssSection(cssText, startMarker, endMarker = "") {
@@ -9258,8 +9281,8 @@ function toggleThemeLoader() {
   }
 }
 
-async function reloadThemeCss(showToast = false, reopenUI = !!logseq.isMainUIVisible) {
-  const rawCssText = await loadWorkspaceCss();
+async function reloadThemeCss(showToast = false, reopenUI = !!logseq.isMainUIVisible, forceCssReload = showToast) {
+  const rawCssText = await loadWorkspaceCss(forceCssReload);
   panelState.baseTagColorMap = parseBaseTagColorMap(rawCssText);
   panelState.baseCssText = buildStaticBaseCssText(rawCssText);
   setHostStyleText(BASE_STYLE_ELEMENT_ID, panelState.baseCssText);
@@ -9352,7 +9375,11 @@ async function main() {
     await loadStoredTagColors();
     await loadStoredGradients();
     setSyncState("synced");
-    await reloadThemeCss(false, false);
+    if (panelState.baseCssText) {
+      await applyManagedOverrides(false, "Reloaded base styles and re-applied controls");
+    } else {
+      await reloadThemeCss(false, false);
+    }
   };
   panelState._runBootDataLoad = _runBootDataLoad;
 
@@ -9360,14 +9387,26 @@ async function main() {
     if (!panelState.bootLoadStarted) {
       void _runBootDataLoad();
     }
-  }, 10000);
+  }, 2500);
 
   bindHostTagContextMenu();
 
-  const userConfigs = await logseq.App.getUserConfigs();
-  setThemeMode(userConfigs?.preferredThemeMode);
+  const userConfigsPromise = typeof logseq.App?.getUserConfigs === "function"
+    ? logseq.App.getUserConfigs().catch((error) => {
+      console.warn("[Degrande Colors] Failed to load user configs during startup", error);
+      return null;
+    })
+    : Promise.resolve(null);
+
   await primeOptimisticStartupState();
   await reloadThemeCss(false, false);
+  void userConfigsPromise.then((userConfigs) => {
+    setThemeMode(userConfigs?.preferredThemeMode);
+
+    if (panelState.mounted) {
+      syncPreviewStyles();
+    }
+  });
 
   logseq.App.onThemeModeChanged(({ mode }) => {
     setThemeMode(mode);
