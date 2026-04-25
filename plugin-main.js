@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.15";
+const FALLBACK_PLUGIN_VERSION = "0.5.16";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -4302,6 +4302,21 @@ function buildThemeId(name) {
   return normalizeThemeName(name).toLowerCase();
 }
 
+function getNextAvailableThemeName(name, occupiedIds = new Set()) {
+  const baseName = normalizeThemeName(name) || "Theme";
+  let candidateName = baseName;
+  let candidateId = buildThemeId(candidateName);
+  let suffix = 2;
+
+  while (!candidateId || occupiedIds.has(candidateId)) {
+    candidateName = `${baseName} ${suffix}`;
+    candidateId = buildThemeId(candidateName);
+    suffix += 1;
+  }
+
+  return candidateName;
+}
+
 function createThemeSnapshot() {
   return {
     appearanceState: { ...panelState.appearanceState },
@@ -4400,6 +4415,27 @@ function parseImportedThemes(rawText) {
   }
 
   return mergedThemes;
+}
+
+function makeImportedThemesUnique(importedThemes, existingThemes = []) {
+  const occupiedIds = new Set((Array.isArray(existingThemes) ? existingThemes : [])
+    .map((theme) => buildThemeId(theme?.name || theme?.id || ""))
+    .filter(Boolean));
+
+  return (Array.isArray(importedThemes) ? importedThemes : []).map((theme, index) => {
+    const normalizedTheme = normalizeStoredThemeEntry(theme, index);
+    const nextName = getNextAvailableThemeName(normalizedTheme.name, occupiedIds);
+    const nextTheme = nextName === normalizedTheme.name
+      ? normalizedTheme
+      : {
+        ...normalizedTheme,
+        id: buildThemeId(nextName),
+        name: nextName,
+      };
+
+    occupiedIds.add(nextTheme.id);
+    return nextTheme;
+  });
 }
 
 function downloadThemeExport(theme) {
@@ -7284,6 +7320,7 @@ async function importThemesFromText(rawText, sourceLabel = "clipboard") {
   const previousThemes = panelState.savedThemes.slice();
   const previousSelectedThemeId = panelState.selectedThemeId;
   const previousThemeDraftName = panelState.themeDraftName;
+  importedThemes = makeImportedThemesUnique(importedThemes, previousThemes);
   const importedCount = importedThemes.length;
   const preferredTheme = importedThemes[0];
 
