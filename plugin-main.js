@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.7";
+const FALLBACK_PLUGIN_VERSION = "0.5.8";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -598,6 +598,10 @@ const panelState = {
   startupSyncTimerIds: [],
   pendingTagPersistKeys: [],
   tagClickTimer: null,
+  undoStack: [],
+  redoStack: [],
+  activeHistorySources: new Set(),
+  historyApplying: false,
   hostTagContextMenuBound: false,
   legacyManagedStylesCleaned: false,
   tagNodeColorMap: {},
@@ -3774,6 +3778,7 @@ function setTagPresetColor(tagName, token, statusMessage = null) {
     return false;
   }
 
+  captureHistorySnapshot(`tag-preset:${tagName}`);
   panelState.selectedTag = tagName;
   panelState.tagColorAssignments[tagName.toLowerCase()] = {
     type: "preset",
@@ -3781,6 +3786,7 @@ function setTagPresetColor(tagName, token, statusMessage = null) {
   };
   void applyManagedOverrides(false, statusMessage || `Set ${tagName} to ${token}`);
   schedulePersistTagColors([tagName]);
+  finishHistoryCapture(`tag-preset:${tagName}`);
   return true;
 }
 
@@ -3796,9 +3802,11 @@ function clearTagColorAssignment(tagName, statusMessage = null) {
     return false;
   }
 
+  captureHistorySnapshot(`clear-tag:${tagName}`);
   delete panelState.tagColorAssignments[tagName.toLowerCase()];
   void applyManagedOverrides(false, statusMessage || `Reset ${tagName} to the default color`);
   schedulePersistTagColors([tagName]);
+  finishHistoryCapture(`clear-tag:${tagName}`);
   return true;
 }
 
@@ -3821,6 +3829,7 @@ function addRandomColorsToUncoloredTags() {
     return 0;
   }
 
+  captureHistorySnapshot("random-tag-colors");
   uncoloredTags.forEach((tagName) => {
     const token = getRandomPresetToken();
 
@@ -3836,6 +3845,7 @@ function addRandomColorsToUncoloredTags() {
 
   void applyManagedOverrides(false, `Added random colors to ${uncoloredTags.length} filtered tags`);
   schedulePersistTagColors(uncoloredTags);
+  finishHistoryCapture("random-tag-colors");
   return uncoloredTags.length;
 }
 
@@ -4126,6 +4136,7 @@ function copyTagColorsFromOtherMode() {
     return false;
   }
 
+  captureHistorySnapshot(`copy-tag-colors:${panelState.selectedTag}`);
   const currentMode = panelState.themeMode === "dark" ? "dark" : "light";
   const sourceMode = getOppositeThemeMode(currentMode);
   const sourceColors = getTagCustomColors(selectedAssignment, sourceMode);
@@ -4144,6 +4155,7 @@ function copyTagColorsFromOtherMode() {
   };
 
   schedulePersistTagColors([panelState.selectedTag]);
+  finishHistoryCapture(`copy-tag-colors:${panelState.selectedTag}`);
   return true;
 }
 
@@ -4312,6 +4324,151 @@ function persistAppearanceState() {
     console.error("[Degrande Colors] Failed to persist appearance toggles", error);
     return false;
   }
+}
+
+function createHistorySnapshot() {
+  return {
+    controlState: { ...panelState.controlState },
+    appearanceState: { ...panelState.appearanceState },
+    gradientState: cloneGradientState(panelState.gradientState),
+    gradientSelections: { ...panelState.gradientSelections },
+    tagColorAssignments: mergeStoredTagColors(panelState.tagColorAssignments),
+    selectedTag: String(panelState.selectedTag || ""),
+    tagCustomColorDraft: panelState.tagCustomColorDraft,
+    tagCustomForegroundDraft: panelState.tagCustomForegroundDraft,
+    tagCustomModeDrafts: JSON.parse(JSON.stringify(panelState.tagCustomModeDrafts || {})),
+  };
+}
+
+function getHistorySnapshotSignature(snapshot) {
+  return JSON.stringify(snapshot);
+}
+
+function syncUndoRedoButtons() {
+  document.querySelectorAll('[data-action="undo-change"]').forEach((button) => {
+    button.disabled = !panelState.undoStack.length;
+  });
+
+  document.querySelectorAll('[data-action="redo-change"]').forEach((button) => {
+    button.disabled = !panelState.redoStack.length;
+  });
+}
+
+function clearHistoryState() {
+  panelState.undoStack = [];
+  panelState.redoStack = [];
+  panelState.activeHistorySources.clear();
+  syncUndoRedoButtons();
+}
+
+function captureHistorySnapshot(sourceKey = "default") {
+  if (panelState.historyApplying || panelState.activeHistorySources.has(sourceKey)) {
+    return false;
+  }
+
+  const snapshot = createHistorySnapshot();
+  const signature = getHistorySnapshotSignature(snapshot);
+  const lastEntry = panelState.undoStack[panelState.undoStack.length - 1];
+
+  if (!lastEntry || lastEntry.signature !== signature) {
+    panelState.undoStack.push({ signature, snapshot });
+
+    if (panelState.undoStack.length > 120) {
+      panelState.undoStack.shift();
+    }
+  }
+
+  panelState.redoStack = [];
+  panelState.activeHistorySources.add(sourceKey);
+  syncUndoRedoButtons();
+  return true;
+}
+
+function finishHistoryCapture(sourceKey = "default") {
+  panelState.activeHistorySources.delete(sourceKey);
+}
+
+function restoreHistorySnapshot(snapshot) {
+  const previousTagKeys = Object.keys(panelState.tagColorAssignments || {});
+
+  panelState.controlState = mergeStoredControls(snapshot.controlState);
+  panelState.appearanceState = mergeStoredAppearanceState(snapshot.appearanceState);
+  panelState.gradientState = mergeStoredGradients(snapshot.gradientState);
+  panelState.gradientSelections = {
+    ...Object.fromEntries(Object.keys(GRADIENT_AREAS).map((areaKey) => [areaKey, 0])),
+    ...(snapshot.gradientSelections || {}),
+  };
+  panelState.tagColorAssignments = mergeStoredTagColors(snapshot.tagColorAssignments);
+  panelState.selectedTag = String(snapshot.selectedTag || "");
+  panelState.tagCustomColorDraft = normalizeHexColor(snapshot.tagCustomColorDraft) || "#14b8a6";
+  panelState.tagCustomForegroundDraft = normalizeHexColor(snapshot.tagCustomForegroundDraft) || "#0f172a";
+  panelState.tagCustomModeDrafts = JSON.parse(JSON.stringify(snapshot.tagCustomModeDrafts || {
+    light: { backgroundColor: "#14b8a6", foregroundColor: "#0f172a" },
+    dark: { backgroundColor: "#14b8a6", foregroundColor: "#f8fafc" },
+  }));
+
+  return Array.from(new Set([
+    ...previousTagKeys,
+    ...Object.keys(panelState.tagColorAssignments || {}),
+  ]));
+}
+
+async function applyHistoryState(snapshot, statusMessage) {
+  const tagNamesToPersist = restoreHistorySnapshot(snapshot);
+  persistAppearanceState();
+  schedulePersistControls();
+  schedulePersistGradients();
+  schedulePersistTagColors(tagNamesToPersist);
+  await applyManagedOverrides(false, statusMessage, "soft");
+  syncUndoRedoButtons();
+}
+
+async function undoChange() {
+  if (!panelState.undoStack.length || panelState.historyApplying) {
+    return false;
+  }
+
+  const currentSnapshot = createHistorySnapshot();
+  const entry = panelState.undoStack.pop();
+  panelState.redoStack.push({
+    signature: getHistorySnapshotSignature(currentSnapshot),
+    snapshot: currentSnapshot,
+  });
+  panelState.historyApplying = true;
+
+  try {
+    await applyHistoryState(entry.snapshot, "Undid change");
+  } finally {
+    panelState.historyApplying = false;
+    panelState.activeHistorySources.clear();
+    syncUndoRedoButtons();
+  }
+
+  return true;
+}
+
+async function redoChange() {
+  if (!panelState.redoStack.length || panelState.historyApplying) {
+    return false;
+  }
+
+  const currentSnapshot = createHistorySnapshot();
+  const entry = panelState.redoStack.pop();
+  panelState.undoStack.push({
+    signature: getHistorySnapshotSignature(currentSnapshot),
+    snapshot: currentSnapshot,
+  });
+  panelState.historyApplying = true;
+
+  try {
+    await applyHistoryState(entry.snapshot, "Redid change");
+  } finally {
+    panelState.historyApplying = false;
+    panelState.activeHistorySources.clear();
+    syncUndoRedoButtons();
+  }
+
+  return true;
 }
 
 function mergeStoredTagColors(saved) {
@@ -6998,6 +7155,7 @@ async function handleCurrentGraphChanged() {
   panelState.appearanceState = { ...DEFAULT_APPEARANCE_STATE };
   panelState.gradientState = createDefaultGradientState();
   panelState.gradientSelections = Object.fromEntries(Object.keys(GRADIENT_AREAS).map((areaKey) => [areaKey, 0]));
+  clearHistoryState();
   renderPanel(`Graph changed to ${graphInfo?.name || "current graph"}. Refreshing local tags...`);
   await loadStoredAppearanceState();
   await loadGraphSyncRevisionState();
@@ -7118,6 +7276,7 @@ async function syncPersistedAppearance(options = {}) {
   await loadStoredControls();
   await loadStoredGradients();
   await loadStoredTagColors({ allowEntityFallback: false, fallbackToCurrent: true });
+  clearHistoryState();
 
   if (refreshTagCatalog) {
     await refreshTags({ showToast: false, fallbackToPrevious });
@@ -8017,17 +8176,21 @@ function endInlineColorDrag() {
 
   if (drag.editor.dataset.colorScope === "gradient-stop") {
     schedulePersistGradients();
+    finishHistoryCapture(`inline-color:${drag.editor.dataset.colorScope}:${drag.editor.dataset.areaKey || ""}:${drag.editor.dataset.stopIndex || ""}:${drag.editor.dataset.controlColorKey || ""}`);
     return;
   }
 
   if (drag.editor.dataset.colorScope === "control-color") {
     schedulePersistControls();
+    finishHistoryCapture(`inline-color:${drag.editor.dataset.colorScope}:${drag.editor.dataset.areaKey || ""}:${drag.editor.dataset.stopIndex || ""}:${drag.editor.dataset.controlColorKey || ""}`);
     return;
   }
 
   if (panelState.selectedTag) {
     schedulePersistTagColors([panelState.selectedTag]);
   }
+
+  finishHistoryCapture(`inline-color:${drag.editor.dataset.colorScope}:${drag.editor.dataset.areaKey || ""}:${drag.editor.dataset.stopIndex || ""}:${drag.editor.dataset.controlColorKey || ""}`);
 }
 
 function beginGradientHandleDrag(areaKey, stopIndex, pointerId) {
@@ -8073,6 +8236,8 @@ function endGradientHandleDrag() {
     panelState.suppressGradientClick = true;
     schedulePersistGradients();
   }
+
+  finishHistoryCapture(`gradient-drag:${drag.areaKey}:${drag.stopIndex}`);
 }
 
 function syncPanelMeta(statusMessage) {
@@ -8090,6 +8255,8 @@ function syncPanelMeta(statusMessage) {
     themeToggleButton.textContent = getThemeToggleLabel();
     themeToggleButton.setAttribute("title", `Toggle Logseq to ${panelState.themeMode === "dark" ? "light" : "dark"} mode`);
   }
+
+  syncUndoRedoButtons();
 }
 
 function refreshPanel(statusMessage, { rerenderPreview = false, rerenderTags = false } = {}) {
@@ -8595,6 +8762,32 @@ function bindHostTagContextMenu() {
   panelState.hostTagContextMenuBound = true;
 }
 
+function isEditableUndoRedoTarget(target) {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  if (target.closest('[contenteditable="true"]')) {
+    return true;
+  }
+
+  const input = target.closest("input, textarea");
+
+  if (!input) {
+    return false;
+  }
+
+  if (input instanceof HTMLTextAreaElement) {
+    return true;
+  }
+
+  if (!(input instanceof HTMLInputElement)) {
+    return false;
+  }
+
+  return input.type !== "range" && input.type !== "checkbox" && input.type !== "radio" && input.type !== "button";
+}
+
 function mountPanel() {
   if (panelState.mounted) {
     return;
@@ -8623,6 +8816,8 @@ function mountPanel() {
         <div class="ctl-toolbar">
           <div class="ctl-toolbar-actions">
             <button class="ctl-button ctl-button-primary" data-action="reload-file">Reload Styles</button>
+            <button class="ctl-button ctl-button-secondary" data-action="undo-change" disabled>Undo</button>
+            <button class="ctl-button ctl-button-secondary" data-action="redo-change" disabled>Redo</button>
             <button class="ctl-button ctl-button-secondary" data-action="toggle-logseq-theme">${getThemeToggleLabel()}</button>
             <button class="ctl-button ctl-button-secondary" data-action="reset-controls">Reset Controls</button>
             <button class="ctl-button ctl-button-secondary" data-action="close">Close</button>
@@ -8707,9 +8902,11 @@ function mountPanel() {
       const relativeY = event.clientY - rect.top;
       const position = Math.round((relativeX / Math.max(rect.width, 1)) * 100);
       const track = relativeY > rect.height / 2 ? "bottom" : "top";
+      captureHistorySnapshot(`add-gradient-stop:${gradientStrip.dataset.areaKey}`);
       addGradientStop(gradientStrip.dataset.areaKey, position, track);
       void applyManagedOverrides(false, "Added gradient stop", "preview");
       schedulePersistGradients();
+      finishHistoryCapture(`add-gradient-stop:${gradientStrip.dataset.areaKey}`);
       return;
     }
 
@@ -8742,6 +8939,16 @@ function mountPanel() {
       return;
     }
 
+    if (action === "undo-change") {
+      await undoChange();
+      return;
+    }
+
+    if (action === "redo-change") {
+      await redoChange();
+      return;
+    }
+
     if (action === "reload-local-state") {
       await syncPersistedAppearance({
         reason: "Reloaded synced graph appearance for this graph",
@@ -8758,7 +8965,9 @@ function mountPanel() {
     }
 
     if (action === "toggle-appearance-section") {
+      captureHistorySnapshot(`appearance-toggle:${target.dataset.appearanceSection || ""}`);
       toggleAppearanceSection(target.dataset.appearanceSection || "");
+      finishHistoryCapture(`appearance-toggle:${target.dataset.appearanceSection || ""}`);
       return;
     }
 
@@ -8770,9 +8979,11 @@ function mountPanel() {
         return;
       }
 
+      captureHistorySnapshot(`toggle-control:${controlKey}`);
       panelState.controlState[controlKey] = !panelState.controlState[controlKey];
       void applyManagedOverrides(false, `Adjusted ${control.label}`, "soft");
       schedulePersistControls();
+      finishHistoryCapture(`toggle-control:${controlKey}`);
       return;
     }
 
@@ -8783,9 +8994,11 @@ function mountPanel() {
         return;
       }
 
+      captureHistorySnapshot(`border-mode:${group.key}`);
       panelState.controlState[group.modeKey] = target.dataset.borderColorMode === "linked" ? "linked" : "custom";
       void applyManagedOverrides(false, `Adjusted ${group.label}`, "preview");
       schedulePersistControls();
+      finishHistoryCapture(`border-mode:${group.key}`);
       return;
     }
 
@@ -8797,10 +9010,12 @@ function mountPanel() {
         return;
       }
 
+      captureHistorySnapshot(`border-preset:${group.key}`);
       panelState.controlState[group.modeKey] = "preset";
       panelState.controlState[group.tokenKey] = token;
       void applyManagedOverrides(false, `Adjusted ${group.label}`, "preview");
       schedulePersistControls();
+      finishHistoryCapture(`border-preset:${group.key}`);
       return;
     }
 
@@ -8827,7 +9042,9 @@ function mountPanel() {
     }
 
     if (action === "reset-controls") {
+      captureHistorySnapshot("reset-controls");
       await resetControls();
+      finishHistoryCapture("reset-controls");
       return;
     }
 
@@ -8841,7 +9058,9 @@ function mountPanel() {
     }
 
     if (action === "reset-tag-colors") {
+      captureHistorySnapshot("reset-tag-colors");
       await resetTagColors();
+      finishHistoryCapture("reset-tag-colors");
       return;
     }
 
@@ -8856,6 +9075,7 @@ function mountPanel() {
     }
 
     if (action === "set-gradient-stop-mode") {
+      captureHistorySnapshot(`gradient-stop-mode:${target.dataset.areaKey}:${target.dataset.stopIndex}`);
       updateGradientStop(
         target.dataset.areaKey,
         Number(target.dataset.stopIndex),
@@ -8863,10 +9083,12 @@ function mountPanel() {
       );
       void applyManagedOverrides(false, "Updated gradient stop type", "soft");
       schedulePersistGradients();
+      finishHistoryCapture(`gradient-stop-mode:${target.dataset.areaKey}:${target.dataset.stopIndex}`);
       return;
     }
 
     if (action === "set-gradient-stop-preset") {
+      captureHistorySnapshot(`gradient-stop-preset:${target.dataset.areaKey}:${target.dataset.stopIndex}`);
       const presetMeta = getPresetMeta(target.dataset.stopToken);
       if (presetMeta) {
         const presetHex = panelState.themeMode === "dark" ? presetMeta.darkBorder : presetMeta.lightBorder;
@@ -8882,13 +9104,16 @@ function mountPanel() {
       );
       void applyManagedOverrides(false, "Updated preset gradient color", "soft");
       schedulePersistGradients();
+      finishHistoryCapture(`gradient-stop-preset:${target.dataset.areaKey}:${target.dataset.stopIndex}`);
       return;
     }
 
     if (action === "remove-gradient-stop") {
+      captureHistorySnapshot(`remove-gradient-stop:${target.dataset.areaKey}:${target.dataset.stopIndex}`);
       removeGradientStop(target.dataset.areaKey, Number(target.dataset.stopIndex));
       void applyManagedOverrides(false, "Removed gradient stop", "preview");
       schedulePersistGradients();
+      finishHistoryCapture(`remove-gradient-stop:${target.dataset.areaKey}:${target.dataset.stopIndex}`);
       return;
     }
   });
@@ -8905,6 +9130,7 @@ function mountPanel() {
     }
 
     event.preventDefault();
+    captureHistorySnapshot(`gradient-drag:${gradientHandle.dataset.areaKey}:${gradientHandle.dataset.stopIndex}`);
     beginGradientHandleDrag(
       gradientHandle.dataset.areaKey,
       Number(gradientHandle.dataset.stopIndex),
@@ -8930,9 +9156,11 @@ function mountPanel() {
 
     event.preventDefault();
     setSelectedGradientStop(gradientHandle.dataset.areaKey, Number(gradientHandle.dataset.stopIndex));
+    captureHistorySnapshot(`remove-gradient-stop:${gradientHandle.dataset.areaKey}:${gradientHandle.dataset.stopIndex}`);
     removeGradientStop(gradientHandle.dataset.areaKey, Number(gradientHandle.dataset.stopIndex));
     void applyManagedOverrides(false, "Removed gradient stop", "preview");
     schedulePersistGradients();
+    finishHistoryCapture(`remove-gradient-stop:${gradientHandle.dataset.areaKey}:${gradientHandle.dataset.stopIndex}`);
   });
 
   document.addEventListener("pointermove", (event) => {
@@ -8974,6 +9202,7 @@ function mountPanel() {
     }
 
     event.preventDefault();
+    captureHistorySnapshot(`inline-color:${editor.dataset.colorScope}:${editor.dataset.areaKey || ""}:${editor.dataset.stopIndex || ""}:${editor.dataset.controlColorKey || ""}`);
     beginInlineColorDrag(editor, event.pointerId);
     updateInlineColorSpectrum(editor, event.clientX, event.clientY);
   });
@@ -9007,6 +9236,7 @@ function mountPanel() {
     const gradientAngleInput = event.target.closest("[data-gradient-angle]");
 
     if (gradientAngleInput) {
+      captureHistorySnapshot(`gradient-angle:${gradientAngleInput.dataset.gradientAngle}`);
       const area = getGradientArea(gradientAngleInput.dataset.gradientAngle);
 
       if (area) {
@@ -9020,6 +9250,7 @@ function mountPanel() {
     const gradientAlphaInput = event.target.closest("[data-gradient-alpha]");
 
     if (gradientAlphaInput) {
+      captureHistorySnapshot(`gradient-alpha:${gradientAlphaInput.dataset.gradientAlpha}`);
       const areaKey = gradientAlphaInput.dataset.gradientAlpha;
       const index = getSelectedGradientStopIndex(areaKey);
       
@@ -9039,6 +9270,7 @@ function mountPanel() {
         return;
       }
 
+      captureHistorySnapshot(`inline-color:${editor.dataset.colorScope}:${editor.dataset.areaKey || ""}:${editor.dataset.stopIndex || ""}:${editor.dataset.controlColorKey || ""}`);
       applyInlineEditorColor(editor, normalized, "soft");
       return;
     }
@@ -9052,6 +9284,7 @@ function mountPanel() {
         return;
       }
 
+      captureHistorySnapshot(`inline-color:${editor.dataset.colorScope}:${editor.dataset.areaKey || ""}:${editor.dataset.stopIndex || ""}:${editor.dataset.controlColorKey || ""}`);
       const current = hexToRgb(getInlineColorEditorColor(editor)) || { r: 20, g: 184, b: 166, a: 1 };
       const hsv = rgbToHsv(current);
       applyInlineEditorColor(editor, rgbToHex(hsvToRgb({ h: Number(inlineColorHue.value), s: hsv.s, v: hsv.v, a: hsv.a })), "soft");
@@ -9067,6 +9300,7 @@ function mountPanel() {
         return;
       }
 
+      captureHistorySnapshot(`inline-color:${editor.dataset.colorScope}:${editor.dataset.areaKey || ""}:${editor.dataset.stopIndex || ""}:${editor.dataset.controlColorKey || ""}`);
       const current = hexToRgb(getInlineColorEditorColor(editor)) || { r: 20, g: 184, b: 166, a: 1 };
       const hsv = rgbToHsv(current);
       applyInlineEditorColor(editor, rgbToHex(hsvToRgb({ h: hsv.h, s: hsv.s, v: hsv.v, a: Number(inlineColorAlpha.value) / 100 })), "soft");
@@ -9096,6 +9330,7 @@ function mountPanel() {
     }
 
     const nextValue = Number(input.value);
+    captureHistorySnapshot(`control-input:${controlKey}`);
 
     if (controlKey === "highlightStartPercent") {
       panelState.controlState.highlightStartPercent = Math.min(nextValue, panelState.controlState.highlightEndPercent);
@@ -9126,6 +9361,8 @@ function mountPanel() {
         schedulePersistTagColors([panelState.selectedTag]);
       }
 
+      finishHistoryCapture(`inline-color:${editor?.dataset.colorScope || ""}:${editor?.dataset.areaKey || ""}:${editor?.dataset.stopIndex || ""}:${editor?.dataset.controlColorKey || ""}`);
+
       return;
     }
 
@@ -9133,6 +9370,7 @@ function mountPanel() {
 
     if (gradientAngleInput) {
       schedulePersistGradients();
+      finishHistoryCapture(`gradient-angle:${gradientAngleInput.dataset.gradientAngle}`);
       return;
     }
 
@@ -9140,6 +9378,7 @@ function mountPanel() {
 
     if (gradientAlphaInput) {
       schedulePersistGradients();
+      finishHistoryCapture(`gradient-alpha:${gradientAlphaInput.dataset.gradientAlpha}`);
       return;
     }
 
@@ -9147,6 +9386,7 @@ function mountPanel() {
 
     if (controlInput) {
       schedulePersistControls();
+      finishHistoryCapture(`control-input:${controlInput.dataset.controlKey}`);
       return;
     }
 
@@ -9162,6 +9402,30 @@ function mountPanel() {
   });
 
   document.addEventListener("keydown", (event) => {
+    const modifierKey = isMacPlatform() ? event.metaKey : event.ctrlKey;
+
+    if (!event.altKey && modifierKey && !isEditableUndoRedoTarget(event.target)) {
+      const lowerKey = String(event.key || "").toLowerCase();
+
+      if (lowerKey === "z") {
+        event.preventDefault();
+
+        if (event.shiftKey) {
+          void redoChange();
+        } else {
+          void undoChange();
+        }
+
+        return;
+      }
+
+      if (lowerKey === "y") {
+        event.preventDefault();
+        void redoChange();
+        return;
+      }
+    }
+
     if (event.key === "Escape") {
       closeThemeLoader();
     }
