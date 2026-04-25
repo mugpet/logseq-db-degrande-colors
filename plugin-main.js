@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.24";
+const FALLBACK_PLUGIN_VERSION = "0.5.25";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -5548,10 +5548,32 @@ function formatThemeTimestamp(timestamp) {
 
 function applyThemeSnapshotToPanelState(snapshot) {
   const normalizedSnapshot = normalizeStoredThemeSnapshot(snapshot);
+  const assignedTagNames = Object.keys(normalizedSnapshot.tagColorAssignments)
+    .map((tagName) => getCanonicalTagName(tagName))
+    .filter(Boolean);
+
   panelState.appearanceState = normalizedSnapshot.appearanceState;
   panelState.controlState = normalizedSnapshot.controlState;
   panelState.gradientState = normalizedSnapshot.gradientState;
   panelState.tagColorAssignments = normalizedSnapshot.tagColorAssignments;
+  panelState.tags = dedupeTagNames([
+    ...panelState.tags,
+    ...assignedTagNames,
+  ]);
+  assignedTagNames.forEach((tagName) => {
+    const normalized = String(tagName || "").toLowerCase();
+    const existingSource = panelState.tagSourceMap[normalized] || { tags: false, pages: false };
+
+    if (existingSource.tags || existingSource.pages) {
+      panelState.tagSourceMap[normalized] = existingSource;
+      return;
+    }
+
+    panelState.tagSourceMap[normalized] = { tags: true, pages: true };
+  });
+  if (!getTagColorAssignment(panelState.selectedTag) && assignedTagNames.length) {
+    panelState.selectedTag = assignedTagNames[0];
+  }
   panelState.gradientSelections = Object.fromEntries(Object.entries(panelState.gradientState).map(([areaKey, area]) => [
     areaKey,
     Math.min(panelState.gradientSelections?.[areaKey] || 0, Math.max((area?.stops?.length || 1) - 1, 0)),
