@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors v0.5.8</title>
-    <meta name="degrande-colors-version" content="0.5.8">
+    <title>Degrande Colors v0.5.9</title>
+    <meta name="degrande-colors-version" content="0.5.9">
     <style>
       :root {
         color-scheme: light;
@@ -1137,6 +1137,29 @@
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
+      }
+
+      .ctl-border-side-grid {
+        display: grid;
+        gap: 8px;
+      }
+
+      .ctl-border-side-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .ctl-border-side-range {
+        width: 100%;
+        min-width: 0;
+        margin: 0;
+      }
+
+      .ctl-border-side-value {
+        min-width: 38px;
+        text-align: right;
       }
 
       .ctl-filter-toggle {

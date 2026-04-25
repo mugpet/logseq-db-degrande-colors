@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.8";
+const FALLBACK_PLUGIN_VERSION = "0.5.9";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -194,6 +194,10 @@ const CONTROL_SECTIONS = [
       { key: "nodePeak", label: "Peak Position", min: 0, max: 100, step: 1, unit: "%", defaultValue: 50 },
       { key: "nodeFadeEnd", label: "Fade End", min: 10, max: 100, step: 1, unit: "%", defaultValue: 80 },
       { key: "nodeBorderWidth", label: "Border Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
+      { key: "nodeBorderTopWidth", label: "Top Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
+      { key: "nodeBorderRightWidth", label: "Right Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
+      { key: "nodeBorderBottomWidth", label: "Bottom Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
+      { key: "nodeBorderLeftWidth", label: "Left Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
       { key: "nodeBorderRadius", label: "Radius", min: 0, max: 24, step: 1, unit: "px", defaultValue: 10 },
       { key: "nodeBorderOpacity", label: "Opacity", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
       { key: "nodeBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
@@ -221,6 +225,10 @@ const CONTROL_SECTIONS = [
       { key: "darkTitlePeak", label: "Dark Peak", min: 0, max: 100, step: 1, unit: "%", defaultValue: 3 },
       { key: "darkTitleFadeEnd", label: "Dark Fade End", min: 10, max: 100, step: 1, unit: "%", defaultValue: 35 },
       { key: "titleBorderWidth", label: "Border Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
+      { key: "titleBorderTopWidth", label: "Top Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
+      { key: "titleBorderRightWidth", label: "Right Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
+      { key: "titleBorderBottomWidth", label: "Bottom Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
+      { key: "titleBorderLeftWidth", label: "Left Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
       { key: "titleBorderRadius", label: "Radius", min: 0, max: 24, step: 1, unit: "px", defaultValue: 12 },
       { key: "titleBorderOpacity", label: "Opacity", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
       { key: "titleBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
@@ -246,6 +254,10 @@ const CONTROL_SECTIONS = [
       { key: "highlightEndPercent", label: "Stop", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
       { key: "highlightRadius", label: "Radius", min: 0, max: 12, step: 1, unit: "px", defaultValue: 4 },
       { key: "highlightBorderWidth", label: "Border Width", min: 0, max: 6, step: 1, unit: "px", defaultValue: 0 },
+      { key: "highlightBorderTopWidth", label: "Top Width", min: 0, max: 6, step: 1, unit: "px", defaultValue: 0 },
+      { key: "highlightBorderRightWidth", label: "Right Width", min: 0, max: 6, step: 1, unit: "px", defaultValue: 0 },
+      { key: "highlightBorderBottomWidth", label: "Bottom Width", min: 0, max: 6, step: 1, unit: "px", defaultValue: 0 },
+      { key: "highlightBorderLeftWidth", label: "Left Width", min: 0, max: 6, step: 1, unit: "px", defaultValue: 0 },
       { key: "highlightBorderOpacity", label: "Opacity", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
       { key: "highlightBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
       { key: "highlightBorderColorToken", label: "Border Color Preset", type: "string", defaultValue: "yellow" },
@@ -272,6 +284,10 @@ const CONTROL_SECTIONS = [
       { key: "quoteLightOpacity", label: "Light Edge Opacity", min: 0, max: 0.4, step: 0.01, unit: "", defaultValue: 0.1 },
       { key: "quoteDarkOpacity", label: "Dark Edge Opacity", min: 0, max: 0.5, step: 0.01, unit: "", defaultValue: 0.15 },
       { key: "quoteBorderWidth", label: "Border Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 4 },
+      { key: "quoteBorderTopWidth", label: "Top Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 4 },
+      { key: "quoteBorderRightWidth", label: "Right Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 4 },
+      { key: "quoteBorderBottomWidth", label: "Bottom Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 4 },
+      { key: "quoteBorderLeftWidth", label: "Left Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 4 },
       { key: "quoteRadius", label: "Radius", min: 0, max: 16, step: 1, unit: "px", defaultValue: 8 },
       { key: "quoteBorderOpacity", label: "Opacity", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
       { key: "quoteBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
@@ -297,6 +313,10 @@ const CONTROL_SECTIONS = [
       { key: "bgClearStart", label: "Clear Start", min: 0, max: 100, step: 1, unit: "%", defaultValue: 30 },
       { key: "bgClearEnd", label: "Clear End", min: 0, max: 100, step: 1, unit: "%", defaultValue: 80 },
       { key: "bgBorderWidth", label: "Border Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
+      { key: "bgBorderTopWidth", label: "Top Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
+      { key: "bgBorderRightWidth", label: "Right Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
+      { key: "bgBorderBottomWidth", label: "Bottom Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
+      { key: "bgBorderLeftWidth", label: "Left Width", min: 0, max: 8, step: 1, unit: "px", defaultValue: 0 },
       { key: "bgRadius", label: "Radius", min: 0, max: 16, step: 1, unit: "px", defaultValue: 6 },
       { key: "bgBorderOpacity", label: "Opacity", min: 0, max: 100, step: 1, unit: "%", defaultValue: 100 },
       { key: "bgBorderColorMode", label: "Border Color Source", type: "string", defaultValue: "custom" },
@@ -336,6 +356,12 @@ const BORDER_CONTROL_GROUPS = {
     key: "node",
     label: "Linked Block Border",
     widthKey: "nodeBorderWidth",
+    sideWidthKeys: {
+      top: "nodeBorderTopWidth",
+      right: "nodeBorderRightWidth",
+      bottom: "nodeBorderBottomWidth",
+      left: "nodeBorderLeftWidth",
+    },
     radiusKey: "nodeBorderRadius",
     opacityKey: "nodeBorderOpacity",
     modeKey: "nodeBorderColorMode",
@@ -358,6 +384,12 @@ const BORDER_CONTROL_GROUPS = {
     key: "title",
     label: "Page Title Border",
     widthKey: "titleBorderWidth",
+    sideWidthKeys: {
+      top: "titleBorderTopWidth",
+      right: "titleBorderRightWidth",
+      bottom: "titleBorderBottomWidth",
+      left: "titleBorderLeftWidth",
+    },
     radiusKey: "titleBorderRadius",
     opacityKey: "titleBorderOpacity",
     modeKey: "titleBorderColorMode",
@@ -380,6 +412,12 @@ const BORDER_CONTROL_GROUPS = {
     key: "highlight",
     label: "Highlight Border",
     widthKey: "highlightBorderWidth",
+    sideWidthKeys: {
+      top: "highlightBorderTopWidth",
+      right: "highlightBorderRightWidth",
+      bottom: "highlightBorderBottomWidth",
+      left: "highlightBorderLeftWidth",
+    },
     radiusKey: "highlightRadius",
     opacityKey: "highlightBorderOpacity",
     modeKey: "highlightBorderColorMode",
@@ -402,6 +440,12 @@ const BORDER_CONTROL_GROUPS = {
     key: "quote",
     label: "Quote Border",
     widthKey: "quoteBorderWidth",
+    sideWidthKeys: {
+      top: "quoteBorderTopWidth",
+      right: "quoteBorderRightWidth",
+      bottom: "quoteBorderBottomWidth",
+      left: "quoteBorderLeftWidth",
+    },
     radiusKey: "quoteRadius",
     opacityKey: "quoteBorderOpacity",
     modeKey: "quoteBorderColorMode",
@@ -424,6 +468,12 @@ const BORDER_CONTROL_GROUPS = {
     key: "background",
     label: "Background Block Border",
     widthKey: "bgBorderWidth",
+    sideWidthKeys: {
+      top: "bgBorderTopWidth",
+      right: "bgBorderRightWidth",
+      bottom: "bgBorderBottomWidth",
+      left: "bgBorderLeftWidth",
+    },
     radiusKey: "bgRadius",
     opacityKey: "bgBorderOpacity",
     modeKey: "bgBorderColorMode",
@@ -2860,6 +2910,30 @@ function normalizeStoredControlValue(control, rawValue) {
   return Number.isFinite(nextValue) ? nextValue : control.defaultValue;
 }
 
+function migrateLegacyBorderSideWidths(merged, saved) {
+  for (const group of Object.values(BORDER_CONTROL_GROUPS)) {
+    if (!group.sideWidthKeys || saved?.[group.widthKey] == null) {
+      continue;
+    }
+
+    for (const controlKey of Object.values(group.sideWidthKeys)) {
+      if (saved?.[controlKey] != null) {
+        continue;
+      }
+
+      const control = CONTROL_MAP[controlKey];
+
+      if (!control) {
+        continue;
+      }
+
+      merged[controlKey] = normalizeStoredControlValue(control, saved[group.widthKey]);
+    }
+  }
+
+  return merged;
+}
+
 function getBorderControlGroup(groupKey) {
   return typeof groupKey === "string" ? BORDER_CONTROL_GROUPS[groupKey] : groupKey;
 }
@@ -2997,12 +3071,17 @@ function getBorderSideWidths(groupKey) {
   }
 
   const width = Number(panelState.controlState[group.widthKey]) || 0;
+  const getSideWidth = (sideName) => {
+    const controlKey = group.sideWidthKeys?.[sideName];
+    const sideWidth = Number(panelState.controlState[controlKey]);
+    return Number.isFinite(sideWidth) ? sideWidth : width;
+  };
 
   return {
-    top: panelState.controlState[group.sideKeys.top] ? width : 0,
-    right: panelState.controlState[group.sideKeys.right] ? width : 0,
-    bottom: panelState.controlState[group.sideKeys.bottom] ? width : 0,
-    left: panelState.controlState[group.sideKeys.left] ? width : 0,
+    top: panelState.controlState[group.sideKeys.top] ? getSideWidth("top") : 0,
+    right: panelState.controlState[group.sideKeys.right] ? getSideWidth("right") : 0,
+    bottom: panelState.controlState[group.sideKeys.bottom] ? getSideWidth("bottom") : 0,
+    left: panelState.controlState[group.sideKeys.left] ? getSideWidth("left") : 0,
   };
 }
 
@@ -4191,7 +4270,7 @@ function mergeStoredControls(saved) {
     merged[control.key] = normalizeStoredControlValue(control, saved[control.key]);
   }
 
-  return merged;
+  return migrateLegacyBorderSideWidths(merged, saved);
 }
 
 function mergeStoredAppearanceState(saved) {
@@ -6586,7 +6665,7 @@ function buildBorderCornerToggleMarkup(groupKey) {
   }).join("");
 }
 
-function buildBorderSideToggleMarkup(groupKey) {
+function buildBorderSideControlMarkup(groupKey) {
   const group = getBorderControlGroup(groupKey);
 
   if (!group) {
@@ -6594,18 +6673,35 @@ function buildBorderSideToggleMarkup(groupKey) {
   }
 
   return BORDER_SIDE_DEFINITIONS.map(({ name, shortLabel, title }) => {
-    const controlKey = group.sideKeys[name];
-    const isActive = Boolean(panelState.controlState[controlKey]);
+    const toggleKey = group.sideKeys[name];
+    const widthKey = group.sideWidthKeys?.[name];
+    const control = CONTROL_MAP[widthKey];
+    const value = control ? panelState.controlState[widthKey] : 0;
+    const isActive = Boolean(panelState.controlState[toggleKey]);
 
     return `
-      <button
-        class="ctl-button ctl-button-secondary ctl-button-small ctl-filter-toggle${isActive ? " is-active" : ""}"
-        type="button"
-        data-action="toggle-control-boolean"
-        data-control-boolean-key="${controlKey}"
-        aria-pressed="${isActive ? "true" : "false"}"
-        title="${title} border ${isActive ? "on" : "off"}"
-      >${shortLabel}</button>
+      <div class="ctl-border-side-row">
+        <button
+          class="ctl-button ctl-button-secondary ctl-button-small ctl-filter-toggle${isActive ? " is-active" : ""}"
+          type="button"
+          data-action="toggle-control-boolean"
+          data-control-boolean-key="${toggleKey}"
+          aria-pressed="${isActive ? "true" : "false"}"
+          title="${title} border ${isActive ? "on" : "off"}"
+        >${shortLabel}</button>
+        <input
+          class="ctl-range ctl-border-side-range"
+          id="ctl-${widthKey}"
+          type="range"
+          data-control-key="${widthKey}"
+          min="${control.min}"
+          max="${control.max}"
+          step="${control.step}"
+          value="${value}"
+          aria-label="${title} border width"
+        >
+        <strong class="ctl-control-value ctl-border-side-value" data-control-value-for="${widthKey}">${formatControlValue(control, value)}</strong>
+      </div>
     `;
   }).join("");
 }
@@ -6720,7 +6816,7 @@ function buildBorderEditorMarkup(groupKey) {
         <span>Width, sides, corners, and color source.</span>
       </div>
       <div class="ctl-gradient-extra">
-        ${buildNumericControlsMarkup([group.widthKey, group.radiusKey, group.opacityKey])}
+        ${buildNumericControlsMarkup([group.radiusKey, group.opacityKey])}
       </div>
       <div class="ctl-custom-color-grid">
         <section class="ctl-custom-color-panel">
@@ -6729,8 +6825,8 @@ function buildBorderEditorMarkup(groupKey) {
               <span class="ctl-control-label">Visible Sides</span>
               <strong class="ctl-control-value" data-border-side-summary="${groupKey}">${getEnabledBorderSideCount(groupKey)}/4</strong>
             </div>
-            <div class="ctl-filter-toggle-grid" role="group" aria-label="${escapeHtml(group.label)} visible sides">
-              ${buildBorderSideToggleMarkup(groupKey)}
+            <div class="ctl-border-side-grid" role="group" aria-label="${escapeHtml(group.label)} visible sides and widths">
+              ${buildBorderSideControlMarkup(groupKey)}
             </div>
           </div>
         </section>
