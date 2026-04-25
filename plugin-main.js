@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.23";
+const FALLBACK_PLUGIN_VERSION = "0.5.24";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -549,13 +549,13 @@ const DEFAULT_APPEARANCE_STATE = Object.fromEntries(APPEARANCE_SECTIONS.map((sec
 const DEFAULT_THEME_EXPORT_SOURCE = JSON.parse(String.raw`{
   "format": "degrande-colors-theme",
   "version": 1,
-  "pluginVersion": "0.5.20",
-  "exportedAt": 1777108886935,
+  "pluginVersion": "0.5.23",
+  "exportedAt": 1777110644947,
   "theme": {
     "id": "mpe",
     "name": "mpe",
-    "createdAt": 1777100811768,
-    "updatedAt": 1777105619029,
+    "createdAt": 1777110482319,
+    "updatedAt": 1777110482319,
     "snapshot": {
       "appearanceState": {
         "tagColors": true,
