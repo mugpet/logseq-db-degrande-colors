@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors v0.5.33</title>
-    <meta name="degrande-colors-version" content="0.5.33">
+    <title>Degrande Colors v0.5.34</title>
+    <meta name="degrande-colors-version" content="0.5.34">
     <style>
       :root {
         color-scheme: light;
@@ -1578,12 +1578,19 @@
 
       .ctl-inline-color-slider {
         display: grid;
-        grid-template-columns: 28px minmax(0, 1fr) 30px;
-        gap: 6px;
-        align-items: center;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 4px;
+        align-content: start;
         font-size: 9px;
         font-weight: 700;
         color: var(--ctl-text-muted);
+      }
+
+      .ctl-inline-color-slider-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
       }
 
       .ctl-inline-color-slider strong {
@@ -1593,6 +1600,8 @@
       }
 
       .ctl-inline-color-range {
+        width: 100%;
+        min-width: 0;
         accent-color: var(--ctl-accent);
         appearance: none;
         height: 10px;

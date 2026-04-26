@@ -7390,14 +7390,18 @@ function buildInlineColorEditorMarkup({ color, scope, areaKey = "", stopIndex = 
       </div>
       <div class="ctl-inline-color-sliders">
         <label class="ctl-inline-color-slider">
-          <span>Hue</span>
+          <span class="ctl-inline-color-slider-head">
+            <span>Hue</span>
+            <strong data-inline-color-hue-value>${Math.round(hsv.h)}deg</strong>
+          </span>
           <input class="ctl-range ctl-inline-color-range" type="range" min="0" max="360" step="1" value="${hsv.h}" data-inline-color-hue${disabledAttr}>
-          <strong data-inline-color-hue-value>${Math.round(hsv.h)}deg</strong>
         </label>
         ${showAlpha ? `<label class="ctl-inline-color-slider">
-          <span>Alpha</span>
+          <span class="ctl-inline-color-slider-head">
+            <span>Alpha</span>
+            <strong data-inline-color-alpha-value>${Math.round(hsv.a * 100)}%</strong>
+          </span>
           <input class="ctl-range ctl-inline-color-range ctl-inline-color-alpha" type="range" min="0" max="100" step="1" value="${Math.round(hsv.a * 100)}" data-inline-color-alpha style="--ctl-alpha-base:${alphaBase};"${disabledAttr}>
-          <strong data-inline-color-alpha-value>${Math.round(hsv.a * 100)}%</strong>
         </label>` : ""}
       </div>
     </div>
@@ -8589,6 +8593,7 @@ function buildBorderEditorMarkup(groupKey) {
             color: customColor,
             scope: "control-color",
             controlColorKey: group.colorKey,
+              showAlpha: false,
           })}
         </div>
       </details>
@@ -8680,6 +8685,7 @@ function buildGradientCustomColorMarkup(areaKey, stopIndex, selectedStop) {
         scope: "gradient-stop",
         areaKey,
         stopIndex,
+        showAlpha: false,
       })}
     </div>
   `;
