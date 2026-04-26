@@ -1843,7 +1843,7 @@ function getAssignedNodeColorForTag(tagName) {
   }
 
   if (assignment.type === "preset" && COLOR_PRESET_MAP[assignment.token]) {
-    return `var(--grad-${assignment.token})`;
+    return applyColorOpacity(`var(--grad-${assignment.token})`, getTagColorOpacity(assignment));
   }
 
   if (assignment.type === "custom") {
@@ -2109,7 +2109,7 @@ function getSearchTagGradientColor(tagName) {
   const assignment = getTagColorAssignment(tagName);
 
   if (assignment?.type === 'preset' && COLOR_PRESET_MAP[assignment.token]) {
-    return `var(--grad-${assignment.token})`;
+    return applyColorOpacity(`var(--grad-${assignment.token})`, getTagColorOpacity(assignment));
   }
 
   if (assignment?.type === 'custom') {
@@ -3992,6 +3992,31 @@ function rgbToHex(rgb) {
   return alpha >= 0.999 ? base : `${base}${alphaHex}`;
 }
 
+function normalizeOpaqueHexColor(hexColor) {
+  const rgb = hexToRgb(hexColor);
+
+  if (!rgb) {
+    return null;
+  }
+
+  return rgbToHex({ r: rgb.r, g: rgb.g, b: rgb.b, a: 1 });
+}
+
+function normalizeTransparencyPercent(value) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? clamp(Math.round(numericValue), 0, 100) : 0;
+}
+
+function getColorTransparencyFromHex(hexColor) {
+  const rgb = hexToRgb(hexColor);
+
+  if (!rgb || !Number.isFinite(rgb.a) || rgb.a >= 0.999) {
+    return null;
+  }
+
+  return normalizeTransparencyPercent((1 - rgb.a) * 100);
+}
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -4259,20 +4284,30 @@ function normalizeTagColorAssignment(entry) {
   }
 
   if (typeof entry === "object") {
+    const explicitTransparency = normalizeTransparencyPercent(entry.transparency);
+
     if (entry.type === "preset" && COLOR_PRESET_MAP[entry.token]) {
-      return { type: "preset", token: entry.token };
+      return explicitTransparency > 0
+        ? { type: "preset", token: entry.token, transparency: explicitTransparency }
+        : { type: "preset", token: entry.token };
     }
 
     if (entry.type === "custom") {
-      const backgroundColor = normalizeHexColor(entry.backgroundColor || entry.baseColor);
-      const foregroundColor = normalizeHexColor(entry.foregroundColor);
-      const lightBackgroundColor = normalizeHexColor(entry.lightBackgroundColor);
-      const lightForegroundColor = normalizeHexColor(entry.lightForegroundColor);
-      const darkBackgroundColor = normalizeHexColor(entry.darkBackgroundColor);
-      const darkForegroundColor = normalizeHexColor(entry.darkForegroundColor);
+      const backgroundColor = normalizeOpaqueHexColor(entry.backgroundColor || entry.baseColor);
+      const foregroundColor = normalizeOpaqueHexColor(entry.foregroundColor);
+      const lightBackgroundColor = normalizeOpaqueHexColor(entry.lightBackgroundColor);
+      const lightForegroundColor = normalizeOpaqueHexColor(entry.lightForegroundColor);
+      const darkBackgroundColor = normalizeOpaqueHexColor(entry.darkBackgroundColor);
+      const darkForegroundColor = normalizeOpaqueHexColor(entry.darkForegroundColor);
+      const inferredTransparency = [
+        entry.backgroundColor || entry.baseColor,
+        entry.lightBackgroundColor,
+        entry.darkBackgroundColor,
+      ].map(getColorTransparencyFromHex).find((value) => value != null) ?? 0;
+      const transparency = explicitTransparency > 0 ? explicitTransparency : inferredTransparency;
 
       if (backgroundColor || lightBackgroundColor || darkBackgroundColor) {
-        return {
+        const assignment = {
           type: "custom",
           ...(backgroundColor ? { backgroundColor } : {}),
           ...(foregroundColor ? { foregroundColor } : {}),
@@ -4281,11 +4316,79 @@ function normalizeTagColorAssignment(entry) {
           ...(darkBackgroundColor ? { darkBackgroundColor } : {}),
           ...(darkForegroundColor ? { darkForegroundColor } : {}),
         };
+
+        return transparency > 0
+          ? { ...assignment, transparency }
+          : assignment;
       }
     }
   }
 
   return null;
+}
+
+function getTagColorTransparencyPercent(assignment) {
+  return normalizeTransparencyPercent(assignment?.transparency);
+}
+
+function getTagColorOpacity(assignment) {
+  return clamp(1 - (getTagColorTransparencyPercent(assignment) / 100), 0, 1);
+}
+
+function applyTagThemeTransparency(theme, assignment) {
+  if (!theme) {
+    return theme;
+  }
+
+  const opacity = getTagColorOpacity(assignment);
+
+  if (opacity >= 0.999) {
+    return theme;
+  }
+
+  return {
+    ...theme,
+    ...(theme.background ? { background: applyColorOpacity(theme.background, opacity) } : {}),
+    ...(theme.borderColor ? { borderColor: applyColorOpacity(theme.borderColor, opacity) } : {}),
+    ...(theme.gradient ? { gradient: applyColorOpacity(theme.gradient, opacity) } : {}),
+  };
+}
+
+function buildExplicitTagColorAssignment(assignment) {
+  if (!assignment) {
+    return null;
+  }
+
+  if (assignment.type === "preset" && COLOR_PRESET_MAP[assignment.token]) {
+    return { type: "preset", token: assignment.token };
+  }
+
+  if (assignment.type === "custom") {
+    const explicitAssignment = {
+      type: "custom",
+      ...(assignment.backgroundColor ? { backgroundColor: assignment.backgroundColor } : {}),
+      ...(assignment.foregroundColor ? { foregroundColor: assignment.foregroundColor } : {}),
+      ...(assignment.lightBackgroundColor ? { lightBackgroundColor: assignment.lightBackgroundColor } : {}),
+      ...(assignment.lightForegroundColor ? { lightForegroundColor: assignment.lightForegroundColor } : {}),
+      ...(assignment.darkBackgroundColor ? { darkBackgroundColor: assignment.darkBackgroundColor } : {}),
+      ...(assignment.darkForegroundColor ? { darkForegroundColor: assignment.darkForegroundColor } : {}),
+    };
+
+    return Object.keys(explicitAssignment).length > 1 ? explicitAssignment : null;
+  }
+
+  return null;
+}
+
+function createTagColorAssignmentWithTransparency(baseAssignment, transparency = 0) {
+  if (!baseAssignment) {
+    return null;
+  }
+
+  const normalizedTransparency = normalizeTransparencyPercent(transparency);
+  return normalizedTransparency > 0
+    ? { ...baseAssignment, transparency: normalizedTransparency }
+    : { ...baseAssignment };
 }
 
 function getTagColorAssignment(tagName) {
@@ -4343,13 +4446,31 @@ function setTagPresetColor(tagName, token, statusMessage = null) {
 
   captureHistorySnapshot(`tag-preset:${tagName}`);
   panelState.selectedTag = tagName;
-  panelState.tagColorAssignments[tagName.toLowerCase()] = {
-    type: "preset",
-    token,
-  };
+  panelState.tagColorAssignments[tagName.toLowerCase()] = createTagColorAssignmentWithTransparency(
+    { type: "preset", token },
+    getTagColorTransparencyPercent(getTagColorAssignment(tagName))
+  );
   void applyManagedOverrides(false, statusMessage || `Set ${tagName} to ${token}`);
   schedulePersistTagColors([tagName]);
   finishHistoryCapture(`tag-preset:${tagName}`);
+  return true;
+}
+
+function setTagColorTransparency(tagName, transparency, renderMode = "soft") {
+  const explicitAssignment = buildExplicitTagColorAssignment(getTagColorAssignment(tagName));
+
+  if (!tagName || !explicitAssignment) {
+    return false;
+  }
+
+  panelState.selectedTag = tagName;
+  panelState.tagColorAssignments[tagName.toLowerCase()] = createTagColorAssignmentWithTransparency(explicitAssignment, transparency);
+  void applyManagedOverrides(false, `Adjusted ${tagName} transparency`, renderMode);
+
+  if (renderMode !== "soft") {
+    schedulePersistTagColors([tagName]);
+  }
+
   return true;
 }
 
@@ -4557,21 +4678,21 @@ function getTagChipThemeStyle(assignmentOrToken) {
     const customTheme = getResolvedCustomTagTheme(assignment, isDark ? "dark" : "light");
 
     if (customTheme) {
-      return {
+      return applyTagThemeTransparency({
         background: customTheme.background,
         borderColor: customTheme.borderColor,
         color: customTheme.color,
-      };
+      }, assignment);
     }
   }
 
   const preset = getPresetMeta(assignment?.type === "preset" ? assignment.token : "grey") || getPresetMeta("grey");
 
-  return {
+  return applyTagThemeTransparency({
     background: isDark ? preset.darkBg : preset.lightBg,
     borderColor: isDark ? preset.darkBorder : preset.lightBorder,
     color: isDark ? preset.darkText : preset.lightText,
-  };
+  }, assignment);
 }
 
 function getResolvedCustomTagTheme(assignment, mode = panelState.themeMode) {
@@ -4589,13 +4710,13 @@ function getResolvedCustomTagTheme(assignment, mode = panelState.themeMode) {
       return null;
     }
 
-    return {
+    return applyTagThemeTransparency({
       background: resolvedMode === "dark" ? derivedTheme.darkBg : derivedTheme.lightBg,
       borderColor: resolvedMode === "dark" ? derivedTheme.darkBorder : derivedTheme.lightBorder,
       color: resolvedMode === "dark" ? derivedTheme.darkText : derivedTheme.lightText,
       backgroundColor: resolvedMode === "dark" ? derivedTheme.darkBackgroundColor : derivedTheme.lightBackgroundColor,
       foregroundColor: resolvedMode === "dark" ? derivedTheme.darkForegroundColor : derivedTheme.lightForegroundColor,
-    };
+    }, assignment);
   }
 
   const fallbackBackgroundColor = explicitBackgroundColor
@@ -4630,13 +4751,13 @@ function getResolvedCustomTagTheme(assignment, mode = panelState.themeMode) {
       }
     : getReadableToneFromBase(foregroundRgb, backgroundBase, luminance < 0.5);
 
-  return {
+  return applyTagThemeTransparency({
     background: rgbToCss(backgroundRgb),
     borderColor: rgbToCss(borderRgb, Math.max(resolvedMode === "dark" ? 0.8 : 0.84, backgroundAlpha)),
     color: rgbToCss(textRgb),
     backgroundColor: rgbToHex(backgroundRgb),
     foregroundColor: explicitForegroundColor || rgbToHex(textRgb),
-  };
+  }, assignment);
 }
 
 function getCustomTagGradientColor(assignment, mode = panelState.themeMode) {
@@ -4657,10 +4778,12 @@ function getCustomTagGradientColor(assignment, mode = panelState.themeMode) {
     return null;
   }
 
-  return getCustomColorTheme({
+  const gradient = getCustomColorTheme({
     backgroundColor,
     ...(foregroundColor ? { foregroundColor } : {}),
   })?.gradient || null;
+
+  return gradient ? applyColorOpacity(gradient, getTagColorOpacity(assignment)) : null;
 }
 
 function getTagModeDraft(mode = panelState.themeMode) {
@@ -4709,13 +4832,13 @@ function copyTagColorsFromOtherMode() {
   panelState.tagCustomColorDraft = sourceColors.backgroundColor;
   panelState.tagCustomForegroundDraft = sourceColors.foregroundColor;
 
-  panelState.tagColorAssignments[panelState.selectedTag.toLowerCase()] = {
+  panelState.tagColorAssignments[panelState.selectedTag.toLowerCase()] = createTagColorAssignmentWithTransparency({
     type: "custom",
     lightBackgroundColor: currentMode === "light" ? sourceColors.backgroundColor : getTagCustomColors(selectedAssignment, "light").backgroundColor,
     lightForegroundColor: currentMode === "light" ? sourceColors.foregroundColor : getTagCustomColors(selectedAssignment, "light").foregroundColor,
     darkBackgroundColor: currentMode === "dark" ? sourceColors.backgroundColor : getTagCustomColors(selectedAssignment, "dark").backgroundColor,
     darkForegroundColor: currentMode === "dark" ? sourceColors.foregroundColor : getTagCustomColors(selectedAssignment, "dark").foregroundColor,
-  };
+  }, getTagColorTransparencyPercent(selectedAssignment));
 
   schedulePersistTagColors([panelState.selectedTag]);
   finishHistoryCapture(`copy-tag-colors:${panelState.selectedTag}`);
@@ -7160,6 +7283,10 @@ function buildColorPaletteMarkup() {
     return '<div class="ctl-tag-empty">Select a tag to assign one of the preset colors.</div>';
   }
 
+  const selectedAssignment = getTagColorAssignment(panelState.selectedTag);
+  const transparency = getTagColorTransparencyPercent(selectedAssignment);
+  const transparencyDisabled = selectedAssignment ? "" : " disabled";
+
   const renderButtons = (presets) => presets.map((preset) => {
     const isActive = getTagColorToken(panelState.selectedTag) === preset.token;
     const style = getTagChipThemeStyle(preset.token);
@@ -7189,6 +7316,22 @@ function buildColorPaletteMarkup() {
     <div class="ctl-color-grid">
       ${renderButtons(accentPresets)}
     </div>
+    <label class="ctl-control ctl-control-tight" for="ctl-tag-color-transparency">
+      <div class="ctl-control-header">
+        <span class="ctl-control-label">Transparency</span>
+        <strong class="ctl-control-value" data-tag-color-transparency-value>${transparency}%</strong>
+      </div>
+      <input
+        class="ctl-range"
+        id="ctl-tag-color-transparency"
+        type="range"
+        min="0"
+        max="100"
+        step="1"
+        value="${transparency}"
+        data-tag-color-transparency${transparencyDisabled}
+      >
+    </label>
   `;
 }
 
@@ -7208,6 +7351,7 @@ function buildCustomTagColorMarkup() {
           ${buildInlineColorEditorMarkup({
             color: backgroundColor,
             scope: "tag-custom-background",
+            showAlpha: false,
             disabled: !panelState.selectedTag,
           })}
         </section>
@@ -7216,6 +7360,7 @@ function buildCustomTagColorMarkup() {
           ${buildInlineColorEditorMarkup({
             color: foregroundColor,
             scope: "tag-custom-foreground",
+            showAlpha: false,
             disabled: !panelState.selectedTag,
           })}
         </section>
@@ -7224,10 +7369,11 @@ function buildCustomTagColorMarkup() {
   `;
 }
 
-function buildInlineColorEditorMarkup({ color, scope, areaKey = "", stopIndex = "", controlColorKey = "", disabled = false }) {
-  const rgb = hexToRgb(color) || { r: 20, g: 184, b: 166, a: 1 };
+function buildInlineColorEditorMarkup({ color, scope, areaKey = "", stopIndex = "", controlColorKey = "", showAlpha = true, disabled = false }) {
+  const startingColor = showAlpha ? normalizeHexColor(color) : normalizeOpaqueHexColor(color);
+  const rgb = hexToRgb(startingColor || color) || { r: 20, g: 184, b: 166, a: 1 };
   const hsv = rgbToHsv(rgb);
-  const normalized = normalizeHexColor(color) || rgbToHex(rgb);
+  const normalized = startingColor || rgbToHex(showAlpha ? rgb : { ...rgb, a: 1 });
   const disabledAttr = disabled ? " disabled" : "";
   const scopeAttrs = `data-inline-color-editor data-color-scope="${scope}" data-color-value="${normalized}" data-inline-color-disabled="${disabled ? "true" : "false"}"${areaKey ? ` data-area-key="${areaKey}"` : ""}${stopIndex !== "" ? ` data-stop-index="${stopIndex}"` : ""}${controlColorKey ? ` data-control-color-key="${controlColorKey}"` : ""}`;
   const hueColor = rgbToCss(hsvToRgb({ h: hsv.h, s: 1, v: 1, a: 1 }));
@@ -7237,7 +7383,7 @@ function buildInlineColorEditorMarkup({ color, scope, areaKey = "", stopIndex = 
     <div class="ctl-inline-color-editor" ${scopeAttrs}>
       <div class="ctl-inline-color-top">
         <span class="ctl-inline-color-swatch" data-inline-color-swatch style="background-color:${normalized};"></span>
-        <input class="ctl-input ctl-inline-color-hex" type="text" value="${normalized}" maxlength="9" spellcheck="false" data-inline-color-hex${disabledAttr}>
+        <input class="ctl-input ctl-inline-color-hex" type="text" value="${normalized}" maxlength="${showAlpha ? 9 : 7}" spellcheck="false" data-inline-color-hex${disabledAttr}>
       </div>
       <div class="ctl-inline-color-spectrum" data-inline-color-spectrum style="--ctl-picker-hue:${hueColor};">
         <div class="ctl-inline-color-spectrum-thumb" data-inline-color-spectrum-thumb style="left:${hsv.s * 100}%; top:${(1 - hsv.v) * 100}%;"></div>
@@ -7248,11 +7394,11 @@ function buildInlineColorEditorMarkup({ color, scope, areaKey = "", stopIndex = 
           <input class="ctl-range ctl-inline-color-range" type="range" min="0" max="360" step="1" value="${hsv.h}" data-inline-color-hue${disabledAttr}>
           <strong data-inline-color-hue-value>${Math.round(hsv.h)}deg</strong>
         </label>
-        <label class="ctl-inline-color-slider">
+        ${showAlpha ? `<label class="ctl-inline-color-slider">
           <span>Alpha</span>
           <input class="ctl-range ctl-inline-color-range ctl-inline-color-alpha" type="range" min="0" max="100" step="1" value="${Math.round(hsv.a * 100)}" data-inline-color-alpha style="--ctl-alpha-base:${alphaBase};"${disabledAttr}>
           <strong data-inline-color-alpha-value>${Math.round(hsv.a * 100)}%</strong>
-        </label>
+        </label>` : ""}
       </div>
     </div>
   `;
@@ -9612,7 +9758,9 @@ function syncInlineColorEditor(editor, hexColor) {
     return;
   }
 
-  const normalized = normalizeHexColor(hexColor);
+  const normalized = editor.querySelector("[data-inline-color-alpha]")
+    ? normalizeHexColor(hexColor)
+    : normalizeOpaqueHexColor(hexColor);
   const rgb = normalized ? hexToRgb(normalized) : null;
   const hsv = rgb ? rgbToHsv(rgb) : null;
 
@@ -9674,11 +9822,12 @@ function getInlineColorEditorColor(editor) {
   const stored = normalizeHexColor(editor?.dataset.colorValue);
 
   if (stored) {
-    return stored;
+    return editor?.querySelector("[data-inline-color-alpha]") ? stored : (normalizeOpaqueHexColor(stored) || stored);
   }
 
   const hue = Number(editor?.querySelector("[data-inline-color-hue]")?.value ?? 170);
-  const alpha = Number(editor?.querySelector("[data-inline-color-alpha]")?.value ?? 100) / 100;
+  const alphaInput = editor?.querySelector("[data-inline-color-alpha]");
+  const alpha = alphaInput ? Number(alphaInput.value ?? 100) / 100 : 1;
   const thumb = editor?.querySelector("[data-inline-color-spectrum-thumb]");
   const saturation = clamp(Number.parseFloat(thumb?.style.left ?? "100") / 100, 0, 1);
   const value = clamp(1 - (Number.parseFloat(thumb?.style.top ?? "0") / 100), 0, 1);
@@ -9711,8 +9860,19 @@ function syncTagsPaneState() {
 
   const selectedAssignment = selectedTag ? getTagColorAssignment(selectedTag) : null;
   const { backgroundColor, foregroundColor } = getTagCustomColors(selectedAssignment, panelState.themeMode);
+  const transparencyInput = document.querySelector("[data-tag-color-transparency]");
+  const transparencyValue = document.querySelector("[data-tag-color-transparency-value]");
   syncInlineColorEditor(document.querySelector('[data-inline-color-editor][data-color-scope="tag-custom-background"]'), backgroundColor);
   syncInlineColorEditor(document.querySelector('[data-inline-color-editor][data-color-scope="tag-custom-foreground"]'), foregroundColor);
+
+  if (transparencyInput) {
+    transparencyInput.disabled = !selectedAssignment;
+    transparencyInput.value = String(getTagColorTransparencyPercent(selectedAssignment));
+  }
+
+  if (transparencyValue) {
+    transparencyValue.textContent = `${getTagColorTransparencyPercent(selectedAssignment)}%`;
+  }
 }
 
 function syncTagBrowserState() {
@@ -9756,7 +9916,9 @@ function syncTagBrowserState() {
 }
 
 function applyInlineEditorColor(editor, color, renderMode = "soft") {
-  const normalized = normalizeHexColor(color);
+  const normalized = editor?.querySelector("[data-inline-color-alpha]")
+    ? normalizeHexColor(color)
+    : normalizeOpaqueHexColor(color);
 
   if (!editor || !normalized) {
     return;
@@ -9823,13 +9985,13 @@ function applyInlineEditorColor(editor, color, renderMode = "soft") {
     return;
   }
 
-  panelState.tagColorAssignments[panelState.selectedTag.toLowerCase()] = {
+  panelState.tagColorAssignments[panelState.selectedTag.toLowerCase()] = createTagColorAssignmentWithTransparency({
     type: "custom",
     lightBackgroundColor: currentMode === "light" ? (isForegroundEditor ? currentColors.backgroundColor : normalized) : otherModeColors.backgroundColor,
     lightForegroundColor: currentMode === "light" ? (isForegroundEditor ? normalized : currentColors.foregroundColor) : otherModeColors.foregroundColor,
     darkBackgroundColor: currentMode === "dark" ? (isForegroundEditor ? currentColors.backgroundColor : normalized) : otherModeColors.backgroundColor,
     darkForegroundColor: currentMode === "dark" ? (isForegroundEditor ? normalized : currentColors.foregroundColor) : otherModeColors.foregroundColor,
-  };
+  }, getTagColorTransparencyPercent(selectedAssignment));
   void applyManagedOverrides(false, `Updated ${panelState.selectedTag} custom color`, renderMode);
 
   if (renderMode !== "soft") {
@@ -10153,9 +10315,14 @@ ${selector} {
     }
 
     if (assignment.type === "preset" && COLOR_PRESET_MAP[assignment.token]) {
-      const group = presetGroups.get(assignment.token) || [];
-      group.push(tagName);
-      presetGroups.set(assignment.token, group);
+      const groupKey = JSON.stringify([assignment.token, getTagColorTransparencyPercent(assignment)]);
+      const group = presetGroups.get(groupKey) || {
+        tagNames: [],
+        token: assignment.token,
+        transparency: getTagColorTransparencyPercent(assignment),
+      };
+      group.tagNames.push(tagName);
+      presetGroups.set(groupKey, group);
     }
   });
 
@@ -10168,16 +10335,17 @@ ${selector} {
     })
     : "";
 
-  const presetTagChipRules = Array.from(presetGroups.entries()).map(([token, tagNames]) => {
+  const presetTagChipRules = Array.from(presetGroups.values()).map(({ token, tagNames, transparency }) => {
     const preset = getPresetMeta(token);
+    const opacity = clamp(1 - (transparency / 100), 0, 1);
 
     if (!preset) {
       return "";
     }
 
     return buildGroupedTagChipRule(tagNames, {
-      lightChipDeclarations: `background-color: var(--bg-${token}) !important;\n  border-color: var(--bd-${token}) !important;\n  color: ${preset.lightText} !important;`,
-      darkChipDeclarations: `background-color: var(--bg-${token}) !important;\n  border-color: var(--bd-${token}) !important;\n  color: ${preset.darkText} !important;`,
+      lightChipDeclarations: `background-color: ${applyColorOpacity(`var(--bg-${token})`, opacity)} !important;\n  border-color: ${applyColorOpacity(`var(--bd-${token})`, opacity)} !important;\n  color: ${preset.lightText} !important;`,
+      darkChipDeclarations: `background-color: ${applyColorOpacity(`var(--bg-${token})`, opacity)} !important;\n  border-color: ${applyColorOpacity(`var(--bd-${token})`, opacity)} !important;\n  color: ${preset.darkText} !important;`,
     });
   }).join("");
 
@@ -11021,7 +11189,9 @@ function mountPanel() {
 
     if (inlineColorHexInput) {
       const editor = inlineColorHexInput.closest("[data-inline-color-editor]");
-      const normalized = normalizeHexColor(inlineColorHexInput.value);
+      const normalized = editor?.querySelector("[data-inline-color-alpha]")
+        ? normalizeHexColor(inlineColorHexInput.value)
+        : normalizeOpaqueHexColor(inlineColorHexInput.value);
 
       if (!editor || !normalized) {
         return;
@@ -11061,6 +11231,18 @@ function mountPanel() {
       const current = hexToRgb(getInlineColorEditorColor(editor)) || { r: 20, g: 184, b: 166, a: 1 };
       const hsv = rgbToHsv(current);
       applyInlineEditorColor(editor, rgbToHex(hsvToRgb({ h: hsv.h, s: hsv.s, v: hsv.v, a: Number(inlineColorAlpha.value) / 100 })), "soft");
+      return;
+    }
+
+    const tagColorTransparencyInput = event.target.closest("[data-tag-color-transparency]");
+
+    if (tagColorTransparencyInput) {
+      if (!panelState.selectedTag || !getTagColorAssignment(panelState.selectedTag)) {
+        return;
+      }
+
+      captureHistorySnapshot(`tag-transparency:${panelState.selectedTag}`);
+      setTagColorTransparency(panelState.selectedTag, Number(tagColorTransparencyInput.value), "soft");
       return;
     }
 
@@ -11125,6 +11307,7 @@ function mountPanel() {
     const inlineColorHexInput = event.target.closest("[data-inline-color-hex]");
     const inlineColorHue = event.target.closest("[data-inline-color-hue]");
     const inlineColorAlpha = event.target.closest("[data-inline-color-alpha]");
+    const tagColorTransparencyInput = event.target.closest("[data-tag-color-transparency]");
 
     if (inlineColorHexInput || inlineColorHue || inlineColorAlpha) {
       const editor = (inlineColorHexInput || inlineColorHue || inlineColorAlpha).closest("[data-inline-color-editor]");
@@ -11140,6 +11323,15 @@ function mountPanel() {
       }
 
       finishHistoryCapture(`inline-color:${editor?.dataset.colorScope || ""}:${editor?.dataset.areaKey || ""}:${editor?.dataset.stopIndex || ""}:${editor?.dataset.controlColorKey || ""}`);
+
+      return;
+    }
+
+    if (tagColorTransparencyInput) {
+      if (panelState.selectedTag) {
+        schedulePersistTagColors([panelState.selectedTag]);
+        finishHistoryCapture(`tag-transparency:${panelState.selectedTag}`);
+      }
 
       return;
     }
