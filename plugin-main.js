@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.30";
+const FALLBACK_PLUGIN_VERSION = "0.5.31";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -997,7 +997,10 @@ const CMDK_HASH_ICON_SELECTOR = [
 const CMDK_SCOPE_SELECTOR = '.cp__cmdk, .cp__select-main, .cp__palette-main, [data-editor-popup-ref="page-search"]';
 const CMDK_ROW_SELECTOR = '.cp__cmdk [data-cmdk-item], .cp__select-main [data-cmdk-item], .cp__palette-main [data-cmdk-item], [data-editor-popup-ref="page-search"] .menu-link';
 const SIDEBAR_ROOT_SELECTOR = '.left-sidebar-inner';
-const SIDEBAR_TITLE_SELECTOR = `${SIDEBAR_ROOT_SELECTOR} .page-title`;
+const SIDEBAR_TITLE_SELECTOR = [
+  `${SIDEBAR_ROOT_SELECTOR} .page-title`,
+  `${SIDEBAR_ROOT_SELECTOR} a`,
+].join(', ');
 const CSS_SECTION_MARKER_1 = '/* --- 1. THE PAINTBOX (COLOR VARIABLES) --- */';
 const CSS_SECTION_MARKER_2 = '/* --- 2. THE ENGINE (SET ONCE & FORGET) --- */';
 const CSS_SECTION_MARKER_6 = '/* --- 6. PAGE REFERENCE STYLING ([[ ]]) --- */';
