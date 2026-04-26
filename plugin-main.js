@@ -4002,6 +4002,72 @@ function normalizeOpaqueHexColor(hexColor) {
   return rgbToHex({ r: rgb.r, g: rgb.g, b: rgb.b, a: 1 });
 }
 
+function resolveCssColorToOpaqueHex(colorValue, propertyName = "color", fallback = null) {
+  const normalized = normalizeOpaqueHexColor(colorValue);
+
+  if (normalized) {
+    return normalized;
+  }
+
+  const trimmed = String(colorValue || "").trim();
+
+  if (!trimmed) {
+    return fallback;
+  }
+
+  try {
+    const hostDocument = getHostDocument();
+    const hostRoot = hostDocument?.body || hostDocument?.documentElement;
+
+    if (!hostDocument || !hostRoot || typeof hostDocument.createElement !== "function") {
+      return fallback;
+    }
+
+    const probe = hostDocument.createElement("span");
+    probe.style.position = "absolute";
+    probe.style.opacity = "0";
+    probe.style.pointerEvents = "none";
+    probe.style.setProperty(propertyName, trimmed);
+    hostRoot.appendChild(probe);
+
+    const resolved = hostDocument.defaultView?.getComputedStyle(probe)?.[propertyName] || "";
+    probe.remove();
+
+    const parsed = parseCssColorValue(resolved);
+    return parsed ? rgbToHex({ r: parsed.r, g: parsed.g, b: parsed.b, a: 1 }) : fallback;
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function getResolvedPresetEditorColors(token, mode = panelState.themeMode) {
+  const preset = getPresetMeta(token);
+
+  if (!preset) {
+    return null;
+  }
+
+  const resolvedMode = mode === "dark" ? "dark" : "light";
+
+  return {
+    backgroundColor: resolveCssColorToOpaqueHex(
+      resolvedMode === "dark" ? preset.darkBg : preset.lightBg,
+      "backgroundColor",
+      resolvedMode === "dark" ? "#14352e" : "#eef9f7"
+    ),
+    borderColor: resolveCssColorToOpaqueHex(
+      resolvedMode === "dark" ? preset.darkBorder : preset.lightBorder,
+      "borderColor",
+      "#14b8a6"
+    ),
+    foregroundColor: resolveCssColorToOpaqueHex(
+      resolvedMode === "dark" ? preset.darkText : preset.lightText,
+      "color",
+      resolvedMode === "dark" ? "#f8fafc" : "#0f172a"
+    ),
+  };
+}
+
 function normalizeTransparencyPercent(value) {
   const numericValue = Number(value);
   return Number.isFinite(numericValue) ? clamp(Math.round(numericValue), 0, 100) : 0;
@@ -4446,6 +4512,16 @@ function setTagPresetColor(tagName, token, statusMessage = null) {
 
   captureHistorySnapshot(`tag-preset:${tagName}`);
   panelState.selectedTag = tagName;
+  const currentMode = panelState.themeMode === "dark" ? "dark" : "light";
+  const presetEditorColors = getResolvedPresetEditorColors(token, currentMode);
+
+  if (presetEditorColors) {
+    getTagModeDraft(currentMode).backgroundColor = presetEditorColors.backgroundColor;
+    getTagModeDraft(currentMode).foregroundColor = presetEditorColors.foregroundColor;
+    panelState.tagCustomColorDraft = presetEditorColors.backgroundColor;
+    panelState.tagCustomForegroundDraft = presetEditorColors.foregroundColor;
+  }
+
   panelState.tagColorAssignments[tagName.toLowerCase()] = createTagColorAssignmentWithTransparency(
     { type: "preset", token },
     getTagColorTransparencyPercent(getTagColorAssignment(tagName))
@@ -10942,6 +11018,12 @@ function mountPanel() {
       }
 
       captureHistorySnapshot(`border-preset:${group.key}`);
+      const presetEditorColors = getResolvedPresetEditorColors(token);
+
+      if (presetEditorColors?.borderColor) {
+        panelState.controlState[group.colorKey] = presetEditorColors.borderColor;
+      }
+
       panelState.controlState[group.modeKey] = "preset";
       panelState.controlState[group.tokenKey] = token;
       void applyManagedOverrides(false, `Adjusted ${group.label}`, "preview");
@@ -11020,13 +11102,10 @@ function mountPanel() {
 
     if (action === "set-gradient-stop-preset") {
       captureHistorySnapshot(`gradient-stop-preset:${target.dataset.areaKey}:${target.dataset.stopIndex}`);
-      const presetMeta = getPresetMeta(target.dataset.stopToken);
-      if (presetMeta) {
-        const presetHex = panelState.themeMode === "dark" ? presetMeta.darkBorder : presetMeta.lightBorder;
-        const normalized = normalizeHexColor(presetHex);
-        if (normalized) {
-          panelState.tagCustomColorDraft = normalized;
-        }
+      const presetEditorColors = getResolvedPresetEditorColors(target.dataset.stopToken);
+
+      if (presetEditorColors?.borderColor) {
+        panelState.tagCustomColorDraft = presetEditorColors.borderColor;
       }
       updateGradientStop(
         target.dataset.areaKey,
