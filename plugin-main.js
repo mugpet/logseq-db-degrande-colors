@@ -7388,7 +7388,7 @@ function buildInlineColorEditorMarkup({ color, scope, areaKey = "", stopIndex = 
       <div class="ctl-inline-color-spectrum" data-inline-color-spectrum style="--ctl-picker-hue:${hueColor};">
         <div class="ctl-inline-color-spectrum-thumb" data-inline-color-spectrum-thumb style="left:${hsv.s * 100}%; top:${(1 - hsv.v) * 100}%;"></div>
       </div>
-      <div class="ctl-inline-color-sliders">
+      <div class="ctl-inline-color-sliders${showAlpha ? "" : " is-single"}">
         <label class="ctl-inline-color-slider">
           <span class="ctl-inline-color-slider-head">
             <span>Hue</span>
@@ -11012,7 +11012,7 @@ function mountPanel() {
         Number(target.dataset.stopIndex),
         { source: target.dataset.stopMode, token: COLOR_PRESETS[0].token, color: panelState.tagCustomColorDraft }
       );
-      void applyManagedOverrides(false, "Updated gradient stop type", "soft");
+      void applyManagedOverrides(false, "Updated gradient stop type", "preview");
       schedulePersistGradients();
       finishHistoryCapture(`gradient-stop-mode:${target.dataset.areaKey}:${target.dataset.stopIndex}`);
       return;
