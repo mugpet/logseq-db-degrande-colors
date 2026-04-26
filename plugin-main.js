@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.31";
+const FALLBACK_PLUGIN_VERSION = "0.5.32";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -7534,6 +7534,7 @@ function syncSelectedThemePreview(root, theme) {
       opacity: titleEnabled ? "1" : "0.65",
       backgroundImage: titleEnabled ? buildGradientCss("title", getGradientPreviewLinkedColor("title"), "preview") : "none",
       backgroundColor: isDark ? "rgba(15, 23, 42, 0.72)" : "rgba(255, 255, 255, 0.84)",
+      backgroundClip: "padding-box",
       borderStyle: "solid",
       borderWidth: buildBorderWidthShorthand("title"),
       borderColor: titleBorderColor,
@@ -9385,6 +9386,7 @@ function syncPreviewStyles() {
     opacity: titleEnabled ? "1" : "0.65",
     backgroundImage: titleEnabled ? buildGradientCss("title", titlePreviewLinkedColor, "preview") : "none",
     backgroundColor: isDark ? "rgba(15, 23, 42, 0.72)" : "rgba(255, 255, 255, 0.84)",
+    backgroundClip: "padding-box",
     borderStyle: "solid",
     borderWidth: buildBorderWidthShorthand("title"),
     borderColor: titleBorderColor,
@@ -10311,6 +10313,8 @@ ${buildSearchTagChipSelector(".dark-theme ")}:hover {
 .block-main-content[data-degrande-page-title-node="true"] {
   background-image: ${titleGradient} !important;
   background-color: transparent !important;
+  background-clip: padding-box !important;
+  -webkit-background-clip: padding-box !important;
   ${buildBorderWidthDeclarations("title", " !important;")}
   border-style: solid !important;
   border-color: ${titleBorderColor} !important;
