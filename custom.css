@@ -196,6 +196,20 @@ a.page-ref:not(.tag):hover {
   color: #e0e7ff !important;
 }
 
+/* Property page refs already render inside Logseq's own property pills.
+   Keep Degrande's page-ref treatment on inline content, but reset it here so
+   property values do not get a second underline/highlight layer. */
+.positioned-properties a.page-ref:not(.tag),
+.positioned-properties a.page-ref:not(.tag):hover {
+  font-weight: inherit !important;
+  color: inherit !important;
+  border-bottom: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  background-color: transparent !important;
+  transition: none !important;
+}
+
 
 /* ========================================= */
 /* --- 7. MODERN QUOTES & CALLOUTS       --- */
