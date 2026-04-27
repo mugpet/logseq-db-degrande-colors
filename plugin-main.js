@@ -979,6 +979,7 @@ function applyPluginDefaultThemeToPanelState() {
 const HOST_COLOR_BACKGROUND_SELECTOR = '.with-bg-color:not([data-node-type="quote"])';
 const HOST_COLOR_QUOTE_SELECTOR = 'div[data-node-type="quote"]';
 const HOST_COLOR_TARGET_SELECTOR = `${HOST_COLOR_BACKGROUND_SELECTOR}, ${HOST_COLOR_QUOTE_SELECTOR}`;
+const HOVER_PREVIEW_SCOPE_SELECTOR = '.ls-preview-popup, .tippy-wrapper.as-page';
 const HOST_HIGHLIGHT_MARK_SELECTORS = [
   '.ls-block mark',
   '.ls-block .editor-inner mark',
@@ -1729,8 +1730,28 @@ function nodeTouchesSelector(node, selector, hostWindow) {
   return typeof candidate.querySelector === 'function' && Boolean(candidate.querySelector(selector));
 }
 
+function isInsideHoverPreview(node, hostWindow) {
+  const candidate = normalizeObservedNode(node);
+
+  if (!(candidate instanceof hostWindow.Element)) {
+    return false;
+  }
+
+  if (candidate.matches(HOVER_PREVIEW_SCOPE_SELECTOR)) {
+    return true;
+  }
+
+  return Boolean(candidate.closest(HOVER_PREVIEW_SCOPE_SELECTOR));
+}
+
 function syncHostColorVariableElement(element, hostWindow) {
   if (!(element instanceof hostWindow.Element)) {
+    return;
+  }
+
+  if (isInsideHoverPreview(element, hostWindow)) {
+    syncInlineCssVariable(element, '--ctl-bg-sweep-color', null);
+    syncInlineCssVariable(element, '--ctl-quote-color', null);
     return;
   }
 
@@ -1919,6 +1940,16 @@ function syncTagDrivenStylesForWrapper(wrapper, hostDocument) {
 
   const isPageTitle = Boolean(wrapper.querySelector(".block-content-or-editor-wrap.ls-page-title-container"));
   const pageTitleTarget = wrapper.querySelector(".block-main-content");
+
+  if (isInsideHoverPreview(wrapper, hostWindow)) {
+    clearTagDrivenNodeTarget(wrapper, "data-degrande-linked-node");
+
+    if (pageTitleTarget) {
+      clearTagDrivenNodeTarget(pageTitleTarget, "data-degrande-page-title-node");
+    }
+
+    return;
+  }
 
   if (isPageTitle) {
     const pageTitleTags = getTagNamesFromElements(Array.from(wrapper.querySelectorAll(".ls-block-right a.tag[data-ref]")));
