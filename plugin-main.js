@@ -1938,6 +1938,17 @@ function syncTagDrivenStylesForWrapper(wrapper, hostDocument) {
     return;
   }
 
+  if (wrapper.closest('.property-value-container')) {
+    clearTagDrivenNodeTarget(wrapper, "data-degrande-linked-node");
+
+    const propertyPageTitleTarget = wrapper.querySelector(".block-main-content");
+    if (propertyPageTitleTarget) {
+      clearTagDrivenNodeTarget(propertyPageTitleTarget, "data-degrande-page-title-node");
+    }
+
+    return;
+  }
+
   const isPageTitle = Boolean(wrapper.querySelector(".block-content-or-editor-wrap.ls-page-title-container"));
   const pageTitleTarget = wrapper.querySelector(".block-main-content");
 
