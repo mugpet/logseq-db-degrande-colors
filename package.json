@@ -1,6 +1,6 @@
 {
   "name": "degrande-colors",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Degrande Colors brings a polished styling panel to Logseq DB graphs with tag colors, live gradients, and quick visual controls. Currently tested on Logseq DB only.",
   "author": "mugpet",
   "license": "MIT",

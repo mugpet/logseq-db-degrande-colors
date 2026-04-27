@@ -210,6 +210,16 @@ a.page-ref:not(.tag):hover {
   transition: none !important;
 }
 
+/* Linked-block gradients intentionally paint the whole block row, but node
+   property pills should read as a single native surface instead of a pill on
+   top of another blue treatment. Mask the gradient only under node-valued
+   property chips. */
+.ls-block > div:first-child[data-degrande-linked-node="true"] .positioned-properties [data-type="node"] .select-item {
+  background-color: var(--ls-primary-background-color, var(--ls-secondary-background-color, transparent)) !important;
+  background-image: none !important;
+  border-radius: 999px !important;
+}
+
 
 /* ========================================= */
 /* --- 7. MODERN QUOTES & CALLOUTS       --- */
