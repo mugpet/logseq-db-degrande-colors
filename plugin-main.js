@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.6";
+const FALLBACK_PLUGIN_VERSION = "0.6.7";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -2942,17 +2942,13 @@ function syncCmdkInlineTags(row) {
     return;
   }
 
-  // The page-search popover is React-managed. Even splitText()-based wrapping
-  // still mutates the live text-node structure enough to trigger React
-  // removeChild mismatches during teardown on some search updates. Keep this
-  // surface on the non-mutating CSS Custom Highlights path only.
-  if (row.closest && row.closest('[data-editor-popup-ref="page-search"]')) {
-    const hostWindow = scanRoot.ownerDocument?.defaultView || window;
-    paintInlineTagHighlights(scanRoot, hostWindow);
-    return;
-  }
-
-  syncInlineTagTextNodes(scanRoot);
+  // Search / command surfaces are React-managed enough that any inline DOM
+  // surgery (extractContents, insertNode, splitText wrapping) can leave React
+  // tearing down nodes that no longer match its tree. Keep non-tag rows on the
+  // non-mutating CSS Highlights path across all CMDK/search scopes.
+  const hostWindow = scanRoot.ownerDocument?.defaultView || window;
+  cleanupInlineTagChipsInRoot(scanRoot);
+  paintInlineTagHighlights(scanRoot, hostWindow);
 }
 
 function syncCmdkTagRow(row) {
