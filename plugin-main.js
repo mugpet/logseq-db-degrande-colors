@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.5.32";
+const FALLBACK_PLUGIN_VERSION = "0.6.6";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -2942,26 +2942,13 @@ function syncCmdkInlineTags(row) {
     return;
   }
 
-  // Do NOT use Range.extractContents()/insertNode() inside the React-managed
-  // page-search popover ([[name]] autocomplete) — that REMOVES the React-
-  // tracked text node from its parent and crashes the editor on unmount.
-  //
-  // Instead try Text.splitText()-based wrapping first (keeps the original
-  // text node in place; only newly-created sibling nodes are wrapped). If
-  // any split throws, fall back to the CSS Custom Highlights API which
-  // paints over Range objects without any DOM mutation.
+  // The page-search popover is React-managed. Even splitText()-based wrapping
+  // still mutates the live text-node structure enough to trigger React
+  // removeChild mismatches during teardown on some search updates. Keep this
+  // surface on the non-mutating CSS Custom Highlights path only.
   if (row.closest && row.closest('[data-editor-popup-ref="page-search"]')) {
     const hostWindow = scanRoot.ownerDocument?.defaultView || window;
-    const hostDocument = scanRoot.ownerDocument;
-    let chipPainted = false;
-    try {
-      chipPainted = paintInlineTagChipsViaSplit(scanRoot, hostDocument, hostWindow);
-    } catch (_) {
-      chipPainted = false;
-    }
-    if (!chipPainted) {
-      paintInlineTagHighlights(scanRoot, hostWindow);
-    }
+    paintInlineTagHighlights(scanRoot, hostWindow);
     return;
   }
 
