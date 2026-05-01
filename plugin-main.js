@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.10";
+const FALLBACK_PLUGIN_VERSION = "0.6.11";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1014,29 +1014,9 @@ const SIDEBAR_TITLE_SELECTOR = [
   `${SIDEBAR_ROOT_SELECTOR} a`,
 ].join(', ');
 const FONT_SIZE_INHERIT_DESCENDANTS = [
-  'a',
-  'button',
-  'div',
-  'span',
-  'p',
-  'li',
-  'label',
-  'input',
-  'textarea',
-  'strong',
-  'em',
-  'small',
-  'time',
-  'code',
-  'pre',
-  'th',
-  'td',
-  'h1',
-  'h2',
-  'h3',
-  'h4',
-  'h5',
-  'h6',
+  '*',
+  '*::before',
+  '*::after',
 ];
 const MAIN_CONTENT_FONT_SIZE_SELECTORS = [
   '.cp__sidebar-main-content',
@@ -1048,6 +1028,8 @@ const RIGHT_SIDEBAR_FONT_SIZE_SELECTORS = [
   '.cp__right-sidebar .sidebar-item-list',
   '.cp__right-sidebar .sidebar-item-list-wrap',
   '.cp__right-sidebar .cp__right-sidebar-scroll',
+  '.cp__right-sidebar .sidebar-item',
+  '.cp__right-sidebar .sidebar-item-content',
   '[data-testid="right-sidebar"]',
 ];
 const RIGHT_SIDEBAR_FONT_SIZE_SELECTOR = RIGHT_SIDEBAR_FONT_SIZE_SELECTORS.join(',\n');
