@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.24";
+const FALLBACK_PLUGIN_VERSION = "0.6.25";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -12615,6 +12615,7 @@ async function main() {
   registerCommandPaletteSafely(
     {
       key: commandKey("toggle-true-wide-mode"),
+      keybinding: { mode: "global", binding: TRUE_WIDE_MODE_SHORTCUT_BINDING },
       label: `Degrande Colors: toggle true wide mode (${getTrueWideModeShortcutLabel()})`,
     },
     () => toggleTrueWideMode(true)
@@ -12623,6 +12624,7 @@ async function main() {
   registerCommandPaletteSafely(
     {
       key: commandKey("toggle-code-wrap"),
+      keybinding: { mode: "global", binding: CODE_WRAP_SHORTCUT_BINDING },
       label: `Degrande Colors: toggle code block wrap (${getWrapCodeBlocksShortcutLabel()})`,
     },
     () => toggleWrapCodeBlocks(true)
@@ -12631,36 +12633,10 @@ async function main() {
   registerCommandPaletteSafely(
     {
       key: commandKey("toggle-focus-mode"),
+      keybinding: { mode: "global", binding: FOCUS_MODE_SHORTCUT_BINDING },
       label: `Degrande Colors: toggle focus/zen mode (${getFocusModeShortcutLabel()})`,
     },
     () => toggleFocusMode(true)
-  );
-
-  registerCommandShortcutSafely(
-    { mode: "global", binding: TRUE_WIDE_MODE_SHORTCUT_BINDING },
-    () => toggleTrueWideMode(true),
-    {
-      key: commandKey("shortcut-toggle-true-wide-mode"),
-      label: "Degrande Colors: toggle true wide mode",
-    }
-  );
-
-  registerCommandShortcutSafely(
-    { mode: "global", binding: CODE_WRAP_SHORTCUT_BINDING },
-    () => toggleWrapCodeBlocks(true),
-    {
-      key: commandKey("shortcut-toggle-code-wrap"),
-      label: "Degrande Colors: toggle code block wrap",
-    }
-  );
-
-  registerCommandShortcutSafely(
-    { mode: "global", binding: FOCUS_MODE_SHORTCUT_BINDING },
-    () => toggleFocusMode(true),
-    {
-      key: commandKey("shortcut-toggle-focus-mode"),
-      label: "Degrande Colors: toggle focus/zen mode",
-    }
   );
 
   if (shouldRegisterHostUi) {
