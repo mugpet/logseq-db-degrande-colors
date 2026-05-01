@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.43";
+const FALLBACK_PLUGIN_VERSION = "0.6.44";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1119,14 +1119,6 @@ function buildTypographyInheritDescendants() {
 }
 
 const FONT_SIZE_INHERIT_DESCENDANTS = buildTypographyInheritDescendants();
-const TAG_FONT_SIZE_OVERRIDE_DESCENDANTS = [
-  'a.tag',
-  'a.tag:hover',
-  'h1 a.tag',
-  'h2 a.tag',
-  'h3 a.tag',
-  'h4 a.tag',
-];
 const CALENDAR_TWEAK_ROOT_SELECTOR = [
   '#degrande-calendar-pagebar',
   '#degrande-calendar-inline-bar',
@@ -1258,7 +1250,6 @@ const PROPERTY_VALUE_FONT_SIZE_SELECTOR = [
     TWEAK_TYPOGRAPHY_EXEMPT_SELECTORS
   ),
 ].join(',\n');
-const PROPERTY_VALUE_TAG_FONT_SIZE_OVERRIDE_SELECTOR = buildScopedDescendantSelector(PROPERTY_VALUE_FONT_SIZE_SCOPES, TAG_FONT_SIZE_OVERRIDE_DESCENDANTS);
 const PROPERTY_ROW_MIN_HEIGHT_SELECTOR = [
   '.ls-properties-area .property-pair',
   '.ls-properties-area .property-key',
@@ -1283,17 +1274,6 @@ const PROPERTY_PADDING_SELECTOR = [
   '.ls-properties-area .property-value-inner',
   '.ls-properties-area .positioned-properties .property-value-inner',
   '.ls-properties-area .positioned-properties .select-item',
-].join(',\n');
-const PROPERTY_BLOCK_TAG_TEXT_SELECTOR = [
-  '.ls-properties-area .property-block-container .block-tags',
-  '.ls-properties-area .property-block-container .block-tag',
-  '.ls-properties-area .property-block-container .hash-symbol',
-  '.ls-properties-area .property-block-container a.tag',
-  '.ls-properties-area .property-block-container a.tag:hover',
-].join(',\n');
-const PROPERTY_BLOCK_TAG_CHIP_SELECTOR = [
-  '.ls-properties-area .property-block-container a.tag',
-  '.ls-properties-area .property-block-container a.tag:hover',
 ].join(',\n');
 const CODE_BLOCK_RENDER_WRAP_CONTAINER_SELECTOR = [
   '.extensions__code',
@@ -1368,9 +1348,6 @@ function buildScopedDescendantSelectorWithExclusions(scopes, descendants, exclud
 const MAIN_CONTENT_FONT_SIZE_INHERIT_SELECTOR = buildScopedDescendantSelector(MAIN_CONTENT_FONT_SIZE_SELECTORS, FONT_SIZE_INHERIT_DESCENDANTS);
 const RIGHT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR = buildScopedDescendantSelector(RIGHT_SIDEBAR_FONT_SIZE_SELECTORS, FONT_SIZE_INHERIT_DESCENDANTS);
 const LEFT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR = buildScopedDescendantSelector([SIDEBAR_ROOT_SELECTOR], FONT_SIZE_INHERIT_DESCENDANTS);
-const MAIN_CONTENT_TAG_FONT_SIZE_OVERRIDE_SELECTOR = buildScopedDescendantSelector(MAIN_CONTENT_FONT_SIZE_SELECTORS, TAG_FONT_SIZE_OVERRIDE_DESCENDANTS);
-const RIGHT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR = buildScopedDescendantSelector(RIGHT_SIDEBAR_FONT_SIZE_SELECTORS, TAG_FONT_SIZE_OVERRIDE_DESCENDANTS);
-const LEFT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR = buildScopedDescendantSelector([SIDEBAR_ROOT_SELECTOR], TAG_FONT_SIZE_OVERRIDE_DESCENDANTS);
 const MAIN_CONTENT_LINE_HEIGHT_SELECTOR = MAIN_CONTENT_FONT_SIZE_SELECTOR;
 const RIGHT_SIDEBAR_LINE_HEIGHT_SELECTOR = RIGHT_SIDEBAR_FONT_SIZE_SELECTOR;
 const LEFT_SIDEBAR_LINE_HEIGHT_SELECTOR = SIDEBAR_ROOT_SELECTOR;
@@ -11180,11 +11157,11 @@ function buildManagedOverrides() {
   const tagChipDarkBaseShadow = "inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 1px 2px rgba(2, 6, 23, 0.28)";
   const tagChipLightHoverShadow = "inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 2px 4px rgba(15, 23, 42, 0.12)";
   const tagChipDarkHoverShadow = "inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 4px rgba(2, 6, 23, 0.34)";
-  const buildTagChipFontCapDeclarations = (maxFontSizePx) => {
-    const cappedFontSize = Math.min(controls.tagFontSize, maxFontSizePx);
-    const cappedPaddingX = Math.min(controls.tagPaddingX, Math.max(2, Math.round(cappedFontSize * 0.45)));
+  const buildTagChipCapVariableDeclarations = (maxFontSizePx) => {
+    const cappedPaddingX = Math.min(controls.tagPaddingX, Math.max(2, Math.round(maxFontSizePx * 0.45)));
+    const cappedHeight = Math.min(controls.tagHeight, Math.max(maxFontSizePx + 4, Math.round(maxFontSizePx * 1.6)));
 
-    return `font-size: ${cappedFontSize}px !important;\n  line-height: inherit !important;\n  height: auto !important;\n  min-height: 0 !important;\n  padding: 0 ${cappedPaddingX}px !important;`;
+    return `--degrande-tag-font-cap: ${maxFontSizePx}px !important;\n  --degrande-tag-height-cap: ${cappedHeight}px !important;\n  --degrande-tag-padding-x-cap: ${cappedPaddingX}px !important;`;
   };
 
   const quoteColorRules = QUOTE_COLOR_RULES.map(({ selector, token }) => `
@@ -11294,9 +11271,9 @@ ${selector} {
     tagChips: `
 a.tag, a.tag:hover, h1 a.tag, h2 a.tag, h3 a.tag, h4 a.tag {
   border-radius: ${controls.tagRadius}px !important;
-  font-size: ${controls.tagFontSize}px !important;
-  height: ${controls.tagHeight}px !important;
-  padding: 0 ${controls.tagPaddingX}px !important;
+  font-size: min(${controls.tagFontSize}px, var(--degrande-tag-font-cap, ${controls.tagFontSize}px)) !important;
+  height: min(${controls.tagHeight}px, var(--degrande-tag-height-cap, ${controls.tagHeight}px)) !important;
+  padding: 0 min(${controls.tagPaddingX}px, var(--degrande-tag-padding-x-cap, ${controls.tagPaddingX}px)) !important;
   border-width: ${controls.tagBorderWidth}px !important;
 }
 
@@ -11497,14 +11474,11 @@ ${backgroundRules}
     uiTweaks: `
 ${controls.uiFontSize > 0 ? `${MAIN_CONTENT_FONT_SIZE_SELECTOR} {
   font-size: ${controls.uiFontSize}px !important;
+  ${buildTagChipCapVariableDeclarations(controls.uiFontSize)}
 }
 
 ${MAIN_CONTENT_FONT_SIZE_INHERIT_SELECTOR} {
   font-size: inherit !important;
-}
-
-${MAIN_CONTENT_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
-  ${buildTagChipFontCapDeclarations(controls.uiFontSize)}
 }` : ""}
 
 ${controls.uiLineHeight > 0 ? `${MAIN_CONTENT_LINE_HEIGHT_SELECTOR} {
@@ -11518,14 +11492,11 @@ ${MAIN_CONTENT_LINE_HEIGHT_INHERIT_SELECTOR} {
 
 ${controls.rightSidebarFontSize > 0 ? `${RIGHT_SIDEBAR_FONT_SIZE_SELECTOR} {
   font-size: ${controls.rightSidebarFontSize}px !important;
+  ${buildTagChipCapVariableDeclarations(controls.rightSidebarFontSize)}
 }
 
 ${RIGHT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR} {
   font-size: inherit !important;
-}
-
-${RIGHT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
-  ${buildTagChipFontCapDeclarations(controls.rightSidebarFontSize)}
 }` : ""}
 
 ${controls.rightSidebarLineHeight > 0 ? `${RIGHT_SIDEBAR_LINE_HEIGHT_SELECTOR} {
@@ -11539,14 +11510,11 @@ ${RIGHT_SIDEBAR_LINE_HEIGHT_INHERIT_SELECTOR} {
 
 ${controls.leftSidebarFontSize > 0 ? `${SIDEBAR_ROOT_SELECTOR} {
   font-size: ${controls.leftSidebarFontSize}px !important;
+  ${buildTagChipCapVariableDeclarations(controls.leftSidebarFontSize)}
 }
 
 ${LEFT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR} {
   font-size: inherit !important;
-}
-
-${LEFT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
-  ${buildTagChipFontCapDeclarations(controls.leftSidebarFontSize)}
 }` : ""}
 
 ${controls.leftSidebarLineHeight > 0 ? `${LEFT_SIDEBAR_LINE_HEIGHT_SELECTOR} {
@@ -11626,36 +11594,11 @@ ${controls.propertyKeyLineHeight > 0 ? `${PROPERTY_KEY_LINE_HEIGHT_SELECTOR} {
 
 ${controls.propertyValueFontSize > 0 ? `${PROPERTY_VALUE_FONT_SIZE_SELECTOR} {
   font-size: ${controls.propertyValueFontSize}px !important;
-
-}
-
-${PROPERTY_VALUE_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
-  ${buildTagChipFontCapDeclarations(controls.propertyValueFontSize)}
-}
-
-${PROPERTY_BLOCK_TAG_TEXT_SELECTOR} {
-  font-size: ${Math.min(controls.tagFontSize, controls.propertyValueFontSize)}px !important;
-  line-height: inherit !important;
-}
-
-${PROPERTY_BLOCK_TAG_CHIP_SELECTOR} {
-  ${buildTagChipFontCapDeclarations(controls.propertyValueFontSize)}
+  ${buildTagChipCapVariableDeclarations(controls.propertyValueFontSize)}
 }` : ""}
 
 ${controls.propertyValueLineHeight > 0 ? `${PROPERTY_VALUE_LINE_HEIGHT_SELECTOR} {
   line-height: ${controls.propertyValueLineHeight} !important;
-
-}
-
-${PROPERTY_BLOCK_TAG_TEXT_SELECTOR} {
-  line-height: inherit !important;
-}
-
-${PROPERTY_BLOCK_TAG_CHIP_SELECTOR} {
-  height: auto !important;
-  min-height: 0 !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
 }` : ""}
 
 ${controls.propertyKeyLineHeight > 0 || controls.propertyValueLineHeight > 0 ? `${PROPERTY_FIXED_HEIGHT_SELECTOR} {
