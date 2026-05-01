@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.34";
+const FALLBACK_PLUGIN_VERSION = "0.6.35";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1081,9 +1081,9 @@ const SIDEBAR_TITLE_SELECTOR = [
   `${SIDEBAR_ROOT_SELECTOR} a`,
 ].join(', ');
 const FONT_SIZE_INHERIT_DESCENDANTS = [
-  '*',
-  '*::before',
-  '*::after',
+  '*:not(a.tag)',
+  '*:not(a.tag)::before',
+  '*:not(a.tag)::after',
 ];
 const TAG_FONT_SIZE_OVERRIDE_DESCENDANTS = [
   'a.tag',
@@ -1093,6 +1093,13 @@ const TAG_FONT_SIZE_OVERRIDE_DESCENDANTS = [
   'h3 a.tag',
   'h4 a.tag',
 ];
+const CALENDAR_TWEAK_ROOT_SELECTOR = [
+  '#degrande-calendar-pagebar',
+  '#degrande-calendar-inline-bar',
+  '#degrande-calendar-preview-popup',
+  '.dgc-pagebar',
+  '.dgc-preview-popup',
+].join(',\n');
 const MAIN_CONTENT_FONT_SIZE_SELECTORS = [
   '.cp__sidebar-main-content',
   '#main-content-container .cp__sidebar-main-content',
@@ -11425,10 +11432,6 @@ ${controls.uiFontSize > 0 ? `${MAIN_CONTENT_FONT_SIZE_SELECTOR} {
 
 ${MAIN_CONTENT_FONT_SIZE_INHERIT_SELECTOR} {
   font-size: inherit !important;
-}
-
-${MAIN_CONTENT_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
-  font-size: inherit !important;
 }` : ""}
 
 ${controls.uiLineHeight > 0 ? `${MAIN_CONTENT_LINE_HEIGHT_SELECTOR} {
@@ -11445,10 +11448,6 @@ ${controls.rightSidebarFontSize > 0 ? `${RIGHT_SIDEBAR_FONT_SIZE_SELECTOR} {
 }
 
 ${RIGHT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR} {
-  font-size: inherit !important;
-}
-
-${RIGHT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
   font-size: inherit !important;
 }` : ""}
 
@@ -11467,10 +11466,6 @@ ${controls.leftSidebarFontSize > 0 ? `${SIDEBAR_ROOT_SELECTOR} {
 
 ${LEFT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR} {
   font-size: inherit !important;
-}
-
-${LEFT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
-  font-size: inherit !important;
 }` : ""}
 
 ${controls.leftSidebarLineHeight > 0 ? `${LEFT_SIDEBAR_LINE_HEIGHT_SELECTOR} {
@@ -11480,6 +11475,11 @@ ${controls.leftSidebarLineHeight > 0 ? `${LEFT_SIDEBAR_LINE_HEIGHT_SELECTOR} {
 
 ${LEFT_SIDEBAR_LINE_HEIGHT_INHERIT_SELECTOR} {
   line-height: inherit !important;
+}` : ""}
+
+${controls.uiFontSize > 0 || controls.uiLineHeight > 0 || controls.rightSidebarFontSize > 0 || controls.rightSidebarLineHeight > 0 || controls.leftSidebarFontSize > 0 || controls.leftSidebarLineHeight > 0 ? `${CALENDAR_TWEAK_ROOT_SELECTOR} {
+  font-size: var(--ls-font-size, 14px) !important;
+  line-height: normal !important;
 }` : ""}
 
 ${controls.leftSidebarWidth > 0 ? `${LEFT_SIDEBAR_WIDTH_SELECTOR} {
