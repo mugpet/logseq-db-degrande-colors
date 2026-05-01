@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.28";
+const FALLBACK_PLUGIN_VERSION = "0.6.29";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1265,6 +1265,9 @@ const LEFT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR = buildScopedDescendantSelect
 const MAIN_CONTENT_LINE_HEIGHT_SELECTOR = MAIN_CONTENT_FONT_SIZE_SELECTOR;
 const RIGHT_SIDEBAR_LINE_HEIGHT_SELECTOR = RIGHT_SIDEBAR_FONT_SIZE_SELECTOR;
 const LEFT_SIDEBAR_LINE_HEIGHT_SELECTOR = SIDEBAR_ROOT_SELECTOR;
+const MAIN_CONTENT_LINE_HEIGHT_INHERIT_SELECTOR = buildScopedDescendantSelector(MAIN_CONTENT_FONT_SIZE_SELECTORS, FONT_SIZE_INHERIT_DESCENDANTS);
+const RIGHT_SIDEBAR_LINE_HEIGHT_INHERIT_SELECTOR = buildScopedDescendantSelector(RIGHT_SIDEBAR_FONT_SIZE_SELECTORS, FONT_SIZE_INHERIT_DESCENDANTS);
+const LEFT_SIDEBAR_LINE_HEIGHT_INHERIT_SELECTOR = buildScopedDescendantSelector([SIDEBAR_ROOT_SELECTOR], FONT_SIZE_INHERIT_DESCENDANTS);
 const PAGE_TITLE_LINE_HEIGHT_SELECTOR = PAGE_TITLE_FONT_SIZE_SELECTOR;
 const BREADCRUMB_LINE_HEIGHT_SELECTOR = BREADCRUMB_FONT_SIZE_SELECTOR;
 const PROPERTY_KEY_LINE_HEIGHT_SELECTOR = PROPERTY_KEY_FONT_SIZE_SELECTOR;
@@ -11263,6 +11266,11 @@ ${MAIN_CONTENT_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
 
 ${controls.uiLineHeight > 0 ? `${MAIN_CONTENT_LINE_HEIGHT_SELECTOR} {
   line-height: ${controls.uiLineHeight} !important;
+
+}
+
+${MAIN_CONTENT_LINE_HEIGHT_INHERIT_SELECTOR} {
+  line-height: inherit !important;
 }` : ""}
 
 ${controls.rightSidebarFontSize > 0 ? `${RIGHT_SIDEBAR_FONT_SIZE_SELECTOR} {
@@ -11279,6 +11287,11 @@ ${RIGHT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
 
 ${controls.rightSidebarLineHeight > 0 ? `${RIGHT_SIDEBAR_LINE_HEIGHT_SELECTOR} {
   line-height: ${controls.rightSidebarLineHeight} !important;
+
+}
+
+${RIGHT_SIDEBAR_LINE_HEIGHT_INHERIT_SELECTOR} {
+  line-height: inherit !important;
 }` : ""}
 
 ${controls.leftSidebarFontSize > 0 ? `${SIDEBAR_ROOT_SELECTOR} {
@@ -11295,6 +11308,11 @@ ${LEFT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
 
 ${controls.leftSidebarLineHeight > 0 ? `${LEFT_SIDEBAR_LINE_HEIGHT_SELECTOR} {
   line-height: ${controls.leftSidebarLineHeight} !important;
+
+}
+
+${LEFT_SIDEBAR_LINE_HEIGHT_INHERIT_SELECTOR} {
+  line-height: inherit !important;
 }` : ""}
 
 ${controls.leftSidebarWidth > 0 ? `${LEFT_SIDEBAR_WIDTH_SELECTOR} {
