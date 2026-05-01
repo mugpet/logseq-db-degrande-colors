@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.30";
+const FALLBACK_PLUGIN_VERSION = "0.6.31";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1191,21 +1191,29 @@ const TABLE_CELL_SELECTOR = buildScopedDescendantSelector(TABLE_SCOPE_SELECTORS,
 const PROPERTY_KEY_FONT_SIZE_SELECTOR = [
   '.page-properties .property-key',
   '.page-properties .property-name',
+  '.page-properties .property-name *',
+  '.positioned-properties .property-key',
+  '.positioned-properties .property-name',
+  '.positioned-properties .property-name *',
   '.block-properties .property-key',
   '.block-properties .property-name',
-  '.ls-table .property-key',
-  '.ls-table .property-name',
-  '.ls-table .table-block-title',
+  '.block-properties .property-name *',
 ].join(',\n');
 const PROPERTY_VALUE_FONT_SIZE_SELECTOR = [
   '.page-properties .property-value',
+  '.page-properties .property-value *',
+  '.page-properties .property-value-container',
+  '.positioned-properties .property-value',
+  '.positioned-properties .property-value *',
+  '.positioned-properties .property-value-container',
+  '.positioned-properties .multi-values',
+  '.positioned-properties .page-ref',
+  '.positioned-properties .tag',
+  '.positioned-properties .jtrigger',
   '.block-properties .property-value',
+  '.block-properties .property-value *',
+  '.block-properties .property-value-container',
   '.property-value-inner',
-  '.ls-table .property-value-inner',
-  '.ls-table .multi-values',
-  '.ls-table .page-ref',
-  '.ls-table .tag',
-  '.ls-table .jtrigger',
 ].join(',\n');
 const CODE_BLOCK_RENDER_WRAP_CONTAINER_SELECTOR = [
   '.extensions__code',
@@ -1349,6 +1357,8 @@ const panelState = {
   gradientSelections: Object.fromEntries(Object.keys(GRADIENT_AREAS).map((areaKey) => [areaKey, 0])),
   gradientDrag: null,
   colorDrag: null,
+  panelDrag: null,
+  panelWindowPosition: null,
   suppressGradientClick: false,
   tagColorAssignments: createPluginDefaultTagColorAssignments(),
   baseTagColorMap: {},
@@ -9649,6 +9659,96 @@ function buildPersistedAppearanceSnapshot() {
   });
 }
 
+function getPanelWindowElement() {
+  return document.querySelector('.ctl-window');
+}
+
+function clampPanelWindowPosition(position) {
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+  const panelWindow = getPanelWindowElement();
+  const rect = panelWindow?.getBoundingClientRect?.();
+  const width = rect?.width || 720;
+  const height = rect?.height || 760;
+  const margin = 16;
+  const maxLeft = Math.max(margin, viewportWidth - width - margin);
+  const maxTop = Math.max(margin, viewportHeight - height - margin);
+
+  return {
+    left: Math.min(Math.max(position.left, margin), maxLeft),
+    top: Math.min(Math.max(position.top, margin), maxTop),
+  };
+}
+
+function applyPanelWindowPosition() {
+  const panelWindow = getPanelWindowElement();
+
+  if (!panelWindow) {
+    return;
+  }
+
+  const position = panelState.panelWindowPosition;
+
+  if (!position) {
+    panelWindow.style.removeProperty('left');
+    panelWindow.style.removeProperty('top');
+    panelWindow.style.removeProperty('right');
+    panelWindow.style.removeProperty('bottom');
+    panelWindow.style.removeProperty('transform');
+    panelWindow.style.removeProperty('margin');
+    return;
+  }
+
+  const clampedPosition = clampPanelWindowPosition(position);
+  panelState.panelWindowPosition = clampedPosition;
+  panelWindow.style.left = `${Math.round(clampedPosition.left)}px`;
+  panelWindow.style.top = `${Math.round(clampedPosition.top)}px`;
+  panelWindow.style.right = 'auto';
+  panelWindow.style.bottom = 'auto';
+  panelWindow.style.transform = 'none';
+  panelWindow.style.margin = '0';
+}
+
+function beginPanelDrag(pointerId, clientX, clientY) {
+  const panelWindow = getPanelWindowElement();
+
+  if (!panelWindow) {
+    return;
+  }
+
+  const rect = panelWindow.getBoundingClientRect();
+  panelState.panelDrag = {
+    pointerId,
+    offsetX: clientX - rect.left,
+    offsetY: clientY - rect.top,
+  };
+  panelWindow.classList.add('is-dragging');
+}
+
+function updatePanelDrag(clientX, clientY) {
+  const drag = panelState.panelDrag;
+
+  if (!drag) {
+    return;
+  }
+
+  panelState.panelWindowPosition = clampPanelWindowPosition({
+    left: clientX - drag.offsetX,
+    top: clientY - drag.offsetY,
+  });
+  applyPanelWindowPosition();
+}
+
+function endPanelDrag() {
+  const panelWindow = getPanelWindowElement();
+
+  if (panelWindow) {
+    panelWindow.classList.remove('is-dragging');
+  }
+
+  panelState.panelDrag = null;
+}
+
 async function syncPersistedAppearance(options = {}) {
   const {
     reason = "Reloaded synced Degrande appearance",
@@ -11498,6 +11598,12 @@ function setPanelRootVisibility(isVisible) {
   }
 
   app.style.display = isVisible ? "block" : "none";
+
+  if (isVisible) {
+    applyPanelWindowPosition();
+  } else {
+    endPanelDrag();
+  }
 }
 
 function bindHostTagContextMenu() {
@@ -11734,7 +11840,7 @@ function mountPanel() {
     <div class="ctl-shell">
       <div class="ctl-backdrop" data-action="close"></div>
       <section class="ctl-window" aria-label="Degrande Colors panel">
-        <header class="ctl-header">
+        <header class="ctl-header" data-panel-drag-handle title="Drag to move panel" style="cursor: move; user-select: none; touch-action: none;">
           <div>
             <p class="ctl-eyebrow">Logseq DB Styling</p>
             <div class="ctl-title-row">
@@ -11788,6 +11894,8 @@ function mountPanel() {
       </section>
     </div>
   `;
+
+  applyPanelWindowPosition();
 
   app.addEventListener("click", async (event) => {
     const tabButton = event.target.closest("[data-tab]");
@@ -12119,6 +12227,25 @@ function mountPanel() {
   });
 
   app.addEventListener("pointerdown", (event) => {
+    const dragHandle = event.target.closest('[data-panel-drag-handle]');
+
+    if (!dragHandle) {
+      return;
+    }
+
+    if (event.pointerType === 'mouse' && event.button !== 0) {
+      return;
+    }
+
+    if (event.target.closest('button, input, select, textarea, a, [role="button"]')) {
+      return;
+    }
+
+    event.preventDefault();
+    beginPanelDrag(event.pointerId, event.clientX, event.clientY);
+  });
+
+  app.addEventListener("pointerdown", (event) => {
     const gradientHandle = event.target.closest("[data-gradient-handle]");
 
     if (!gradientHandle) {
@@ -12164,6 +12291,12 @@ function mountPanel() {
   });
 
   document.addEventListener("pointermove", (event) => {
+    if (panelState.panelDrag && event.pointerId === panelState.panelDrag.pointerId) {
+      event.preventDefault();
+      updatePanelDrag(event.clientX, event.clientY);
+      return;
+    }
+
     if (!panelState.gradientDrag || event.pointerId !== panelState.gradientDrag.pointerId) {
       return;
     }
@@ -12173,6 +12306,11 @@ function mountPanel() {
   });
 
   document.addEventListener("pointerup", (event) => {
+    if (panelState.panelDrag && event.pointerId === panelState.panelDrag.pointerId) {
+      endPanelDrag();
+      return;
+    }
+
     if (!panelState.gradientDrag || event.pointerId !== panelState.gradientDrag.pointerId) {
       return;
     }
@@ -12181,6 +12319,11 @@ function mountPanel() {
   });
 
   document.addEventListener("pointercancel", (event) => {
+    if (panelState.panelDrag && event.pointerId === panelState.panelDrag.pointerId) {
+      endPanelDrag();
+      return;
+    }
+
     if (!panelState.gradientDrag || event.pointerId !== panelState.gradientDrag.pointerId) {
       return;
     }
