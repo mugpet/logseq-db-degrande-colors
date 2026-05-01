@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.13";
+const FALLBACK_PLUGIN_VERSION = "0.6.14";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -344,6 +344,16 @@ const CONTROL_SECTIONS = [
       { key: "uiFontSize", label: "General Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "rightSidebarFontSize", label: "Right Sidebar Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "leftSidebarFontSize", label: "Left Sidebar Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "rightSidebarCardGap", label: "Right Sidebar Card Gap", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "rightSidebarCardPadding", label: "Right Sidebar Card Padding", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "contentMaxWidth", label: "Content Max Width", min: 0, max: 2200, step: 20, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+    ],
+  },
+  {
+    title: "Code Blocks",
+    description: "Code block sizing and wrapping without changing editing behavior.",
+    controls: [
+      { key: "codeBlockFontSize", label: "Code Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "wrapCodeBlocks", label: "Wrap Code Blocks", type: "boolean", defaultValue: false },
     ],
   },
@@ -1041,6 +1051,18 @@ const RIGHT_SIDEBAR_FONT_SIZE_SELECTORS = [
   '[data-testid="right-sidebar"]',
 ];
 const RIGHT_SIDEBAR_FONT_SIZE_SELECTOR = RIGHT_SIDEBAR_FONT_SIZE_SELECTORS.join(',\n');
+const RIGHT_SIDEBAR_CARD_SELECTOR = [
+  '.cp__right-sidebar .sidebar-item',
+  '[data-testid="right-sidebar"] .sidebar-item',
+].join(',\n');
+const RIGHT_SIDEBAR_CARD_CONTENT_SELECTOR = [
+  '.cp__right-sidebar .sidebar-item-content',
+  '[data-testid="right-sidebar"] .sidebar-item-content',
+].join(',\n');
+const MAIN_CONTENT_WIDTH_SELECTOR = [
+  '#main-content-container .cp__sidebar-main-content > div:first-child',
+  '.cp__sidebar-main-content > div:first-child',
+].join(',\n');
 const CODE_BLOCK_WRAP_SELECTOR = [
   '.extensions__code pre',
   '.extensions__code code',
@@ -1048,6 +1070,7 @@ const CODE_BLOCK_WRAP_SELECTOR = [
   '.cm-editor .cm-content',
   '.cm-editor .cm-line',
 ].join(',\n');
+const CODE_BLOCK_FONT_SIZE_SELECTOR = CODE_BLOCK_WRAP_SELECTOR;
 const CSS_SECTION_MARKER_1 = '/* --- 1. THE PAINTBOX (COLOR VARIABLES) --- */';
 const CSS_SECTION_MARKER_2 = '/* --- 2. THE ENGINE (SET ONCE & FORGET) --- */';
 const CSS_SECTION_MARKER_6 = '/* --- 6. PAGE REFERENCE STYLING ([[ ]]) --- */';
@@ -9664,6 +9687,7 @@ function buildTweaksPaneMarkup() {
     )}
     <div class="ctl-preview-scroll" data-role="tweaks-scroll">
       ${buildControlGroupMarkup("UI Tweaks")}
+      ${buildControlGroupMarkup("Code Blocks")}
       <section class="ctl-section ctl-section-inline">
         <div class="ctl-section-head">
           <div>
@@ -10838,6 +10862,25 @@ ${LEFT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR} {
 
 ${LEFT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
   font-size: inherit !important;
+}` : ""}
+
+${controls.rightSidebarCardGap > 0 ? `${RIGHT_SIDEBAR_CARD_SELECTOR} {
+  margin-bottom: ${controls.rightSidebarCardGap}px !important;
+}` : ""}
+
+${controls.rightSidebarCardPadding > 0 ? `${RIGHT_SIDEBAR_CARD_CONTENT_SELECTOR} {
+  padding: ${controls.rightSidebarCardPadding}px !important;
+}` : ""}
+
+${controls.contentMaxWidth > 0 ? `${MAIN_CONTENT_WIDTH_SELECTOR} {
+  width: min(100%, ${controls.contentMaxWidth}px) !important;
+  max-width: ${controls.contentMaxWidth}px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}` : ""}
+
+${controls.codeBlockFontSize > 0 ? `${CODE_BLOCK_FONT_SIZE_SELECTOR} {
+  font-size: ${controls.codeBlockFontSize}px !important;
 }` : ""}
 
 ${controls.wrapCodeBlocks ? `${CODE_BLOCK_WRAP_SELECTOR} {
