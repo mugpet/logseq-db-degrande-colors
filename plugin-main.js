@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.25";
+const FALLBACK_PLUGIN_VERSION = "0.6.26";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1191,10 +1191,16 @@ const PROPERTY_VALUE_FONT_SIZE_SELECTOR = [
   '.ls-table .jtrigger',
 ].join(',\n');
 const CODE_BLOCK_WRAP_SELECTOR = [
+  '.extensions__code',
   '.extensions__code pre',
   '.extensions__code code',
+  '.CodeMirror',
   '.CodeMirror pre',
+  '.CodeMirror-scroll',
+  '.cm-editor',
+  '.cm-editor .cm-scroller',
   '.cm-editor .cm-content',
+  '.cm-editor .cm-lineWrapping',
   '.cm-editor .cm-line',
 ].join(',\n');
 const CODE_BLOCK_FONT_SIZE_SELECTOR = [
@@ -11198,9 +11204,12 @@ ${controls.codeBlockPaddingX > 0 ? `${CODE_BLOCK_PADDING_SELECTOR} {
 }` : ""}
 
 ${controls.wrapCodeBlocks ? `${CODE_BLOCK_WRAP_SELECTOR} {
+  max-width: 100% !important;
+  min-width: 0 !important;
   white-space: pre-wrap !important;
   overflow-wrap: anywhere !important;
   word-break: break-word !important;
+  overflow-x: hidden !important;
 }` : ""}
 `.trim(),
   };
