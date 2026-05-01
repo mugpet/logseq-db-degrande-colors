@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Degrande Colors v0.6.20</title>
-    <meta name="degrande-colors-version" content="0.6.20">
+    <title>Degrande Colors v0.6.21</title>
+    <meta name="degrande-colors-version" content="0.6.21">
     <style>
       :root {
         color-scheme: light;
@@ -1388,6 +1388,76 @@
         overscroll-behavior: contain;
       }
 
+      .ctl-tweaks-layout {
+        padding-right: 0;
+      }
+
+      .ctl-tweaks-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        align-items: start;
+      }
+
+      .ctl-tweaks-group {
+        display: grid;
+        gap: 12px;
+        align-content: start;
+        min-width: 0;
+        background: linear-gradient(180deg, rgba(15, 118, 110, 0.06), rgba(255, 255, 255, 0.42));
+      }
+
+      .theme-dark .ctl-tweaks-group {
+        background: linear-gradient(180deg, rgba(16, 185, 129, 0.08), rgba(15, 23, 42, 0.52));
+      }
+
+      .ctl-tweaks-group-wide {
+        grid-column: 1 / -1;
+      }
+
+      .ctl-tweaks-control-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0 12px;
+      }
+
+      .ctl-tweaks-boolean-row {
+        margin-top: 2px;
+      }
+
+      .ctl-tweaks-actions {
+        display: grid;
+        gap: 10px;
+      }
+
+      .ctl-tweaks-action-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: start;
+        padding: 12px 14px;
+        border: 1px solid var(--ctl-border);
+        border-radius: 14px;
+        background: var(--ctl-bg-muted);
+      }
+
+      .ctl-tweaks-action-card strong {
+        display: block;
+        font-size: 12px;
+      }
+
+      .ctl-tweaks-action-card p,
+      .ctl-tweaks-note {
+        margin: 4px 0 0;
+        font-size: 11px;
+        line-height: 1.45;
+        color: var(--ctl-text-muted);
+      }
+
+      .ctl-tweaks-note {
+        margin-top: 2px;
+      }
+
       .ctl-tags-toolbar {
         display: grid;
         grid-template-columns: minmax(0, 1fr) 160px;
@@ -1861,6 +1931,12 @@
 
         .ctl-preview-card-body,
         .ctl-preview-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .ctl-tweaks-grid,
+        .ctl-tweaks-control-grid,
+        .ctl-tweaks-action-card {
           grid-template-columns: 1fr;
         }
 

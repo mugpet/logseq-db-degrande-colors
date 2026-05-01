@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.20";
+const FALLBACK_PLUGIN_VERSION = "0.6.21";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -338,23 +338,39 @@ const CONTROL_SECTIONS = [
     ],
   },
   {
-    title: "UI Tweaks",
-    description: "Set a value above the default to override Logseq's current sizing without changing behavior.",
+    title: "Workspace",
+    description: "General sizing for the main content surfaces and page navigation chrome.",
     controls: [
       { key: "uiFontSize", label: "General Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
-      { key: "rightSidebarFontSize", label: "Right Sidebar Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
-      { key: "leftSidebarFontSize", label: "Left Sidebar Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
-      { key: "rightSidebarCardGap", label: "Right Sidebar Card Gap", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
-      { key: "rightSidebarCardPadding", label: "Right Sidebar Card Padding", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "pageTitleFontSize", label: "Page Title Font Size", min: 0, max: 48, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "breadcrumbFontSize", label: "Breadcrumb Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "contentMaxWidth", label: "Content Max Width", min: 0, max: 2200, step: 20, unit: "px", defaultValue: 0, zeroLabel: "Default" },
     ],
   },
   {
-    title: "Tables",
-    description: "Adjust table text sizing without changing table behavior.",
+    title: "Sidebars",
+    description: "Width, density, and typography controls for the left and right sidebars.",
     controls: [
+      { key: "leftSidebarWidth", label: "Left Sidebar Width", min: 0, max: 720, step: 10, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "rightSidebarFontSize", label: "Right Sidebar Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "leftSidebarFontSize", label: "Left Sidebar Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "rightSidebarWidth", label: "Right Sidebar Width", min: 0, max: 720, step: 10, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "rightSidebarCardGap", label: "Right Sidebar Card Gap", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "rightSidebarCardPadding", label: "Right Sidebar Card Padding", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+    ],
+  },
+  {
+    title: "Tables & Properties",
+    description: "Typography and density controls for Logseq DB tables and property surfaces.",
+    controls: [
+      { key: "propertyKeyFontSize", label: "Property Key Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "propertyValueFontSize", label: "Property Value Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "tableFontSize", label: "Table Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "tableHeaderFontSize", label: "Table Header Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "tableHeaderWeight", label: "Table Header Weight", min: 0, max: 800, step: 100, unit: "", defaultValue: 0, zeroLabel: "Default" },
+      { key: "tableCellPaddingX", label: "Table Cell Padding X", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "tableCellPaddingY", label: "Table Cell Padding Y", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "tableRowMinHeight", label: "Table Row Min Height", min: 0, max: 80, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
     ],
   },
   {
@@ -362,6 +378,8 @@ const CONTROL_SECTIONS = [
     description: "Code block sizing and wrapping without changing editing behavior.",
     controls: [
       { key: "codeBlockFontSize", label: "Code Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "codeBlockLineHeight", label: "Code Line Height", min: 0, max: 2.4, step: 0.05, unit: "", defaultValue: 0, zeroLabel: "Default" },
+      { key: "codeBlockPaddingX", label: "Code Horizontal Padding", min: 0, max: 40, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "wrapCodeBlocks", label: "Wrap Code Blocks", type: "boolean", defaultValue: false },
     ],
   },
@@ -1027,6 +1045,12 @@ const CMDK_HASH_ICON_SELECTOR = [
 const CMDK_SCOPE_SELECTOR = '.cp__cmdk, .cp__select-main, .cp__palette-main, [data-editor-popup-ref="page-search"]';
 const CMDK_ROW_SELECTOR = '.cp__cmdk [data-cmdk-item], .cp__select-main [data-cmdk-item], .cp__palette-main [data-cmdk-item], [data-editor-popup-ref="page-search"] .menu-link';
 const SIDEBAR_ROOT_SELECTOR = '.left-sidebar-inner';
+const LEFT_SIDEBAR_WIDTH_SELECTOR = [
+  '.cp__sidebar-left-layout',
+  '.cp__left-sidebar',
+  SIDEBAR_ROOT_SELECTOR,
+  '[data-testid="left-sidebar"]',
+].join(',\n');
 const SIDEBAR_TITLE_SELECTOR = [
   `${SIDEBAR_ROOT_SELECTOR} .page-title`,
   `${SIDEBAR_ROOT_SELECTOR} a`,
@@ -1059,6 +1083,10 @@ const RIGHT_SIDEBAR_FONT_SIZE_SELECTORS = [
   '[data-testid="right-sidebar"]',
 ];
 const RIGHT_SIDEBAR_FONT_SIZE_SELECTOR = RIGHT_SIDEBAR_FONT_SIZE_SELECTORS.join(',\n');
+const RIGHT_SIDEBAR_WIDTH_SELECTOR = [
+  '.cp__right-sidebar',
+  '[data-testid="right-sidebar"]',
+].join(',\n');
 const RIGHT_SIDEBAR_CARD_SELECTOR = [
   '.cp__right-sidebar .sidebar-item',
   '[data-testid="right-sidebar"] .sidebar-item',
@@ -1070,6 +1098,21 @@ const RIGHT_SIDEBAR_CARD_CONTENT_SELECTOR = [
 const MAIN_CONTENT_WIDTH_SELECTOR = [
   '#main-content-container .cp__sidebar-main-content > div:first-child',
   '.cp__sidebar-main-content > div:first-child',
+].join(',\n');
+const PAGE_TITLE_FONT_SIZE_SELECTOR = [
+  '.ls-page-title',
+  '.ls-page-title .title',
+  '.block-content-or-editor-wrap.ls-page-title-container',
+  '.block-content-or-editor-wrap.ls-page-title-container .page-title',
+  '.block-content-or-editor-wrap.ls-page-title-container .title',
+].join(',\n');
+const BREADCRUMB_FONT_SIZE_SELECTOR = [
+  '.breadcrumb',
+  '.breadcrumb a',
+  '.breadcrumbs',
+  '.breadcrumbs a',
+  '.cp__sidebar-main-content .breadcrumb',
+  '.cp__sidebar-main-content .breadcrumb a',
 ].join(',\n');
 const TABLE_SCOPE_SELECTORS = [
   '.cp__sidebar-main-content',
@@ -1101,6 +1144,36 @@ const TABLE_HEADER_DESCENDANTS = [
 ];
 const TABLE_FONT_SIZE_SELECTOR = buildScopedDescendantSelector(TABLE_SCOPE_SELECTORS, TABLE_SURFACE_DESCENDANTS);
 const TABLE_HEADER_FONT_SIZE_SELECTOR = buildScopedDescendantSelector(TABLE_SCOPE_SELECTORS, TABLE_HEADER_DESCENDANTS);
+const TABLE_ROW_SELECTOR = buildScopedDescendantSelector(TABLE_SCOPE_SELECTORS, [
+  '.ls-table-row',
+  '.ls-table-header',
+  'table tr',
+]);
+const TABLE_CELL_SELECTOR = buildScopedDescendantSelector(TABLE_SCOPE_SELECTORS, [
+  '.ls-table-cell',
+  '.ls-table-header-cell',
+  'table td',
+  'table th',
+]);
+const PROPERTY_KEY_FONT_SIZE_SELECTOR = [
+  '.page-properties .property-key',
+  '.page-properties .property-name',
+  '.block-properties .property-key',
+  '.block-properties .property-name',
+  '.ls-table .property-key',
+  '.ls-table .property-name',
+  '.ls-table .table-block-title',
+].join(',\n');
+const PROPERTY_VALUE_FONT_SIZE_SELECTOR = [
+  '.page-properties .property-value',
+  '.block-properties .property-value',
+  '.property-value-inner',
+  '.ls-table .property-value-inner',
+  '.ls-table .multi-values',
+  '.ls-table .page-ref',
+  '.ls-table .tag',
+  '.ls-table .jtrigger',
+].join(',\n');
 const CODE_BLOCK_WRAP_SELECTOR = [
   '.extensions__code pre',
   '.extensions__code code',
@@ -1108,7 +1181,28 @@ const CODE_BLOCK_WRAP_SELECTOR = [
   '.cm-editor .cm-content',
   '.cm-editor .cm-line',
 ].join(',\n');
-const CODE_BLOCK_FONT_SIZE_SELECTOR = CODE_BLOCK_WRAP_SELECTOR;
+const CODE_BLOCK_FONT_SIZE_SELECTOR = [
+  '.extensions__code',
+  '.extensions__code pre',
+  '.extensions__code code',
+  '.CodeMirror',
+  '.CodeMirror pre',
+  '.cm-editor',
+  '.cm-editor .cm-content',
+  '.cm-editor .cm-line',
+].join(',\n');
+const CODE_BLOCK_LINE_HEIGHT_SELECTOR = [
+  '.extensions__code pre',
+  '.extensions__code code',
+  '.CodeMirror pre',
+  '.cm-editor .cm-content',
+  '.cm-editor .cm-line',
+].join(',\n');
+const CODE_BLOCK_PADDING_SELECTOR = [
+  '.extensions__code pre',
+  '.CodeMirror pre',
+  '.cm-editor .cm-content',
+].join(',\n');
 const CSS_SECTION_MARKER_1 = '/* --- 1. THE PAINTBOX (COLOR VARIABLES) --- */';
 const CSS_SECTION_MARKER_2 = '/* --- 2. THE ENGINE (SET ONCE & FORGET) --- */';
 const CSS_SECTION_MARKER_6 = '/* --- 6. PAGE REFERENCE STYLING ([[ ]]) --- */';
@@ -1231,6 +1325,8 @@ const panelState = {
   loadedThemeId: "",
   loadedThemeSnapshotKey: "",
   activeTab: "tags",
+  focusModeActive: false,
+  focusModeSnapshot: null,
   lastAppliedAt: null,
   mounted: false,
   currentGraphKey: "",
@@ -9453,6 +9549,37 @@ function buildControlGroupMarkup(sectionTitle, cardClass = "") {
   `;
 }
 
+function buildTweakSectionMarkup({ title, description, controlKeys = [], extraMarkup = "", className = "" }) {
+  const controlsMarkup = controlKeys.length
+    ? `<div class="ctl-tweaks-control-grid">${buildNumericControlsMarkup(controlKeys)}</div>`
+    : "";
+
+  return `
+    <section class="ctl-section ctl-section-inline ctl-tweaks-group${className ? ` ${className}` : ""}">
+      <div class="ctl-section-head">
+        <div>
+          <h2>${title}</h2>
+          <p>${description}</p>
+        </div>
+      </div>
+      ${controlsMarkup}
+      ${extraMarkup}
+    </section>
+  `;
+}
+
+function buildTweakActionButtonMarkup(action, label, body, buttonLabel) {
+  return `
+    <article class="ctl-tweaks-action-card">
+      <div>
+        <strong>${label}</strong>
+        <p>${body}</p>
+      </div>
+      <button class="ctl-button ctl-button-secondary ctl-button-small" type="button" data-action="${action}">${buttonLabel}</button>
+    </article>
+  `;
+}
+
 function syncHighlightRangeControl() {
   const startControl = CONTROL_MAP.highlightStartPercent;
   const endControl = CONTROL_MAP.highlightEndPercent;
@@ -9710,32 +9837,68 @@ function buildPreviewMarkup() {
 
 function buildTweaksPaneMarkup() {
   const wrapShortcutLabel = getWrapCodeBlocksShortcutLabel();
+  const focusModeLabel = panelState.focusModeActive ? "Exit Focus Mode" : "Enter Focus Mode";
 
   return `
     ${buildPaneIntroMarkup(
       "Tweaks",
-      "UI-only refinements for Logseq. Leave the font sliders on Default to keep Logseq's current sizing.",
+      "Experimental UI-only refinements for Logseq. Leave the font sliders on Default to keep Logseq's current sizing.",
       buildAppearanceToggleButtonMarkup("uiTweaks")
     )}
-    <div class="ctl-preview-scroll" data-role="tweaks-scroll">
-      ${buildControlGroupMarkup("UI Tweaks")}
-      ${buildControlGroupMarkup("Tables")}
-      ${buildControlGroupMarkup("Code Blocks")}
-      <section class="ctl-section ctl-section-inline">
-        <div class="ctl-section-head">
-          <div>
-            <h2>Code Blocks</h2>
-            <p>Wrap long lines instead of forcing horizontal scrolling in supported code blocks and editors. Shortcut: ${escapeHtml(wrapShortcutLabel)}.</p>
-          </div>
-        </div>
-        <div class="ctl-control ctl-control-tight">
-          <div class="ctl-control-header">
-            <span class="ctl-control-label">Word Wrap</span>
-            <strong class="ctl-control-value" data-control-value-for="wrapCodeBlocks">${formatControlValue(CONTROL_MAP.wrapCodeBlocks, panelState.controlState.wrapCodeBlocks)}</strong>
-          </div>
-          ${buildBooleanControlButtonMarkup("wrapCodeBlocks", "Toggle Wrap")}
-        </div>
-      </section>
+    <div class="ctl-preview-scroll ctl-tweaks-layout" data-role="tweaks-scroll">
+      <div class="ctl-tweaks-grid">
+        ${buildTweakSectionMarkup({
+          title: "Workspace",
+          description: "Main content, page title, and breadcrumb sizing for the current graph UI.",
+          controlKeys: ["uiFontSize", "pageTitleFontSize", "breadcrumbFontSize", "contentMaxWidth"],
+          className: "ctl-tweaks-group-wide",
+        })}
+        ${buildTweakSectionMarkup({
+          title: "Sidebars",
+          description: "Adjust left and right sidebar width, typography, and right-sidebar card spacing.",
+          controlKeys: ["leftSidebarWidth", "leftSidebarFontSize", "rightSidebarWidth", "rightSidebarFontSize", "rightSidebarCardGap", "rightSidebarCardPadding"],
+        })}
+        ${buildTweakSectionMarkup({
+          title: "Tables & Properties",
+          description: "Control table density plus property key and value typography in Logseq DB surfaces.",
+          controlKeys: ["propertyKeyFontSize", "propertyValueFontSize", "tableFontSize", "tableHeaderFontSize", "tableHeaderWeight", "tableCellPaddingX", "tableCellPaddingY", "tableRowMinHeight"],
+          className: "ctl-tweaks-group-wide",
+        })}
+        ${buildTweakSectionMarkup({
+          title: "Code Blocks",
+          description: `Code size, breathing room, and wrapping. Shortcut: ${escapeHtml(wrapShortcutLabel)}.`,
+          controlKeys: ["codeBlockFontSize", "codeBlockLineHeight", "codeBlockPaddingX"],
+          extraMarkup: `
+            <div class="ctl-control ctl-control-tight ctl-tweaks-boolean-row">
+              <div class="ctl-control-header">
+                <span class="ctl-control-label">Word Wrap</span>
+                <strong class="ctl-control-value" data-control-value-for="wrapCodeBlocks">${formatControlValue(CONTROL_MAP.wrapCodeBlocks, panelState.controlState.wrapCodeBlocks)}</strong>
+              </div>
+              ${buildBooleanControlButtonMarkup("wrapCodeBlocks", "Toggle Wrap")}
+            </div>
+          `,
+        })}
+        ${buildTweakSectionMarkup({
+          title: "Tag Chips",
+          description: "Mirror the most useful chip sizing controls here so you do not need to bounce back to Appearance.",
+          controlKeys: ["tagFontSize", "tagHeight", "tagPaddingX"],
+        })}
+        ${buildTweakSectionMarkup({
+          title: "Quick Actions",
+          description: "One-off layout commands backed by the Logseq app API rather than persistent CSS overrides.",
+          extraMarkup: `
+            <div class="ctl-tweaks-actions">
+              ${buildTweakActionButtonMarkup(
+                "toggle-focus-mode",
+                "Focus Mode",
+                "Hide both sidebars and switch the app window into fullscreen. Running it again restores the previous sidebar state.",
+                focusModeLabel
+              )}
+            </div>
+            <p class="ctl-tweaks-note">Tag chip sizing mirrors the existing Appearance controls, while the focus mode action is temporary and does not change your saved graph styles.</p>
+          `,
+        })}
+      </div>
     </div>
   `;
 }
@@ -10897,6 +11060,20 @@ ${LEFT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
   font-size: inherit !important;
 }` : ""}
 
+${controls.leftSidebarWidth > 0 ? `${LEFT_SIDEBAR_WIDTH_SELECTOR} {
+  width: ${controls.leftSidebarWidth}px !important;
+  min-width: ${controls.leftSidebarWidth}px !important;
+  max-width: ${controls.leftSidebarWidth}px !important;
+  flex-basis: ${controls.leftSidebarWidth}px !important;
+}` : ""}
+
+${controls.rightSidebarWidth > 0 ? `${RIGHT_SIDEBAR_WIDTH_SELECTOR} {
+  width: ${controls.rightSidebarWidth}px !important;
+  min-width: ${controls.rightSidebarWidth}px !important;
+  max-width: ${controls.rightSidebarWidth}px !important;
+  flex-basis: ${controls.rightSidebarWidth}px !important;
+}` : ""}
+
 ${controls.rightSidebarCardGap > 0 ? `${RIGHT_SIDEBAR_CARD_SELECTOR} {
   margin-bottom: ${controls.rightSidebarCardGap}px !important;
 }` : ""}
@@ -10912,6 +11089,22 @@ ${controls.contentMaxWidth > 0 ? `${MAIN_CONTENT_WIDTH_SELECTOR} {
   margin-right: auto !important;
 }` : ""}
 
+${controls.pageTitleFontSize > 0 ? `${PAGE_TITLE_FONT_SIZE_SELECTOR} {
+  font-size: ${controls.pageTitleFontSize}px !important;
+}` : ""}
+
+${controls.breadcrumbFontSize > 0 ? `${BREADCRUMB_FONT_SIZE_SELECTOR} {
+  font-size: ${controls.breadcrumbFontSize}px !important;
+}` : ""}
+
+${controls.propertyKeyFontSize > 0 ? `${PROPERTY_KEY_FONT_SIZE_SELECTOR} {
+  font-size: ${controls.propertyKeyFontSize}px !important;
+}` : ""}
+
+${controls.propertyValueFontSize > 0 ? `${PROPERTY_VALUE_FONT_SIZE_SELECTOR} {
+  font-size: ${controls.propertyValueFontSize}px !important;
+}` : ""}
+
 ${controls.tableFontSize > 0 ? `${TABLE_FONT_SIZE_SELECTOR} {
   font-size: ${controls.tableFontSize}px !important;
 }` : ""}
@@ -10920,8 +11113,30 @@ ${controls.tableHeaderFontSize > 0 ? `${TABLE_HEADER_FONT_SIZE_SELECTOR} {
   font-size: ${controls.tableHeaderFontSize}px !important;
 }` : ""}
 
+${controls.tableHeaderWeight > 0 ? `${TABLE_HEADER_FONT_SIZE_SELECTOR} {
+  font-weight: ${controls.tableHeaderWeight} !important;
+}` : ""}
+
+${controls.tableCellPaddingX > 0 || controls.tableCellPaddingY > 0 ? `${TABLE_CELL_SELECTOR} {
+  padding: ${controls.tableCellPaddingY}px ${controls.tableCellPaddingX}px !important;
+}` : ""}
+
+${controls.tableRowMinHeight > 0 ? `${TABLE_ROW_SELECTOR},
+${TABLE_CELL_SELECTOR} {
+  min-height: ${controls.tableRowMinHeight}px !important;
+}` : ""}
+
 ${controls.codeBlockFontSize > 0 ? `${CODE_BLOCK_FONT_SIZE_SELECTOR} {
   font-size: ${controls.codeBlockFontSize}px !important;
+}` : ""}
+
+${controls.codeBlockLineHeight > 0 ? `${CODE_BLOCK_LINE_HEIGHT_SELECTOR} {
+  line-height: ${controls.codeBlockLineHeight} !important;
+}` : ""}
+
+${controls.codeBlockPaddingX > 0 ? `${CODE_BLOCK_PADDING_SELECTOR} {
+  padding-left: ${controls.codeBlockPaddingX}px !important;
+  padding-right: ${controls.codeBlockPaddingX}px !important;
 }` : ""}
 
 ${controls.wrapCodeBlocks ? `${CODE_BLOCK_WRAP_SELECTOR} {
@@ -11036,6 +11251,45 @@ function isMacPlatform() {
 
 function getWrapCodeBlocksShortcutLabel() {
   return `${isMacPlatform() ? "Cmd" : "Ctrl"}+Alt+W`;
+}
+
+function isLeftSidebarVisible() {
+  return Boolean(getHostDocument().querySelector('.cp__sidebar-left-layout, .cp__left-sidebar, .left-sidebar-inner, [data-testid="left-sidebar"]'));
+}
+
+function isRightSidebarVisible() {
+  return Boolean(getHostDocument().querySelector('.cp__right-sidebar, [data-testid="right-sidebar"]'));
+}
+
+async function toggleFocusMode(showToast = true) {
+  if (!panelState.focusModeActive) {
+    panelState.focusModeSnapshot = {
+      leftVisible: isLeftSidebarVisible(),
+      rightVisible: isRightSidebarVisible(),
+    };
+
+    logseq.App.setLeftSidebarVisible?.(false);
+    logseq.App.setRightSidebarVisible?.(false);
+    logseq.App.setFullScreen?.(true);
+    panelState.focusModeActive = true;
+  } else {
+    const snapshot = panelState.focusModeSnapshot || { leftVisible: true, rightVisible: false };
+    logseq.App.setLeftSidebarVisible?.(snapshot.leftVisible);
+    logseq.App.setRightSidebarVisible?.(snapshot.rightVisible);
+    logseq.App.setFullScreen?.(false);
+    panelState.focusModeActive = false;
+    panelState.focusModeSnapshot = null;
+  }
+
+  if (panelState.mounted && panelState.activeTab === "tweaks") {
+    renderTweaksPane();
+  }
+
+  if (showToast) {
+    await logseq.UI.showMsg(panelState.focusModeActive ? "Entered focus mode" : "Exited focus mode", "success");
+  }
+
+  return true;
 }
 
 async function toggleWrapCodeBlocks(showToast = true) {
@@ -11341,6 +11595,11 @@ function mountPanel() {
 
     if (action === "toggle-logseq-theme") {
       await toggleLogseqTheme();
+      return;
+    }
+
+    if (action === "toggle-focus-mode") {
+      await toggleFocusMode(true);
       return;
     }
 
@@ -12263,6 +12522,14 @@ async function main() {
         label: `Degrande Colors: toggle code block wrap (${getWrapCodeBlocksShortcutLabel()})`,
       },
       () => toggleWrapCodeBlocks(true)
+    );
+
+    registerCommandPaletteSafely(
+      {
+        key: commandKey("toggle-focus-mode"),
+        label: "Degrande Colors: toggle focus mode",
+      },
+      () => toggleFocusMode(true)
     );
 
     hostSession[pluginId] = {
