@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.8";
+const FALLBACK_PLUGIN_VERSION = "0.6.9";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -337,6 +337,16 @@ const CONTROL_SECTIONS = [
       { key: "bgPaddingX", label: "Horizontal Padding", min: 0, max: 16, step: 1, unit: "px", defaultValue: 4 },
     ],
   },
+  {
+    title: "UI Tweaks",
+    description: "Set a value above the default to override Logseq's current sizing without changing behavior.",
+    controls: [
+      { key: "uiFontSize", label: "General Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "rightSidebarFontSize", label: "Right Sidebar Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "leftSidebarFontSize", label: "Left Sidebar Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "wrapCodeBlocks", label: "Wrap Code Blocks", type: "boolean", defaultValue: false },
+    ],
+  },
 ];
 
 const ALL_CONTROLS = CONTROL_SECTIONS.flatMap((section) => section.controls);
@@ -543,6 +553,7 @@ const APPEARANCE_SECTIONS = [
   { key: "highlights", label: "Highlights", description: "Gradient color treatment for inline mark highlights." },
   { key: "quotes", label: "Quotes", description: "Quote edge glow, padding, and gradient fills." },
   { key: "backgroundBlocks", label: "Background Blocks", description: "Gradient sweeps on non-quote colored blocks." },
+  { key: "uiTweaks", label: "UI Tweaks", description: "Optional typography and code-block presentation overrides." },
 ];
 const APPEARANCE_SECTION_MAP = Object.fromEntries(APPEARANCE_SECTIONS.map((section) => [section.key, section]));
 const DEFAULT_APPEARANCE_STATE = Object.fromEntries(APPEARANCE_SECTIONS.map((section) => [section.key, true]));
@@ -1002,6 +1013,24 @@ const SIDEBAR_TITLE_SELECTOR = [
   `${SIDEBAR_ROOT_SELECTOR} .page-title`,
   `${SIDEBAR_ROOT_SELECTOR} a`,
 ].join(', ');
+const MAIN_CONTENT_FONT_SIZE_SELECTOR = [
+  '.cp__sidebar-main-content',
+  '#main-content-container .cp__sidebar-main-content',
+].join(',\n');
+const RIGHT_SIDEBAR_FONT_SIZE_SELECTOR = [
+  '.cp__right-sidebar',
+  '.cp__right-sidebar .sidebar-item-list',
+  '.cp__right-sidebar .sidebar-item-list-wrap',
+  '.cp__right-sidebar .cp__right-sidebar-scroll',
+  '[data-testid="right-sidebar"]',
+].join(',\n');
+const CODE_BLOCK_WRAP_SELECTOR = [
+  '.extensions__code pre',
+  '.extensions__code code',
+  '.CodeMirror pre',
+  '.cm-editor .cm-content',
+  '.cm-editor .cm-line',
+].join(',\n');
 const CSS_SECTION_MARKER_1 = '/* --- 1. THE PAINTBOX (COLOR VARIABLES) --- */';
 const CSS_SECTION_MARKER_2 = '/* --- 2. THE ENGINE (SET ONCE & FORGET) --- */';
 const CSS_SECTION_MARKER_6 = '/* --- 6. PAGE REFERENCE STYLING ([[ ]]) --- */';
@@ -3356,6 +3385,10 @@ function formatControlValue(control, value) {
 
   if (getControlType(control) === "color") {
     return normalizeHexColor(value) || String(value || "");
+  }
+
+  if (control.zeroLabel && Number(value) === 0) {
+    return control.zeroLabel;
   }
 
   if (control.step < 1) {
@@ -7540,6 +7573,27 @@ function buildAppearanceToggleButtonMarkup(sectionKey) {
   `;
 }
 
+function buildBooleanControlButtonMarkup(controlKey, buttonLabel = "Toggle") {
+  const control = CONTROL_MAP[controlKey];
+
+  if (!control || getControlType(control) !== "boolean") {
+    return "";
+  }
+
+  const isActive = Boolean(panelState.controlState[controlKey]);
+
+  return `
+    <button
+      class="ctl-button ctl-button-secondary ctl-button-small ctl-filter-toggle${isActive ? " is-active" : ""}"
+      type="button"
+      data-action="toggle-control-boolean"
+      data-control-boolean-key="${controlKey}"
+      aria-pressed="${isActive ? "true" : "false"}"
+      title="${escapeHtml(control.label)}"
+    >${escapeHtml(buttonLabel)}</button>
+  `;
+}
+
 function buildAppearanceDiagnosticsMarkup() {
   return `
     <section class="ctl-section ctl-section-inline ctl-css-diagnostics">
@@ -9376,6 +9430,20 @@ function syncControlInputs() {
   syncHighlightRangeControl();
 }
 
+function syncAppearanceToggleButtons() {
+  for (const section of APPEARANCE_SECTIONS) {
+    const enabled = isAppearanceSectionEnabled(section.key);
+
+    document.querySelectorAll(`[data-appearance-section="${section.key}"]`).forEach((button) => {
+      button.classList.toggle("is-active", enabled);
+      button.classList.toggle("is-disabled", !enabled);
+      button.setAttribute("aria-pressed", enabled ? "true" : "false");
+      button.setAttribute("title", `${enabled ? "Turn off" : "Turn on"} ${section.label}`);
+      button.textContent = `${section.label}: ${enabled ? "On" : "Off"}`;
+    });
+  }
+}
+
 function buildEffectiveCssText(managedOverrides) {
   if (!hasEnabledAppearanceSections()) {
     return "";
@@ -9554,6 +9622,44 @@ function buildPreviewMarkup() {
       </div>
     </div>
   `;
+}
+
+function buildTweaksPaneMarkup() {
+  return `
+    ${buildPaneIntroMarkup(
+      "Tweaks",
+      "UI-only refinements for Logseq. Leave the font sliders on Default to keep Logseq's current sizing.",
+      buildAppearanceToggleButtonMarkup("uiTweaks")
+    )}
+    <div class="ctl-preview-scroll" data-role="tweaks-scroll">
+      ${buildControlGroupMarkup("UI Tweaks")}
+      <section class="ctl-section ctl-section-inline">
+        <div class="ctl-section-head">
+          <div>
+            <h2>Code Blocks</h2>
+            <p>Wrap long lines instead of forcing horizontal scrolling in supported code blocks and editors.</p>
+          </div>
+        </div>
+        <div class="ctl-control ctl-control-tight">
+          <div class="ctl-control-header">
+            <span class="ctl-control-label">Word Wrap</span>
+            <strong class="ctl-control-value" data-control-value-for="wrapCodeBlocks">${formatControlValue(CONTROL_MAP.wrapCodeBlocks, panelState.controlState.wrapCodeBlocks)}</strong>
+          </div>
+          ${buildBooleanControlButtonMarkup("wrapCodeBlocks", "Toggle Wrap")}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderTweaksPane() {
+  const container = document.querySelector('[data-pane="tweaks"]');
+
+  if (!container) {
+    return;
+  }
+
+  container.innerHTML = buildTweaksPaneMarkup();
 }
 
 function syncTabState() {
@@ -10232,6 +10338,7 @@ function refreshPanel(statusMessage, { rerenderPreview = false, rerenderTags = f
   renderDiagnosticsPane();
 
   syncPanelMeta(statusMessage);
+  syncAppearanceToggleButtons();
   syncControlInputs();
   syncPreviewStyles();
   syncGradientEditorState();
@@ -10311,10 +10418,14 @@ function rerenderTagsPanePreservingFocus(statusMessage) {
 }
 
 function setActiveTab(tab) {
-  panelState.activeTab = ["preview", "tags", "themes", "diagnostics"].includes(tab) ? tab : "tags";
+  panelState.activeTab = ["preview", "tags", "tweaks", "themes", "diagnostics"].includes(tab) ? tab : "tags";
 
   if (panelState.activeTab === "diagnostics") {
     renderDiagnosticsPane();
+  }
+
+  if (panelState.activeTab === "tweaks") {
+    renderTweaksPane();
   }
 
   if (panelState.activeTab === "themes") {
@@ -10661,6 +10772,25 @@ ${quoteColorRules}
 
 ${backgroundRules}
 `.trim(),
+    uiTweaks: `
+${controls.uiFontSize > 0 ? `${MAIN_CONTENT_FONT_SIZE_SELECTOR} {
+  font-size: ${controls.uiFontSize}px !important;
+}` : ""}
+
+${controls.rightSidebarFontSize > 0 ? `${RIGHT_SIDEBAR_FONT_SIZE_SELECTOR} {
+  font-size: ${controls.rightSidebarFontSize}px !important;
+}` : ""}
+
+${controls.leftSidebarFontSize > 0 ? `${SIDEBAR_ROOT_SELECTOR} {
+  font-size: ${controls.leftSidebarFontSize}px !important;
+}` : ""}
+
+${controls.wrapCodeBlocks ? `${CODE_BLOCK_WRAP_SELECTOR} {
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}` : ""}
+`.trim(),
   };
   const activeSections = Object.entries(sections)
     .filter(([sectionKey, cssText]) => Boolean(cssText) && isAppearanceSectionEnabled(sectionKey))
@@ -10801,6 +10931,7 @@ function mountPanel() {
         <div class="ctl-tabbar" role="tablist" aria-label="Theme panel views">
           <button class="ctl-tab" type="button" data-tab="tags" role="tab" aria-selected="true">Tags</button>
           <button class="ctl-tab" type="button" data-tab="preview" role="tab" aria-selected="false">Appearance</button>
+          <button class="ctl-tab" type="button" data-tab="tweaks" role="tab" aria-selected="false">Tweaks</button>
           <button class="ctl-tab" type="button" data-tab="themes" role="tab" aria-selected="false">Themes</button>
           <button class="ctl-tab" type="button" data-tab="diagnostics" role="tab" aria-selected="false">Diagnostics</button>
         </div>
@@ -10811,6 +10942,9 @@ function mountPanel() {
             </div>
             <div class="ctl-pane ctl-pane-preview" data-pane="preview" hidden>
               ${buildPreviewMarkup()}
+            </div>
+            <div class="ctl-pane ctl-pane-preview" data-pane="tweaks" hidden>
+              ${buildTweaksPaneMarkup()}
             </div>
             <div class="ctl-pane ctl-pane-preview" data-pane="themes" hidden>
               ${buildThemesPaneMarkup()}
@@ -11508,6 +11642,7 @@ function mountPanel() {
 
   panelState.mounted = true;
   setPanelRootVisibility(false);
+  syncAppearanceToggleButtons();
   syncControlInputs();
   syncPreviewStyles();
   syncTabState();
