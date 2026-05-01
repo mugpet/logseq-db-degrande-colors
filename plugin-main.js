@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.29";
+const FALLBACK_PLUGIN_VERSION = "0.6.30";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -372,13 +372,19 @@ const CONTROL_SECTIONS = [
     ],
   },
   {
-    title: "Tables & Properties",
-    description: "Typography and density controls for Logseq DB tables and property surfaces.",
+    title: "Properties",
+    description: "Typography controls for property names, values, and other property surfaces.",
     controls: [
       { key: "propertyKeyFontSize", label: "Property Key Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "propertyKeyLineHeight", label: "Property Key Line Height", min: 0, max: 2.4, step: 0.05, unit: "", defaultValue: 0, zeroLabel: "Default" },
       { key: "propertyValueFontSize", label: "Property Value Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "propertyValueLineHeight", label: "Property Value Line Height", min: 0, max: 2.4, step: 0.05, unit: "", defaultValue: 0, zeroLabel: "Default" },
+    ],
+  },
+  {
+    title: "Tables",
+    description: "Typography and density controls for Logseq DB tables.",
+    controls: [
       { key: "tableFontSize", label: "Table Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "tableLineHeight", label: "Table Line Height", min: 0, max: 2.4, step: 0.05, unit: "", defaultValue: 0, zeroLabel: "Default" },
       { key: "tableHeaderFontSize", label: "Table Header Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
@@ -10087,9 +10093,14 @@ function buildTweaksPaneMarkup() {
           controlKeys: ["leftSidebarWidth", "leftSidebarFontSize", "leftSidebarLineHeight", "rightSidebarWidth", "rightSidebarFontSize", "rightSidebarLineHeight", "rightSidebarCardGap", "rightSidebarCardPadding"],
         })}
         ${buildTweakSectionMarkup({
-          title: "Tables & Properties",
-          description: "Control table density plus property key and value typography in Logseq DB surfaces.",
-          controlKeys: ["propertyKeyFontSize", "propertyKeyLineHeight", "propertyValueFontSize", "propertyValueLineHeight", "tableFontSize", "tableLineHeight", "tableHeaderFontSize", "tableHeaderLineHeight", "tableHeaderWeight", "tableCellPaddingX", "tableCellPaddingY", "tableRowMinHeight"],
+          title: "Properties",
+          description: "Control property name and value typography without changing the underlying property data.",
+          controlKeys: ["propertyKeyFontSize", "propertyKeyLineHeight", "propertyValueFontSize", "propertyValueLineHeight"],
+        })}
+        ${buildTweakSectionMarkup({
+          title: "Tables",
+          description: "Control table typography and density for Logseq DB views.",
+          controlKeys: ["tableFontSize", "tableLineHeight", "tableHeaderFontSize", "tableHeaderLineHeight", "tableHeaderWeight", "tableCellPaddingX", "tableCellPaddingY", "tableRowMinHeight"],
           className: "ctl-tweaks-group-wide",
         })}
         ${buildTweakSectionMarkup({
