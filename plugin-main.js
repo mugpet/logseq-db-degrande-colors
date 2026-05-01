@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.42";
+const FALLBACK_PLUGIN_VERSION = "0.6.43";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1258,6 +1258,7 @@ const PROPERTY_VALUE_FONT_SIZE_SELECTOR = [
     TWEAK_TYPOGRAPHY_EXEMPT_SELECTORS
   ),
 ].join(',\n');
+const PROPERTY_VALUE_TAG_FONT_SIZE_OVERRIDE_SELECTOR = buildScopedDescendantSelector(PROPERTY_VALUE_FONT_SIZE_SCOPES, TAG_FONT_SIZE_OVERRIDE_DESCENDANTS);
 const PROPERTY_ROW_MIN_HEIGHT_SELECTOR = [
   '.ls-properties-area .property-pair',
   '.ls-properties-area .property-key',
@@ -11179,6 +11180,12 @@ function buildManagedOverrides() {
   const tagChipDarkBaseShadow = "inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 1px 2px rgba(2, 6, 23, 0.28)";
   const tagChipLightHoverShadow = "inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 2px 4px rgba(15, 23, 42, 0.12)";
   const tagChipDarkHoverShadow = "inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 4px rgba(2, 6, 23, 0.34)";
+  const buildTagChipFontCapDeclarations = (maxFontSizePx) => {
+    const cappedFontSize = Math.min(controls.tagFontSize, maxFontSizePx);
+    const cappedPaddingX = Math.min(controls.tagPaddingX, Math.max(2, Math.round(cappedFontSize * 0.45)));
+
+    return `font-size: ${cappedFontSize}px !important;\n  line-height: inherit !important;\n  height: auto !important;\n  min-height: 0 !important;\n  padding: 0 ${cappedPaddingX}px !important;`;
+  };
 
   const quoteColorRules = QUOTE_COLOR_RULES.map(({ selector, token }) => `
 ${selector} {
@@ -11494,6 +11501,10 @@ ${controls.uiFontSize > 0 ? `${MAIN_CONTENT_FONT_SIZE_SELECTOR} {
 
 ${MAIN_CONTENT_FONT_SIZE_INHERIT_SELECTOR} {
   font-size: inherit !important;
+}
+
+${MAIN_CONTENT_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
+  ${buildTagChipFontCapDeclarations(controls.uiFontSize)}
 }` : ""}
 
 ${controls.uiLineHeight > 0 ? `${MAIN_CONTENT_LINE_HEIGHT_SELECTOR} {
@@ -11511,6 +11522,10 @@ ${controls.rightSidebarFontSize > 0 ? `${RIGHT_SIDEBAR_FONT_SIZE_SELECTOR} {
 
 ${RIGHT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR} {
   font-size: inherit !important;
+}
+
+${RIGHT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
+  ${buildTagChipFontCapDeclarations(controls.rightSidebarFontSize)}
 }` : ""}
 
 ${controls.rightSidebarLineHeight > 0 ? `${RIGHT_SIDEBAR_LINE_HEIGHT_SELECTOR} {
@@ -11528,6 +11543,10 @@ ${controls.leftSidebarFontSize > 0 ? `${SIDEBAR_ROOT_SELECTOR} {
 
 ${LEFT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR} {
   font-size: inherit !important;
+}
+
+${LEFT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
+  ${buildTagChipFontCapDeclarations(controls.leftSidebarFontSize)}
 }` : ""}
 
 ${controls.leftSidebarLineHeight > 0 ? `${LEFT_SIDEBAR_LINE_HEIGHT_SELECTOR} {
@@ -11610,15 +11629,17 @@ ${controls.propertyValueFontSize > 0 ? `${PROPERTY_VALUE_FONT_SIZE_SELECTOR} {
 
 }
 
+${PROPERTY_VALUE_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
+  ${buildTagChipFontCapDeclarations(controls.propertyValueFontSize)}
+}
+
 ${PROPERTY_BLOCK_TAG_TEXT_SELECTOR} {
-  font-size: inherit !important;
+  font-size: ${Math.min(controls.tagFontSize, controls.propertyValueFontSize)}px !important;
   line-height: inherit !important;
 }
 
 ${PROPERTY_BLOCK_TAG_CHIP_SELECTOR} {
-  height: auto !important;
-  min-height: 0 !important;
-  padding: 0 0.35em !important;
+  ${buildTagChipFontCapDeclarations(controls.propertyValueFontSize)}
 }` : ""}
 
 ${controls.propertyValueLineHeight > 0 ? `${PROPERTY_VALUE_LINE_HEIGHT_SELECTOR} {
