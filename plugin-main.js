@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.19";
+const FALLBACK_PLUGIN_VERSION = "0.6.20";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1078,28 +1078,26 @@ const TABLE_SCOPE_SELECTORS = [
   SIDEBAR_ROOT_SELECTOR,
 ];
 const TABLE_SURFACE_DESCENDANTS = [
+  '.ls-table',
+  '.ls-table *',
+  '.ls-table *::before',
+  '.ls-table *::after',
   'table',
   'table *',
-  '.table-auto',
-  '.table-auto *',
-  '[role="table"]',
-  '[role="table"] *',
-  '[role="grid"]',
-  '[role="grid"] *',
-  '[role="rowgroup"] *',
-  '[role="row"] *',
-  '[role="gridcell"]',
-  '[role="gridcell"] *',
-  '[role="cell"]',
-  '[role="cell"] *',
+  'table *::before',
+  'table *::after',
 ];
 const TABLE_HEADER_DESCENDANTS = [
+  '.ls-table-header',
+  '.ls-table-header *',
+  '.ls-table-header *::before',
+  '.ls-table-header *::after',
+  '.ls-table-header-cell',
+  '.ls-table-header-cell *',
+  '.ls-table-header-cell *::before',
+  '.ls-table-header-cell *::after',
   'table th',
   'table thead *',
-  '[role="columnheader"]',
-  '[role="columnheader"] *',
-  '[role="rowheader"]',
-  '[role="rowheader"] *',
 ];
 const TABLE_FONT_SIZE_SELECTOR = buildScopedDescendantSelector(TABLE_SCOPE_SELECTORS, TABLE_SURFACE_DESCENDANTS);
 const TABLE_HEADER_FONT_SIZE_SELECTOR = buildScopedDescendantSelector(TABLE_SCOPE_SELECTORS, TABLE_HEADER_DESCENDANTS);
