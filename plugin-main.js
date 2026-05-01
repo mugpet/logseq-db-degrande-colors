@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.27";
+const FALLBACK_PLUGIN_VERSION = "0.6.28";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -348,8 +348,11 @@ const CONTROL_SECTIONS = [
     description: "General sizing for the main content surfaces and page navigation chrome.",
     controls: [
       { key: "uiFontSize", label: "General Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "uiLineHeight", label: "General Line Height", min: 0, max: 2.4, step: 0.05, unit: "", defaultValue: 0, zeroLabel: "Default" },
       { key: "pageTitleFontSize", label: "Page Title Font Size", min: 0, max: 48, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "pageTitleLineHeight", label: "Page Title Line Height", min: 0, max: 2.4, step: 0.05, unit: "", defaultValue: 0, zeroLabel: "Default" },
       { key: "breadcrumbFontSize", label: "Breadcrumb Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "breadcrumbLineHeight", label: "Breadcrumb Line Height", min: 0, max: 2.4, step: 0.05, unit: "", defaultValue: 0, zeroLabel: "Default" },
       { key: "contentMaxWidth", label: "Content Max Width", min: 0, max: 2200, step: 20, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "trueWideMode", label: "True Wide Mode", type: "boolean", defaultValue: false },
     ],
@@ -360,7 +363,9 @@ const CONTROL_SECTIONS = [
     controls: [
       { key: "leftSidebarWidth", label: "Left Sidebar Width", min: 0, max: 720, step: 10, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "rightSidebarFontSize", label: "Right Sidebar Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "rightSidebarLineHeight", label: "Right Sidebar Line Height", min: 0, max: 2.4, step: 0.05, unit: "", defaultValue: 0, zeroLabel: "Default" },
       { key: "leftSidebarFontSize", label: "Left Sidebar Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "leftSidebarLineHeight", label: "Left Sidebar Line Height", min: 0, max: 2.4, step: 0.05, unit: "", defaultValue: 0, zeroLabel: "Default" },
       { key: "rightSidebarWidth", label: "Right Sidebar Width", min: 0, max: 720, step: 10, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "rightSidebarCardGap", label: "Right Sidebar Card Gap", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "rightSidebarCardPadding", label: "Right Sidebar Card Padding", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
@@ -371,9 +376,13 @@ const CONTROL_SECTIONS = [
     description: "Typography and density controls for Logseq DB tables and property surfaces.",
     controls: [
       { key: "propertyKeyFontSize", label: "Property Key Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "propertyKeyLineHeight", label: "Property Key Line Height", min: 0, max: 2.4, step: 0.05, unit: "", defaultValue: 0, zeroLabel: "Default" },
       { key: "propertyValueFontSize", label: "Property Value Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "propertyValueLineHeight", label: "Property Value Line Height", min: 0, max: 2.4, step: 0.05, unit: "", defaultValue: 0, zeroLabel: "Default" },
       { key: "tableFontSize", label: "Table Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "tableLineHeight", label: "Table Line Height", min: 0, max: 2.4, step: 0.05, unit: "", defaultValue: 0, zeroLabel: "Default" },
       { key: "tableHeaderFontSize", label: "Table Header Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "tableHeaderLineHeight", label: "Table Header Line Height", min: 0, max: 2.4, step: 0.05, unit: "", defaultValue: 0, zeroLabel: "Default" },
       { key: "tableHeaderWeight", label: "Table Header Weight", min: 0, max: 800, step: 100, unit: "", defaultValue: 0, zeroLabel: "Default" },
       { key: "tableCellPaddingX", label: "Table Cell Padding X", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "tableCellPaddingY", label: "Table Cell Padding Y", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
@@ -1253,6 +1262,15 @@ const LEFT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR = buildScopedDescendantSelector([S
 const MAIN_CONTENT_TAG_FONT_SIZE_OVERRIDE_SELECTOR = buildScopedDescendantSelector(MAIN_CONTENT_FONT_SIZE_SELECTORS, TAG_FONT_SIZE_OVERRIDE_DESCENDANTS);
 const RIGHT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR = buildScopedDescendantSelector(RIGHT_SIDEBAR_FONT_SIZE_SELECTORS, TAG_FONT_SIZE_OVERRIDE_DESCENDANTS);
 const LEFT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR = buildScopedDescendantSelector([SIDEBAR_ROOT_SELECTOR], TAG_FONT_SIZE_OVERRIDE_DESCENDANTS);
+const MAIN_CONTENT_LINE_HEIGHT_SELECTOR = MAIN_CONTENT_FONT_SIZE_SELECTOR;
+const RIGHT_SIDEBAR_LINE_HEIGHT_SELECTOR = RIGHT_SIDEBAR_FONT_SIZE_SELECTOR;
+const LEFT_SIDEBAR_LINE_HEIGHT_SELECTOR = SIDEBAR_ROOT_SELECTOR;
+const PAGE_TITLE_LINE_HEIGHT_SELECTOR = PAGE_TITLE_FONT_SIZE_SELECTOR;
+const BREADCRUMB_LINE_HEIGHT_SELECTOR = BREADCRUMB_FONT_SIZE_SELECTOR;
+const PROPERTY_KEY_LINE_HEIGHT_SELECTOR = PROPERTY_KEY_FONT_SIZE_SELECTOR;
+const PROPERTY_VALUE_LINE_HEIGHT_SELECTOR = PROPERTY_VALUE_FONT_SIZE_SELECTOR;
+const TABLE_LINE_HEIGHT_SELECTOR = TABLE_FONT_SIZE_SELECTOR;
+const TABLE_HEADER_LINE_HEIGHT_SELECTOR = TABLE_HEADER_FONT_SIZE_SELECTOR;
 
 const QUOTE_COLOR_RULES = [
   { selector: 'div[data-node-type="quote"][style*="red"]', token: 'red' },
@@ -10048,7 +10066,7 @@ function buildTweaksPaneMarkup() {
         ${buildTweakSectionMarkup({
           title: "Workspace",
           description: "Main content, page title, and breadcrumb sizing for the current graph UI.",
-          controlKeys: ["uiFontSize", "pageTitleFontSize", "breadcrumbFontSize", "contentMaxWidth"],
+          controlKeys: ["uiFontSize", "uiLineHeight", "pageTitleFontSize", "pageTitleLineHeight", "breadcrumbFontSize", "breadcrumbLineHeight", "contentMaxWidth"],
           extraMarkup: `
             <div class="ctl-control ctl-control-tight ctl-tweaks-boolean-row">
               <div class="ctl-control-header">
@@ -10063,12 +10081,12 @@ function buildTweaksPaneMarkup() {
         ${buildTweakSectionMarkup({
           title: "Sidebars",
           description: "Adjust left and right sidebar width, typography, and right-sidebar card spacing.",
-          controlKeys: ["leftSidebarWidth", "leftSidebarFontSize", "rightSidebarWidth", "rightSidebarFontSize", "rightSidebarCardGap", "rightSidebarCardPadding"],
+          controlKeys: ["leftSidebarWidth", "leftSidebarFontSize", "leftSidebarLineHeight", "rightSidebarWidth", "rightSidebarFontSize", "rightSidebarLineHeight", "rightSidebarCardGap", "rightSidebarCardPadding"],
         })}
         ${buildTweakSectionMarkup({
           title: "Tables & Properties",
           description: "Control table density plus property key and value typography in Logseq DB surfaces.",
-          controlKeys: ["propertyKeyFontSize", "propertyValueFontSize", "tableFontSize", "tableHeaderFontSize", "tableHeaderWeight", "tableCellPaddingX", "tableCellPaddingY", "tableRowMinHeight"],
+          controlKeys: ["propertyKeyFontSize", "propertyKeyLineHeight", "propertyValueFontSize", "propertyValueLineHeight", "tableFontSize", "tableLineHeight", "tableHeaderFontSize", "tableHeaderLineHeight", "tableHeaderWeight", "tableCellPaddingX", "tableCellPaddingY", "tableRowMinHeight"],
           className: "ctl-tweaks-group-wide",
         })}
         ${buildTweakSectionMarkup({
@@ -11243,6 +11261,10 @@ ${MAIN_CONTENT_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
   font-size: inherit !important;
 }` : ""}
 
+${controls.uiLineHeight > 0 ? `${MAIN_CONTENT_LINE_HEIGHT_SELECTOR} {
+  line-height: ${controls.uiLineHeight} !important;
+}` : ""}
+
 ${controls.rightSidebarFontSize > 0 ? `${RIGHT_SIDEBAR_FONT_SIZE_SELECTOR} {
   font-size: ${controls.rightSidebarFontSize}px !important;
 }
@@ -11255,6 +11277,10 @@ ${RIGHT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
   font-size: inherit !important;
 }` : ""}
 
+${controls.rightSidebarLineHeight > 0 ? `${RIGHT_SIDEBAR_LINE_HEIGHT_SELECTOR} {
+  line-height: ${controls.rightSidebarLineHeight} !important;
+}` : ""}
+
 ${controls.leftSidebarFontSize > 0 ? `${SIDEBAR_ROOT_SELECTOR} {
   font-size: ${controls.leftSidebarFontSize}px !important;
 }
@@ -11265,6 +11291,10 @@ ${LEFT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR} {
 
 ${LEFT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
   font-size: inherit !important;
+}` : ""}
+
+${controls.leftSidebarLineHeight > 0 ? `${LEFT_SIDEBAR_LINE_HEIGHT_SELECTOR} {
+  line-height: ${controls.leftSidebarLineHeight} !important;
 }` : ""}
 
 ${controls.leftSidebarWidth > 0 ? `${LEFT_SIDEBAR_WIDTH_SELECTOR} {
@@ -11308,24 +11338,48 @@ ${controls.pageTitleFontSize > 0 ? `${PAGE_TITLE_FONT_SIZE_SELECTOR} {
   font-size: ${controls.pageTitleFontSize}px !important;
 }` : ""}
 
+${controls.pageTitleLineHeight > 0 ? `${PAGE_TITLE_LINE_HEIGHT_SELECTOR} {
+  line-height: ${controls.pageTitleLineHeight} !important;
+}` : ""}
+
 ${controls.breadcrumbFontSize > 0 ? `${BREADCRUMB_FONT_SIZE_SELECTOR} {
   font-size: ${controls.breadcrumbFontSize}px !important;
+}` : ""}
+
+${controls.breadcrumbLineHeight > 0 ? `${BREADCRUMB_LINE_HEIGHT_SELECTOR} {
+  line-height: ${controls.breadcrumbLineHeight} !important;
 }` : ""}
 
 ${controls.propertyKeyFontSize > 0 ? `${PROPERTY_KEY_FONT_SIZE_SELECTOR} {
   font-size: ${controls.propertyKeyFontSize}px !important;
 }` : ""}
 
+${controls.propertyKeyLineHeight > 0 ? `${PROPERTY_KEY_LINE_HEIGHT_SELECTOR} {
+  line-height: ${controls.propertyKeyLineHeight} !important;
+}` : ""}
+
 ${controls.propertyValueFontSize > 0 ? `${PROPERTY_VALUE_FONT_SIZE_SELECTOR} {
   font-size: ${controls.propertyValueFontSize}px !important;
+}` : ""}
+
+${controls.propertyValueLineHeight > 0 ? `${PROPERTY_VALUE_LINE_HEIGHT_SELECTOR} {
+  line-height: ${controls.propertyValueLineHeight} !important;
 }` : ""}
 
 ${controls.tableFontSize > 0 ? `${TABLE_FONT_SIZE_SELECTOR} {
   font-size: ${controls.tableFontSize}px !important;
 }` : ""}
 
+${controls.tableLineHeight > 0 ? `${TABLE_LINE_HEIGHT_SELECTOR} {
+  line-height: ${controls.tableLineHeight} !important;
+}` : ""}
+
 ${controls.tableHeaderFontSize > 0 ? `${TABLE_HEADER_FONT_SIZE_SELECTOR} {
   font-size: ${controls.tableHeaderFontSize}px !important;
+}` : ""}
+
+${controls.tableHeaderLineHeight > 0 ? `${TABLE_HEADER_LINE_HEIGHT_SELECTOR} {
+  line-height: ${controls.tableHeaderLineHeight} !important;
 }` : ""}
 
 ${controls.tableHeaderWeight > 0 ? `${TABLE_HEADER_FONT_SIZE_SELECTOR} {
