@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.44";
+const FALLBACK_PLUGIN_VERSION = "0.6.45";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1119,6 +1119,15 @@ function buildTypographyInheritDescendants() {
 }
 
 const FONT_SIZE_INHERIT_DESCENDANTS = buildTypographyInheritDescendants();
+const TAG_FONT_CAP_SELECTOR = [
+  'a.tag',
+  'a.tag:hover',
+  'h1 a.tag',
+  'h2 a.tag',
+  'h3 a.tag',
+  'h4 a.tag',
+  '.block-tag .hash-symbol',
+].join(',\n');
 const CALENDAR_TWEAK_ROOT_SELECTOR = [
   '#degrande-calendar-pagebar',
   '#degrande-calendar-inline-bar',
@@ -11157,12 +11166,7 @@ function buildManagedOverrides() {
   const tagChipDarkBaseShadow = "inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 1px 2px rgba(2, 6, 23, 0.28)";
   const tagChipLightHoverShadow = "inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 2px 4px rgba(15, 23, 42, 0.12)";
   const tagChipDarkHoverShadow = "inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 4px rgba(2, 6, 23, 0.34)";
-  const buildTagChipCapVariableDeclarations = (maxFontSizePx) => {
-    const cappedPaddingX = Math.min(controls.tagPaddingX, Math.max(2, Math.round(maxFontSizePx * 0.45)));
-    const cappedHeight = Math.min(controls.tagHeight, Math.max(maxFontSizePx + 4, Math.round(maxFontSizePx * 1.6)));
-
-    return `--degrande-tag-font-cap: ${maxFontSizePx}px !important;\n  --degrande-tag-height-cap: ${cappedHeight}px !important;\n  --degrande-tag-padding-x-cap: ${cappedPaddingX}px !important;`;
-  };
+  const buildTagFontCapVariableDeclaration = (maxFontSizePx) => `--degrande-tag-font-cap: ${maxFontSizePx}px !important;`;
 
   const quoteColorRules = QUOTE_COLOR_RULES.map(({ selector, token }) => `
 ${selector} {
@@ -11271,9 +11275,9 @@ ${selector} {
     tagChips: `
 a.tag, a.tag:hover, h1 a.tag, h2 a.tag, h3 a.tag, h4 a.tag {
   border-radius: ${controls.tagRadius}px !important;
-  font-size: min(${controls.tagFontSize}px, var(--degrande-tag-font-cap, ${controls.tagFontSize}px)) !important;
-  height: min(${controls.tagHeight}px, var(--degrande-tag-height-cap, ${controls.tagHeight}px)) !important;
-  padding: 0 min(${controls.tagPaddingX}px, var(--degrande-tag-padding-x-cap, ${controls.tagPaddingX}px)) !important;
+  font-size: ${controls.tagFontSize}px !important;
+  height: ${controls.tagHeight}px !important;
+  padding: 0 ${controls.tagPaddingX}px !important;
   border-width: ${controls.tagBorderWidth}px !important;
 }
 
@@ -11472,9 +11476,13 @@ ${quoteColorRules}
 ${backgroundRules}
 `.trim(),
     uiTweaks: `
+${controls.uiFontSize > 0 || controls.rightSidebarFontSize > 0 || controls.leftSidebarFontSize > 0 || controls.propertyValueFontSize > 0 ? `${TAG_FONT_CAP_SELECTOR} {
+  font-size: var(--degrande-tag-font-cap, inherit) !important;
+}` : ""}
+
 ${controls.uiFontSize > 0 ? `${MAIN_CONTENT_FONT_SIZE_SELECTOR} {
   font-size: ${controls.uiFontSize}px !important;
-  ${buildTagChipCapVariableDeclarations(controls.uiFontSize)}
+  ${buildTagFontCapVariableDeclaration(controls.uiFontSize)}
 }
 
 ${MAIN_CONTENT_FONT_SIZE_INHERIT_SELECTOR} {
@@ -11492,7 +11500,7 @@ ${MAIN_CONTENT_LINE_HEIGHT_INHERIT_SELECTOR} {
 
 ${controls.rightSidebarFontSize > 0 ? `${RIGHT_SIDEBAR_FONT_SIZE_SELECTOR} {
   font-size: ${controls.rightSidebarFontSize}px !important;
-  ${buildTagChipCapVariableDeclarations(controls.rightSidebarFontSize)}
+  ${buildTagFontCapVariableDeclaration(controls.rightSidebarFontSize)}
 }
 
 ${RIGHT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR} {
@@ -11510,7 +11518,7 @@ ${RIGHT_SIDEBAR_LINE_HEIGHT_INHERIT_SELECTOR} {
 
 ${controls.leftSidebarFontSize > 0 ? `${SIDEBAR_ROOT_SELECTOR} {
   font-size: ${controls.leftSidebarFontSize}px !important;
-  ${buildTagChipCapVariableDeclarations(controls.leftSidebarFontSize)}
+  ${buildTagFontCapVariableDeclaration(controls.leftSidebarFontSize)}
 }
 
 ${LEFT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR} {
@@ -11594,7 +11602,7 @@ ${controls.propertyKeyLineHeight > 0 ? `${PROPERTY_KEY_LINE_HEIGHT_SELECTOR} {
 
 ${controls.propertyValueFontSize > 0 ? `${PROPERTY_VALUE_FONT_SIZE_SELECTOR} {
   font-size: ${controls.propertyValueFontSize}px !important;
-  ${buildTagChipCapVariableDeclarations(controls.propertyValueFontSize)}
+  ${buildTagFontCapVariableDeclaration(controls.propertyValueFontSize)}
 }` : ""}
 
 ${controls.propertyValueLineHeight > 0 ? `${PROPERTY_VALUE_LINE_HEIGHT_SELECTOR} {
