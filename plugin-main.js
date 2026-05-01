@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.31";
+const FALLBACK_PLUGIN_VERSION = "0.6.32";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -379,6 +379,9 @@ const CONTROL_SECTIONS = [
       { key: "propertyKeyLineHeight", label: "Property Key Line Height", min: 0, max: 2.4, step: 0.05, unit: "", defaultValue: 0, zeroLabel: "Default" },
       { key: "propertyValueFontSize", label: "Property Value Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "propertyValueLineHeight", label: "Property Value Line Height", min: 0, max: 2.4, step: 0.05, unit: "", defaultValue: 0, zeroLabel: "Default" },
+      { key: "propertyRowMinHeight", label: "Property Row Min Height", min: 0, max: 80, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "propertyPaddingX", label: "Property Padding X", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "propertyPaddingY", label: "Property Padding Y", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
     ],
   },
   {
@@ -1189,31 +1192,53 @@ const TABLE_CELL_SELECTOR = buildScopedDescendantSelector(TABLE_SCOPE_SELECTORS,
   'table th',
 ]);
 const PROPERTY_KEY_FONT_SIZE_SELECTOR = [
-  '.page-properties .property-key',
-  '.page-properties .property-name',
-  '.page-properties .property-name *',
-  '.positioned-properties .property-key',
-  '.positioned-properties .property-name',
-  '.positioned-properties .property-name *',
-  '.block-properties .property-key',
-  '.block-properties .property-name',
-  '.block-properties .property-name *',
+  '.ls-properties-area .property-key',
+  '.ls-properties-area .property-key *',
+  '.ls-properties-area .property-key-inner',
+  '.ls-properties-area .property-key-inner *',
+  '.ls-properties-area .property-k',
+  '.ls-properties-area .property-k *',
+  '.ls-properties-area .property-name',
+  '.ls-properties-area .property-name *',
 ].join(',\n');
 const PROPERTY_VALUE_FONT_SIZE_SELECTOR = [
-  '.page-properties .property-value',
-  '.page-properties .property-value *',
-  '.page-properties .property-value-container',
-  '.positioned-properties .property-value',
-  '.positioned-properties .property-value *',
-  '.positioned-properties .property-value-container',
-  '.positioned-properties .multi-values',
-  '.positioned-properties .page-ref',
-  '.positioned-properties .tag',
-  '.positioned-properties .jtrigger',
-  '.block-properties .property-value',
-  '.block-properties .property-value *',
-  '.block-properties .property-value-container',
-  '.property-value-inner',
+  '.ls-properties-area .property-value',
+  '.ls-properties-area .property-value *',
+  '.ls-properties-area .property-value-container',
+  '.ls-properties-area .property-value-container *',
+  '.ls-properties-area .property-value-inner',
+  '.ls-properties-area .property-value-inner *',
+  '.ls-properties-area .property-block-container',
+  '.ls-properties-area .property-block-container *',
+  '.ls-properties-area .multi-values',
+  '.ls-properties-area .multi-values *',
+  '.ls-properties-area .positioned-properties',
+  '.ls-properties-area .positioned-properties *',
+].join(',\n');
+const PROPERTY_ROW_MIN_HEIGHT_SELECTOR = [
+  '.ls-properties-area .property-pair',
+  '.ls-properties-area .property-key',
+  '.ls-properties-area .property-key-inner',
+  '.ls-properties-area .property-value-container',
+  '.ls-properties-area .property-value',
+  '.ls-properties-area .property-value-inner',
+  '.ls-properties-area .property-block-container .block-main-content',
+  '.ls-properties-area .property-block-container .block-row',
+  '.ls-properties-area .positioned-properties',
+  '.ls-properties-area .positioned-properties .property-value-inner',
+  '.ls-properties-area .positioned-properties .jtrigger',
+  '.ls-properties-area .positioned-properties .select-item',
+].join(',\n');
+const PROPERTY_FIXED_HEIGHT_SELECTOR = [
+  '.ls-properties-area .property-value-container > .flex.items-center',
+  '.ls-properties-area .positioned-properties',
+  '.ls-properties-area .positioned-properties.h-6',
+].join(',\n');
+const PROPERTY_PADDING_SELECTOR = [
+  '.ls-properties-area .property-key-inner',
+  '.ls-properties-area .property-value-inner',
+  '.ls-properties-area .positioned-properties .property-value-inner',
+  '.ls-properties-area .positioned-properties .select-item',
 ].join(',\n');
 const CODE_BLOCK_RENDER_WRAP_CONTAINER_SELECTOR = [
   '.extensions__code',
@@ -9669,13 +9694,15 @@ function clampPanelWindowPosition(position) {
   const panelWindow = getPanelWindowElement();
   const rect = panelWindow?.getBoundingClientRect?.();
   const width = rect?.width || 720;
-  const height = rect?.height || 760;
+  const headerHeight = panelWindow?.querySelector('.ctl-header')?.getBoundingClientRect?.().height || 72;
   const margin = 16;
-  const maxLeft = Math.max(margin, viewportWidth - width - margin);
-  const maxTop = Math.max(margin, viewportHeight - height - margin);
+  const minVisibleWidth = Math.max(120, Math.min(240, Math.round(width * 0.28)));
+  const minLeft = Math.min(margin, viewportWidth - minVisibleWidth) - width + minVisibleWidth;
+  const maxLeft = Math.max(margin, viewportWidth - minVisibleWidth);
+  const maxTop = Math.max(margin, viewportHeight - Math.max(headerHeight, 56) - margin);
 
   return {
-    left: Math.min(Math.max(position.left, margin), maxLeft),
+    left: Math.min(Math.max(position.left, minLeft), maxLeft),
     top: Math.min(Math.max(position.top, margin), maxTop),
   };
 }
@@ -10195,7 +10222,7 @@ function buildTweaksPaneMarkup() {
         ${buildTweakSectionMarkup({
           title: "Properties",
           description: "Control property name and value typography without changing the underlying property data.",
-          controlKeys: ["propertyKeyFontSize", "propertyKeyLineHeight", "propertyValueFontSize", "propertyValueLineHeight"],
+          controlKeys: ["propertyKeyFontSize", "propertyKeyLineHeight", "propertyValueFontSize", "propertyValueLineHeight", "propertyRowMinHeight", "propertyPaddingX", "propertyPaddingY"],
         })}
         ${buildTweakSectionMarkup({
           title: "Tables",
@@ -11493,6 +11520,24 @@ ${controls.propertyValueFontSize > 0 ? `${PROPERTY_VALUE_FONT_SIZE_SELECTOR} {
 
 ${controls.propertyValueLineHeight > 0 ? `${PROPERTY_VALUE_LINE_HEIGHT_SELECTOR} {
   line-height: ${controls.propertyValueLineHeight} !important;
+}` : ""}
+
+${controls.propertyKeyLineHeight > 0 || controls.propertyValueLineHeight > 0 ? `${PROPERTY_FIXED_HEIGHT_SELECTOR} {
+  height: auto !important;
+  min-height: 0 !important;
+}` : ""}
+
+${controls.propertyRowMinHeight > 0 ? `${PROPERTY_ROW_MIN_HEIGHT_SELECTOR} {
+  min-height: ${controls.propertyRowMinHeight}px !important;
+}
+
+${PROPERTY_FIXED_HEIGHT_SELECTOR} {
+  min-height: ${controls.propertyRowMinHeight}px !important;
+  height: ${controls.propertyRowMinHeight}px !important;
+}` : ""}
+
+${controls.propertyPaddingX > 0 || controls.propertyPaddingY > 0 ? `${PROPERTY_PADDING_SELECTOR} {
+  padding: ${controls.propertyPaddingY}px ${controls.propertyPaddingX}px !important;
 }` : ""}
 
 ${controls.tableFontSize > 0 ? `${TABLE_FONT_SIZE_SELECTOR} {
