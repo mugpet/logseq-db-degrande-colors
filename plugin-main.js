@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.39";
+const FALLBACK_PLUGIN_VERSION = "0.6.40";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1340,7 +1340,17 @@ function buildScopedDescendantSelector(scopes, descendants) {
 
 function buildScopedDescendantSelectorWithExclusions(scopes, descendants, excludedSelectors) {
   const exclusionSuffix = excludedSelectors.map((selector) => `:not(${selector})`).join('');
-  return scopes.flatMap((scope) => descendants.map((descendant) => `${scope} ${descendant}${exclusionSuffix}`)).join(',\n');
+  return scopes.flatMap((scope) => descendants.map((descendant) => {
+    const pseudoElementIndex = descendant.indexOf('::');
+
+    if (pseudoElementIndex === -1) {
+      return `${scope} ${descendant}${exclusionSuffix}`;
+    }
+
+    const descendantBase = descendant.slice(0, pseudoElementIndex);
+    const pseudoElement = descendant.slice(pseudoElementIndex);
+    return `${scope} ${descendantBase}${exclusionSuffix}${pseudoElement}`;
+  })).join(',\n');
 }
 
 const MAIN_CONTENT_FONT_SIZE_INHERIT_SELECTOR = buildScopedDescendantSelector(MAIN_CONTENT_FONT_SIZE_SELECTORS, FONT_SIZE_INHERIT_DESCENDANTS);
