@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.40";
+const FALLBACK_PLUGIN_VERSION = "0.6.41";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1282,6 +1282,17 @@ const PROPERTY_PADDING_SELECTOR = [
   '.ls-properties-area .property-value-inner',
   '.ls-properties-area .positioned-properties .property-value-inner',
   '.ls-properties-area .positioned-properties .select-item',
+].join(',\n');
+const PROPERTY_BLOCK_TAG_TEXT_SELECTOR = [
+  '.ls-properties-area .property-block-container .block-tags',
+  '.ls-properties-area .property-block-container .block-tag',
+  '.ls-properties-area .property-block-container .hash-symbol',
+  '.ls-properties-area .property-block-container a.tag',
+  '.ls-properties-area .property-block-container a.tag:hover',
+].join(',\n');
+const PROPERTY_BLOCK_TAG_CHIP_SELECTOR = [
+  '.ls-properties-area .property-block-container a.tag',
+  '.ls-properties-area .property-block-container a.tag:hover',
 ].join(',\n');
 const CODE_BLOCK_RENDER_WRAP_CONTAINER_SELECTOR = [
   '.extensions__code',
@@ -11596,10 +11607,26 @@ ${controls.propertyKeyLineHeight > 0 ? `${PROPERTY_KEY_LINE_HEIGHT_SELECTOR} {
 
 ${controls.propertyValueFontSize > 0 ? `${PROPERTY_VALUE_FONT_SIZE_SELECTOR} {
   font-size: ${controls.propertyValueFontSize}px !important;
+
+}
+
+${PROPERTY_BLOCK_TAG_TEXT_SELECTOR} {
+  font-size: inherit !important;
+  line-height: inherit !important;
 }` : ""}
 
 ${controls.propertyValueLineHeight > 0 ? `${PROPERTY_VALUE_LINE_HEIGHT_SELECTOR} {
   line-height: ${controls.propertyValueLineHeight} !important;
+
+}
+
+${PROPERTY_BLOCK_TAG_TEXT_SELECTOR} {
+  line-height: inherit !important;
+}
+
+${PROPERTY_BLOCK_TAG_CHIP_SELECTOR} {
+  height: auto !important;
+  min-height: 0 !important;
 }` : ""}
 
 ${controls.propertyKeyLineHeight > 0 || controls.propertyValueLineHeight > 0 ? `${PROPERTY_FIXED_HEIGHT_SELECTOR} {
