@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.9";
+const FALLBACK_PLUGIN_VERSION = "0.6.10";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1013,17 +1013,44 @@ const SIDEBAR_TITLE_SELECTOR = [
   `${SIDEBAR_ROOT_SELECTOR} .page-title`,
   `${SIDEBAR_ROOT_SELECTOR} a`,
 ].join(', ');
-const MAIN_CONTENT_FONT_SIZE_SELECTOR = [
+const FONT_SIZE_INHERIT_DESCENDANTS = [
+  'a',
+  'button',
+  'div',
+  'span',
+  'p',
+  'li',
+  'label',
+  'input',
+  'textarea',
+  'strong',
+  'em',
+  'small',
+  'time',
+  'code',
+  'pre',
+  'th',
+  'td',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+];
+const MAIN_CONTENT_FONT_SIZE_SELECTORS = [
   '.cp__sidebar-main-content',
   '#main-content-container .cp__sidebar-main-content',
-].join(',\n');
-const RIGHT_SIDEBAR_FONT_SIZE_SELECTOR = [
+];
+const MAIN_CONTENT_FONT_SIZE_SELECTOR = MAIN_CONTENT_FONT_SIZE_SELECTORS.join(',\n');
+const RIGHT_SIDEBAR_FONT_SIZE_SELECTORS = [
   '.cp__right-sidebar',
   '.cp__right-sidebar .sidebar-item-list',
   '.cp__right-sidebar .sidebar-item-list-wrap',
   '.cp__right-sidebar .cp__right-sidebar-scroll',
   '[data-testid="right-sidebar"]',
-].join(',\n');
+];
+const RIGHT_SIDEBAR_FONT_SIZE_SELECTOR = RIGHT_SIDEBAR_FONT_SIZE_SELECTORS.join(',\n');
 const CODE_BLOCK_WRAP_SELECTOR = [
   '.extensions__code pre',
   '.extensions__code code',
@@ -1036,6 +1063,14 @@ const CSS_SECTION_MARKER_2 = '/* --- 2. THE ENGINE (SET ONCE & FORGET) --- */';
 const CSS_SECTION_MARKER_6 = '/* --- 6. PAGE REFERENCE STYLING ([[ ]]) --- */';
 const CSS_SECTION_MARKER_7 = '/* --- 7. MODERN QUOTES & CALLOUTS       --- */';
 const CSS_ACCENT_MARKER = '/* Accent Colors CSS Setup */';
+
+function buildScopedDescendantSelector(scopes, descendants) {
+  return scopes.flatMap((scope) => descendants.map((descendant) => `${scope} ${descendant}`)).join(',\n');
+}
+
+const MAIN_CONTENT_FONT_SIZE_INHERIT_SELECTOR = buildScopedDescendantSelector(MAIN_CONTENT_FONT_SIZE_SELECTORS, FONT_SIZE_INHERIT_DESCENDANTS);
+const RIGHT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR = buildScopedDescendantSelector(RIGHT_SIDEBAR_FONT_SIZE_SELECTORS, FONT_SIZE_INHERIT_DESCENDANTS);
+const LEFT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR = buildScopedDescendantSelector([SIDEBAR_ROOT_SELECTOR], FONT_SIZE_INHERIT_DESCENDANTS);
 
 const QUOTE_COLOR_RULES = [
   { selector: 'div[data-node-type="quote"][style*="red"]', token: 'red' },
@@ -10775,14 +10810,26 @@ ${backgroundRules}
     uiTweaks: `
 ${controls.uiFontSize > 0 ? `${MAIN_CONTENT_FONT_SIZE_SELECTOR} {
   font-size: ${controls.uiFontSize}px !important;
+}
+
+${MAIN_CONTENT_FONT_SIZE_INHERIT_SELECTOR} {
+  font-size: inherit !important;
 }` : ""}
 
 ${controls.rightSidebarFontSize > 0 ? `${RIGHT_SIDEBAR_FONT_SIZE_SELECTOR} {
   font-size: ${controls.rightSidebarFontSize}px !important;
+}
+
+${RIGHT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR} {
+  font-size: inherit !important;
 }` : ""}
 
 ${controls.leftSidebarFontSize > 0 ? `${SIDEBAR_ROOT_SELECTOR} {
   font-size: ${controls.leftSidebarFontSize}px !important;
+}
+
+${LEFT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR} {
+  font-size: inherit !important;
 }` : ""}
 
 ${controls.wrapCodeBlocks ? `${CODE_BLOCK_WRAP_SELECTOR} {
