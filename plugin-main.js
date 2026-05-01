@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.32";
+const FALLBACK_PLUGIN_VERSION = "0.6.33";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1384,6 +1384,7 @@ const panelState = {
   colorDrag: null,
   panelDrag: null,
   panelWindowPosition: null,
+  panelWindowSize: null,
   suppressGradientClick: false,
   tagColorAssignments: createPluginDefaultTagColorAssignments(),
   baseTagColorMap: {},
@@ -9717,21 +9718,43 @@ function applyPanelWindowPosition() {
   const position = panelState.panelWindowPosition;
 
   if (!position) {
+    panelState.panelWindowSize = null;
+    panelWindow.style.removeProperty('position');
     panelWindow.style.removeProperty('left');
     panelWindow.style.removeProperty('top');
     panelWindow.style.removeProperty('right');
     panelWindow.style.removeProperty('bottom');
+    panelWindow.style.removeProperty('width');
+    panelWindow.style.removeProperty('height');
+    panelWindow.style.removeProperty('max-width');
+    panelWindow.style.removeProperty('max-height');
     panelWindow.style.removeProperty('transform');
     panelWindow.style.removeProperty('margin');
     return;
   }
 
   const clampedPosition = clampPanelWindowPosition(position);
+  const panelSize = panelState.panelWindowSize || (() => {
+    const rect = panelWindow.getBoundingClientRect();
+    return {
+      width: rect.width || 720,
+      height: rect.height || 640,
+    };
+  })();
+  const maxViewportWidth = Math.max(320, (window.innerWidth || document.documentElement.clientWidth || panelSize.width) - 32);
+  const maxViewportHeight = Math.max(240, (window.innerHeight || document.documentElement.clientHeight || panelSize.height) - 32);
+
   panelState.panelWindowPosition = clampedPosition;
+  panelState.panelWindowSize = panelSize;
+  panelWindow.style.position = 'fixed';
   panelWindow.style.left = `${Math.round(clampedPosition.left)}px`;
   panelWindow.style.top = `${Math.round(clampedPosition.top)}px`;
   panelWindow.style.right = 'auto';
   panelWindow.style.bottom = 'auto';
+  panelWindow.style.width = `${Math.round(Math.min(panelSize.width, maxViewportWidth))}px`;
+  panelWindow.style.height = `${Math.round(Math.min(panelSize.height, maxViewportHeight))}px`;
+  panelWindow.style.maxWidth = 'calc(100vw - 32px)';
+  panelWindow.style.maxHeight = 'calc(100vh - 32px)';
   panelWindow.style.transform = 'none';
   panelWindow.style.margin = '0';
 }
@@ -9744,10 +9767,21 @@ function beginPanelDrag(pointerId, clientX, clientY) {
   }
 
   const rect = panelWindow.getBoundingClientRect();
+  const startPosition = clampPanelWindowPosition({
+    left: rect.left,
+    top: rect.top,
+  });
+
+  panelState.panelWindowPosition = startPosition;
+  panelState.panelWindowSize = {
+    width: rect.width || 720,
+    height: rect.height || 640,
+  };
+  applyPanelWindowPosition();
   panelState.panelDrag = {
     pointerId,
-    offsetX: clientX - rect.left,
-    offsetY: clientY - rect.top,
+    offsetX: clientX - startPosition.left,
+    offsetY: clientY - startPosition.top,
   };
   panelWindow.classList.add('is-dragging');
 }
