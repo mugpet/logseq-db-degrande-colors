@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.18";
+const FALLBACK_PLUGIN_VERSION = "0.6.19";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1071,18 +1071,38 @@ const MAIN_CONTENT_WIDTH_SELECTOR = [
   '#main-content-container .cp__sidebar-main-content > div:first-child',
   '.cp__sidebar-main-content > div:first-child',
 ].join(',\n');
-const TABLE_FONT_SIZE_SELECTOR = [
-  '.cp__sidebar-main-content table',
-  '.cp__right-sidebar table',
-  '[data-testid="right-sidebar"] table',
-  `${SIDEBAR_ROOT_SELECTOR} table`,
-].join(',\n');
-const TABLE_HEADER_FONT_SIZE_SELECTOR = [
-  '.cp__sidebar-main-content table th',
-  '.cp__right-sidebar table th',
-  '[data-testid="right-sidebar"] table th',
-  `${SIDEBAR_ROOT_SELECTOR} table th`,
-].join(',\n');
+const TABLE_SCOPE_SELECTORS = [
+  '.cp__sidebar-main-content',
+  '.cp__right-sidebar',
+  '[data-testid="right-sidebar"]',
+  SIDEBAR_ROOT_SELECTOR,
+];
+const TABLE_SURFACE_DESCENDANTS = [
+  'table',
+  'table *',
+  '.table-auto',
+  '.table-auto *',
+  '[role="table"]',
+  '[role="table"] *',
+  '[role="grid"]',
+  '[role="grid"] *',
+  '[role="rowgroup"] *',
+  '[role="row"] *',
+  '[role="gridcell"]',
+  '[role="gridcell"] *',
+  '[role="cell"]',
+  '[role="cell"] *',
+];
+const TABLE_HEADER_DESCENDANTS = [
+  'table th',
+  'table thead *',
+  '[role="columnheader"]',
+  '[role="columnheader"] *',
+  '[role="rowheader"]',
+  '[role="rowheader"] *',
+];
+const TABLE_FONT_SIZE_SELECTOR = buildScopedDescendantSelector(TABLE_SCOPE_SELECTORS, TABLE_SURFACE_DESCENDANTS);
+const TABLE_HEADER_FONT_SIZE_SELECTOR = buildScopedDescendantSelector(TABLE_SCOPE_SELECTORS, TABLE_HEADER_DESCENDANTS);
 const CODE_BLOCK_WRAP_SELECTOR = [
   '.extensions__code pre',
   '.extensions__code code',
