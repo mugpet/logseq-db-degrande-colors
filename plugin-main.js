@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.47";
+const FALLBACK_PLUGIN_VERSION = "0.6.48";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1250,6 +1250,12 @@ const PROPERTY_VALUE_FONT_SIZE_SCOPES = [
   '.ls-properties-area .property-block-container',
   '.ls-properties-area .multi-values',
   '.ls-properties-area .positioned-properties',
+  '.ls-block-right .property-value',
+  '.ls-block-right .property-value-container',
+  '.ls-block-right .property-value-inner',
+  '.ls-block-right .property-block-container',
+  '.ls-block-right .multi-values',
+  '.ls-block-right .positioned-properties',
 ];
 const PROPERTY_VALUE_FONT_SIZE_SELECTOR = [
   ...PROPERTY_VALUE_FONT_SIZE_SCOPES,
@@ -1272,17 +1278,32 @@ const PROPERTY_ROW_MIN_HEIGHT_SELECTOR = [
   '.ls-properties-area .positioned-properties .property-value-inner',
   '.ls-properties-area .positioned-properties .jtrigger',
   '.ls-properties-area .positioned-properties .select-item',
+  '.ls-block-right .property-value-container',
+  '.ls-block-right .property-value',
+  '.ls-block-right .property-value-inner',
+  '.ls-block-right .property-block-container .block-main-content',
+  '.ls-block-right .property-block-container .block-row',
+  '.ls-block-right .positioned-properties',
+  '.ls-block-right .positioned-properties .property-value-inner',
+  '.ls-block-right .positioned-properties .jtrigger',
+  '.ls-block-right .positioned-properties .select-item',
 ].join(',\n');
 const PROPERTY_FIXED_HEIGHT_SELECTOR = [
   '.ls-properties-area .property-value-container > .flex.items-center',
   '.ls-properties-area .positioned-properties',
   '.ls-properties-area .positioned-properties.h-6',
+  '.ls-block-right .property-value-container > .flex.items-center',
+  '.ls-block-right .positioned-properties',
+  '.ls-block-right .positioned-properties.h-6',
 ].join(',\n');
 const PROPERTY_PADDING_SELECTOR = [
   '.ls-properties-area .property-key-inner',
   '.ls-properties-area .property-value-inner',
   '.ls-properties-area .positioned-properties .property-value-inner',
   '.ls-properties-area .positioned-properties .select-item',
+  '.ls-block-right .property-value-inner',
+  '.ls-block-right .positioned-properties .property-value-inner',
+  '.ls-block-right .positioned-properties .select-item',
 ].join(',\n');
 const CODE_BLOCK_RENDER_WRAP_CONTAINER_SELECTOR = [
   '.extensions__code',
