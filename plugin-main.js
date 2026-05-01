@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.12";
+const FALLBACK_PLUGIN_VERSION = "0.6.13";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1195,6 +1195,7 @@ const panelState = {
   activeHistorySources: new Set(),
   historyApplying: false,
   hostTagContextMenuBound: false,
+  hostWrapShortcutBound: false,
   legacyManagedStylesCleaned: false,
   tagNodeColorMap: {},
   tagNodePriorityMap: {},
@@ -9653,6 +9654,8 @@ function buildPreviewMarkup() {
 }
 
 function buildTweaksPaneMarkup() {
+  const wrapShortcutLabel = getWrapCodeBlocksShortcutLabel();
+
   return `
     ${buildPaneIntroMarkup(
       "Tweaks",
@@ -9665,7 +9668,7 @@ function buildTweaksPaneMarkup() {
         <div class="ctl-section-head">
           <div>
             <h2>Code Blocks</h2>
-            <p>Wrap long lines instead of forcing horizontal scrolling in supported code blocks and editors.</p>
+            <p>Wrap long lines instead of forcing horizontal scrolling in supported code blocks and editors. Shortcut: ${escapeHtml(wrapShortcutLabel)}.</p>
           </div>
         </div>
         <div class="ctl-control ctl-control-tight">
@@ -10940,6 +10943,51 @@ function isEditableUndoRedoTarget(target) {
   return input.type !== "range" && input.type !== "checkbox" && input.type !== "radio" && input.type !== "button";
 }
 
+function getWrapCodeBlocksShortcutLabel() {
+  return `${isMacPlatform() ? "Cmd" : "Ctrl"}+Alt+W`;
+}
+
+async function toggleWrapCodeBlocks(showToast = true) {
+  const control = CONTROL_MAP.wrapCodeBlocks;
+
+  if (!control) {
+    return false;
+  }
+
+  captureHistorySnapshot("toggle-wrap-code-blocks");
+  panelState.controlState.wrapCodeBlocks = !panelState.controlState.wrapCodeBlocks;
+  schedulePersistControls();
+  await applyManagedOverrides(
+    showToast,
+    `${panelState.controlState.wrapCodeBlocks ? "Enabled" : "Disabled"} code block wrap`,
+    "soft"
+  );
+  finishHistoryCapture("toggle-wrap-code-blocks");
+  return true;
+}
+
+function bindHostWrapShortcut() {
+  if (panelState.hostWrapShortcutBound) {
+    return;
+  }
+
+  const hostDocument = getHostDocument();
+
+  hostDocument.addEventListener("keydown", (event) => {
+    const modifierKey = isMacPlatform() ? event.metaKey : event.ctrlKey;
+    const lowerKey = String(event.key || "").toLowerCase();
+
+    if (!modifierKey || !event.altKey || event.shiftKey || lowerKey !== "w" || event.repeat) {
+      return;
+    }
+
+    event.preventDefault();
+    void toggleWrapCodeBlocks(true);
+  });
+
+  panelState.hostWrapShortcutBound = true;
+}
+
 function mountPanel() {
   if (panelState.mounted) {
     return;
@@ -11916,6 +11964,7 @@ async function main() {
   }, 2500);
 
   bindHostTagContextMenu();
+  bindHostWrapShortcut();
 
   const userConfigsPromise = typeof logseq.App?.getUserConfigs === "function"
     ? logseq.App.getUserConfigs().catch((error) => {
@@ -12084,6 +12133,14 @@ async function main() {
         label: "Degrande Colors: toggle Logseq theme",
       },
       toggleLogseqTheme
+    );
+
+    registerCommandPaletteSafely(
+      {
+        key: commandKey("toggle-code-wrap"),
+        label: `Degrande Colors: toggle code block wrap (${getWrapCodeBlocksShortcutLabel()})`,
+      },
+      () => toggleWrapCodeBlocks(true)
     );
 
     hostSession[pluginId] = {
