@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.36";
+const FALLBACK_PLUGIN_VERSION = "0.6.37";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1085,6 +1085,16 @@ const TWEAK_TYPOGRAPHY_EXEMPT_SELECTORS = [
   '[data-degrande-inline-tag]',
   '[data-degrande-search-tag-label]',
   '[data-degrande-popover-chip]',
+  'a.page-ref',
+  '.page-ref',
+  '.page-reference',
+  '[data-ref]',
+  '[data-page-ref]',
+  'a.page-ref *',
+  '.page-ref *',
+  '.page-reference *',
+  '[data-ref] *',
+  '[data-page-ref] *',
   '.dgc-range',
   '.dgc-nav',
   '.dgc-toggle',
@@ -1232,19 +1242,21 @@ const PROPERTY_KEY_FONT_SIZE_SELECTOR = [
   '.ls-properties-area .property-name',
   '.ls-properties-area .property-name *',
 ].join(',\n');
-const PROPERTY_VALUE_FONT_SIZE_SELECTOR = [
+const PROPERTY_VALUE_FONT_SIZE_SCOPES = [
   '.ls-properties-area .property-value',
-  '.ls-properties-area .property-value *',
   '.ls-properties-area .property-value-container',
-  '.ls-properties-area .property-value-container *',
   '.ls-properties-area .property-value-inner',
-  '.ls-properties-area .property-value-inner *',
   '.ls-properties-area .property-block-container',
-  '.ls-properties-area .property-block-container *',
   '.ls-properties-area .multi-values',
-  '.ls-properties-area .multi-values *',
   '.ls-properties-area .positioned-properties',
-  '.ls-properties-area .positioned-properties *',
+];
+const PROPERTY_VALUE_FONT_SIZE_SELECTOR = [
+  ...PROPERTY_VALUE_FONT_SIZE_SCOPES,
+  buildScopedDescendantSelectorWithExclusions(
+    PROPERTY_VALUE_FONT_SIZE_SCOPES,
+    ['*', '*::before', '*::after'],
+    TWEAK_TYPOGRAPHY_EXEMPT_SELECTORS
+  ),
 ].join(',\n');
 const PROPERTY_ROW_MIN_HEIGHT_SELECTOR = [
   '.ls-properties-area .property-pair',
@@ -1324,6 +1336,11 @@ const CSS_ACCENT_MARKER = '/* Accent Colors CSS Setup */';
 
 function buildScopedDescendantSelector(scopes, descendants) {
   return scopes.flatMap((scope) => descendants.map((descendant) => `${scope} ${descendant}`)).join(',\n');
+}
+
+function buildScopedDescendantSelectorWithExclusions(scopes, descendants, excludedSelectors) {
+  const exclusionSuffix = excludedSelectors.map((selector) => `:not(${selector})`).join('');
+  return scopes.flatMap((scope) => descendants.map((descendant) => `${scope} ${descendant}${exclusionSuffix}`)).join(',\n');
 }
 
 const MAIN_CONTENT_FONT_SIZE_INHERIT_SELECTOR = buildScopedDescendantSelector(MAIN_CONTENT_FONT_SIZE_SELECTORS, FONT_SIZE_INHERIT_DESCENDANTS);
