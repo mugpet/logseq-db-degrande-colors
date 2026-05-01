@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.17";
+const FALLBACK_PLUGIN_VERSION = "0.6.18";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -347,6 +347,14 @@ const CONTROL_SECTIONS = [
       { key: "rightSidebarCardGap", label: "Right Sidebar Card Gap", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "rightSidebarCardPadding", label: "Right Sidebar Card Padding", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
       { key: "contentMaxWidth", label: "Content Max Width", min: 0, max: 2200, step: 20, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+    ],
+  },
+  {
+    title: "Tables",
+    description: "Adjust table text sizing without changing table behavior.",
+    controls: [
+      { key: "tableFontSize", label: "Table Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
+      { key: "tableHeaderFontSize", label: "Table Header Font Size", min: 0, max: 24, step: 1, unit: "px", defaultValue: 0, zeroLabel: "Default" },
     ],
   },
   {
@@ -1062,6 +1070,18 @@ const RIGHT_SIDEBAR_CARD_CONTENT_SELECTOR = [
 const MAIN_CONTENT_WIDTH_SELECTOR = [
   '#main-content-container .cp__sidebar-main-content > div:first-child',
   '.cp__sidebar-main-content > div:first-child',
+].join(',\n');
+const TABLE_FONT_SIZE_SELECTOR = [
+  '.cp__sidebar-main-content table',
+  '.cp__right-sidebar table',
+  '[data-testid="right-sidebar"] table',
+  `${SIDEBAR_ROOT_SELECTOR} table`,
+].join(',\n');
+const TABLE_HEADER_FONT_SIZE_SELECTOR = [
+  '.cp__sidebar-main-content table th',
+  '.cp__right-sidebar table th',
+  '[data-testid="right-sidebar"] table th',
+  `${SIDEBAR_ROOT_SELECTOR} table th`,
 ].join(',\n');
 const CODE_BLOCK_WRAP_SELECTOR = [
   '.extensions__code pre',
@@ -9681,6 +9701,7 @@ function buildTweaksPaneMarkup() {
     )}
     <div class="ctl-preview-scroll" data-role="tweaks-scroll">
       ${buildControlGroupMarkup("UI Tweaks")}
+      ${buildControlGroupMarkup("Tables")}
       ${buildControlGroupMarkup("Code Blocks")}
       <section class="ctl-section ctl-section-inline">
         <div class="ctl-section-head">
@@ -10871,6 +10892,14 @@ ${controls.contentMaxWidth > 0 ? `${MAIN_CONTENT_WIDTH_SELECTOR} {
   max-width: ${controls.contentMaxWidth}px !important;
   margin-left: auto !important;
   margin-right: auto !important;
+}` : ""}
+
+${controls.tableFontSize > 0 ? `${TABLE_FONT_SIZE_SELECTOR} {
+  font-size: ${controls.tableFontSize}px !important;
+}` : ""}
+
+${controls.tableHeaderFontSize > 0 ? `${TABLE_HEADER_FONT_SIZE_SELECTOR} {
+  font-size: ${controls.tableHeaderFontSize}px !important;
 }` : ""}
 
 ${controls.codeBlockFontSize > 0 ? `${CODE_BLOCK_FONT_SIZE_SELECTOR} {
