@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.15";
+const FALLBACK_PLUGIN_VERSION = "0.6.16";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -5904,18 +5904,11 @@ function persistPluginSettingValue(settingKey, value) {
 function getDegrandeSettingsSchema() {
   return [
     {
-      key: SETTINGS_CONTROL_STATE_KEY,
-      type: "object",
-      default: { ...PLUGIN_DEFAULT_THEME_SNAPSHOT.controlState },
-      title: "Degrande Control State",
-      description: "Internal persisted slider values for Degrande Colors.",
-    },
-    {
-      key: SETTINGS_GRADIENT_STATE_KEY,
-      type: "object",
-      default: createPluginDefaultGradientState(),
-      title: "Degrande Gradient State",
-      description: "Internal persisted gradient state for Degrande Colors.",
+      key: "degrandePanelStatus",
+      type: "string",
+      default: `Degrande Colors ${PLUGIN_VERSION} is active. Open the full Degrande panel from the toolbar button or the command palette.`,
+      title: "Degrande Colors panel",
+      description: "The plugin settings popup is only a lightweight status surface. Use the Degrande toolbar button or command palette to open the full panel.",
     },
   ];
 }
@@ -12001,6 +11994,8 @@ async function main() {
   const hostSession = hostWindow[HOST_SESSION_KEY] || (hostWindow[HOST_SESSION_KEY] = {});
   const hostToolbarButtonExists = Boolean(getHostDocument().getElementById(TOOLBAR_BUTTON_ID));
   const shouldRegisterHostUi = !hostSession[pluginId] && !hostToolbarButtonExists;
+
+  registerDegrandeSettingsSchema();
 
   // The ONLY reliable "DB worker is ready" signal is onGraphAfterIndexed.
   // primeGraphIndexedState via datascriptQuery returns a false-positive (null
