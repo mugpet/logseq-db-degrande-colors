@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.11";
+const FALLBACK_PLUGIN_VERSION = "0.6.12";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1018,6 +1018,14 @@ const FONT_SIZE_INHERIT_DESCENDANTS = [
   '*::before',
   '*::after',
 ];
+const TAG_FONT_SIZE_OVERRIDE_DESCENDANTS = [
+  'a.tag',
+  'a.tag:hover',
+  'h1 a.tag',
+  'h2 a.tag',
+  'h3 a.tag',
+  'h4 a.tag',
+];
 const MAIN_CONTENT_FONT_SIZE_SELECTORS = [
   '.cp__sidebar-main-content',
   '#main-content-container .cp__sidebar-main-content',
@@ -1053,6 +1061,9 @@ function buildScopedDescendantSelector(scopes, descendants) {
 const MAIN_CONTENT_FONT_SIZE_INHERIT_SELECTOR = buildScopedDescendantSelector(MAIN_CONTENT_FONT_SIZE_SELECTORS, FONT_SIZE_INHERIT_DESCENDANTS);
 const RIGHT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR = buildScopedDescendantSelector(RIGHT_SIDEBAR_FONT_SIZE_SELECTORS, FONT_SIZE_INHERIT_DESCENDANTS);
 const LEFT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR = buildScopedDescendantSelector([SIDEBAR_ROOT_SELECTOR], FONT_SIZE_INHERIT_DESCENDANTS);
+const MAIN_CONTENT_TAG_FONT_SIZE_OVERRIDE_SELECTOR = buildScopedDescendantSelector(MAIN_CONTENT_FONT_SIZE_SELECTORS, TAG_FONT_SIZE_OVERRIDE_DESCENDANTS);
+const RIGHT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR = buildScopedDescendantSelector(RIGHT_SIDEBAR_FONT_SIZE_SELECTORS, TAG_FONT_SIZE_OVERRIDE_DESCENDANTS);
+const LEFT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR = buildScopedDescendantSelector([SIDEBAR_ROOT_SELECTOR], TAG_FONT_SIZE_OVERRIDE_DESCENDANTS);
 
 const QUOTE_COLOR_RULES = [
   { selector: 'div[data-node-type="quote"][style*="red"]', token: 'red' },
@@ -10796,6 +10807,10 @@ ${controls.uiFontSize > 0 ? `${MAIN_CONTENT_FONT_SIZE_SELECTOR} {
 
 ${MAIN_CONTENT_FONT_SIZE_INHERIT_SELECTOR} {
   font-size: inherit !important;
+}
+
+${MAIN_CONTENT_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
+  font-size: inherit !important;
 }` : ""}
 
 ${controls.rightSidebarFontSize > 0 ? `${RIGHT_SIDEBAR_FONT_SIZE_SELECTOR} {
@@ -10804,6 +10819,10 @@ ${controls.rightSidebarFontSize > 0 ? `${RIGHT_SIDEBAR_FONT_SIZE_SELECTOR} {
 
 ${RIGHT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR} {
   font-size: inherit !important;
+}
+
+${RIGHT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
+  font-size: inherit !important;
 }` : ""}
 
 ${controls.leftSidebarFontSize > 0 ? `${SIDEBAR_ROOT_SELECTOR} {
@@ -10811,6 +10830,10 @@ ${controls.leftSidebarFontSize > 0 ? `${SIDEBAR_ROOT_SELECTOR} {
 }
 
 ${LEFT_SIDEBAR_FONT_SIZE_INHERIT_SELECTOR} {
+  font-size: inherit !important;
+}
+
+${LEFT_SIDEBAR_TAG_FONT_SIZE_OVERRIDE_SELECTOR} {
   font-size: inherit !important;
 }` : ""}
 
