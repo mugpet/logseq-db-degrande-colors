@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.26";
+const FALLBACK_PLUGIN_VERSION = "0.6.27";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -30,6 +30,8 @@ const CMDK_STYLE_OBSERVER_KEY = "__degrandeColorsCmdkStyleObserver";
 const CMDK_STYLE_TIMER_KEY = "__degrandeColorsCmdkStyleTimer";
 const SIDEBAR_STYLE_OBSERVER_KEY = "__degrandeColorsSidebarStyleObserver";
 const SIDEBAR_STYLE_TIMER_KEY = "__degrandeColorsSidebarStyleTimer";
+const CODE_WRAP_OBSERVER_KEY = "__degrandeColorsCodeWrapObserver";
+const CODE_WRAP_TIMER_KEY = "__degrandeColorsCodeWrapTimer";
 const COMMAND_REGISTRY_KEY = "__degrandeColorsRegisteredCommands";
 const SHORTCUT_REGISTRY_KEY = "__degrandeColorsRegisteredShortcuts";
 const TOOLBAR_REGISTRY_KEY = "__degrandeColorsRegisteredToolbarItems";
@@ -1190,18 +1192,28 @@ const PROPERTY_VALUE_FONT_SIZE_SELECTOR = [
   '.ls-table .tag',
   '.ls-table .jtrigger',
 ].join(',\n');
-const CODE_BLOCK_WRAP_SELECTOR = [
+const CODE_BLOCK_RENDER_WRAP_CONTAINER_SELECTOR = [
   '.extensions__code',
+  '.extensions__code .CodeMirror.CodeMirror-wrap',
+  '.extensions__code .CodeMirror.CodeMirror-wrap .CodeMirror-scroll',
+  '.extensions__code .cm-editor.cm-lineWrapping',
+  '.extensions__code .cm-editor.cm-lineWrapping .cm-scroller',
+].join(',\n');
+const CODE_BLOCK_RENDER_WRAP_TEXT_SELECTOR = [
   '.extensions__code pre',
   '.extensions__code code',
+].join(',\n');
+const CODE_BLOCK_EDITOR_WRAP_SELECTOR = [
+  '.CodeMirror.CodeMirror-wrap',
+  '.CodeMirror.CodeMirror-wrap .CodeMirror-scroll',
+  '.cm-editor.cm-lineWrapping',
+  '.cm-editor.cm-lineWrapping .cm-scroller',
+  '.cm-editor.cm-lineWrapping .cm-content',
+  '.cm-editor.cm-lineWrapping .cm-line',
+].join(',\n');
+const CODE_BLOCK_EDITOR_SELECTOR = [
   '.CodeMirror',
-  '.CodeMirror pre',
-  '.CodeMirror-scroll',
   '.cm-editor',
-  '.cm-editor .cm-scroller',
-  '.cm-editor .cm-content',
-  '.cm-editor .cm-lineWrapping',
-  '.cm-editor .cm-line',
 ].join(',\n');
 const CODE_BLOCK_FONT_SIZE_SELECTOR = [
   '.extensions__code',
@@ -2092,6 +2104,145 @@ function scheduleSidebarTagStyleSync() {
     hostWindow[SIDEBAR_STYLE_TIMER_KEY] = null;
     syncSidebarTagStyles();
   }, 40);
+}
+
+function findCodeMirror6View(editorElement, hostWindow) {
+  const editorViewCandidates = [
+    hostWindow?.EditorView,
+    hostWindow?.CM?.EditorView,
+    hostWindow?.cm?.EditorView,
+    window?.EditorView,
+  ].filter(Boolean);
+
+  for (const EditorView of editorViewCandidates) {
+    if (typeof EditorView?.findFromDOM !== "function") {
+      continue;
+    }
+
+    const view = EditorView.findFromDOM(editorElement);
+
+    if (view) {
+      return view;
+    }
+  }
+
+  return editorElement?.cmView?.rootView?.view
+    || editorElement?.cmView?.view
+    || editorElement?.querySelector?.('.cm-content')?.cmView?.rootView?.view
+    || null;
+}
+
+function syncCodeMirror5Wrap(editorElement, shouldWrap) {
+  const cmInstance = editorElement?.CodeMirror || null;
+
+  if (cmInstance && typeof cmInstance.setOption === "function") {
+    if (typeof cmInstance.getOption !== "function" || cmInstance.getOption("lineWrapping") !== shouldWrap) {
+      cmInstance.setOption("lineWrapping", shouldWrap);
+    }
+
+    if (typeof cmInstance.refresh === "function") {
+      cmInstance.refresh();
+    }
+
+    return;
+  }
+
+  editorElement.classList.toggle("CodeMirror-wrap", shouldWrap);
+}
+
+function syncCodeMirror6Wrap(editorElement, shouldWrap, hostWindow) {
+  editorElement.classList.toggle("cm-lineWrapping", shouldWrap);
+
+  const scroller = editorElement.querySelector('.cm-scroller');
+
+  if (scroller instanceof hostWindow.Element) {
+    scroller.style.overflowX = shouldWrap ? "hidden" : "";
+  }
+
+  const view = findCodeMirror6View(editorElement, hostWindow);
+
+  if (typeof view?.requestMeasure === "function") {
+    view.requestMeasure();
+  }
+}
+
+function syncCodeBlockWrapStateInSubtree(root, hostDocument = getHostDocument()) {
+  const hostWindow = hostDocument.defaultView || getHostWindow();
+  const shouldWrap = Boolean(panelState.controlState.wrapCodeBlocks);
+
+  collectMatchingElements(root, '.CodeMirror', hostWindow).forEach((editorElement) => {
+    syncCodeMirror5Wrap(editorElement, shouldWrap);
+  });
+
+  collectMatchingElements(root, '.cm-editor', hostWindow).forEach((editorElement) => {
+    syncCodeMirror6Wrap(editorElement, shouldWrap, hostWindow);
+  });
+}
+
+function syncCodeBlockWrapState() {
+  getObservableHostDocuments().forEach((hostDocument) => {
+    const root = hostDocument.body || hostDocument.documentElement;
+
+    if (root) {
+      syncCodeBlockWrapStateInSubtree(root, hostDocument);
+    }
+  });
+}
+
+function scheduleCodeBlockWrapSync() {
+  const hostWindow = getHostWindow();
+
+  if (hostWindow[CODE_WRAP_TIMER_KEY]) {
+    return;
+  }
+
+  hostWindow[CODE_WRAP_TIMER_KEY] = hostWindow.setTimeout(() => {
+    hostWindow[CODE_WRAP_TIMER_KEY] = null;
+    syncCodeBlockWrapState();
+  }, 40);
+}
+
+function observeCodeBlockWrapState() {
+  const hostWindow = getHostWindow();
+  const documents = getObservableHostDocuments();
+  const codeBlockSelector = `${CODE_BLOCK_EDITOR_SELECTOR}, .extensions__code`;
+
+  disconnectObserverGroup(hostWindow[CODE_WRAP_OBSERVER_KEY]);
+
+  hostWindow[CODE_WRAP_OBSERVER_KEY] = documents.map((hostDocument) => {
+    const documentWindow = hostDocument.defaultView || hostWindow;
+    const HostMutationObserver = documentWindow.MutationObserver || MutationObserver;
+    const observer = new HostMutationObserver((mutations) => {
+      let shouldSync = false;
+
+      mutations.forEach((mutation) => {
+        if (!shouldSync && nodeTouchesSelector(mutation.target, codeBlockSelector, documentWindow)) {
+          shouldSync = true;
+        }
+
+        Array.from(mutation.addedNodes || []).forEach((node) => {
+          if (!shouldSync && nodeTouchesSelector(node, codeBlockSelector, documentWindow)) {
+            shouldSync = true;
+          }
+        });
+      });
+
+      if (shouldSync) {
+        scheduleCodeBlockWrapSync();
+      }
+    });
+
+    observer.observe(hostDocument.body || hostDocument.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    return observer;
+  });
+
+  syncCodeBlockWrapState();
 }
 
 function getAssignedNodeColorForTag(tagName) {
@@ -11203,13 +11354,30 @@ ${controls.codeBlockPaddingX > 0 ? `${CODE_BLOCK_PADDING_SELECTOR} {
   padding-right: ${controls.codeBlockPaddingX}px !important;
 }` : ""}
 
-${controls.wrapCodeBlocks ? `${CODE_BLOCK_WRAP_SELECTOR} {
+${controls.wrapCodeBlocks ? `${CODE_BLOCK_RENDER_WRAP_CONTAINER_SELECTOR},
+${CODE_BLOCK_EDITOR_WRAP_SELECTOR} {
   max-width: 100% !important;
   min-width: 0 !important;
+  overflow-x: hidden !important;
+}
+
+${CODE_BLOCK_RENDER_WRAP_TEXT_SELECTOR} {
   white-space: pre-wrap !important;
   overflow-wrap: anywhere !important;
   word-break: break-word !important;
-  overflow-x: hidden !important;
+}
+
+.CodeMirror.CodeMirror-wrap pre {
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}
+
+.cm-editor.cm-lineWrapping .cm-content,
+.cm-editor.cm-lineWrapping .cm-line {
+  white-space: break-spaces !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
 }` : ""}
 `.trim(),
   };
@@ -12263,6 +12431,7 @@ async function applyManagedOverrides(showToast = false, statusMessage = "Updated
   syncHostColorVariables();
   syncAllTagDrivenNodeStyles();
   syncInlineTagHighlightStyle();
+  syncCodeBlockWrapState();
   scheduleCmdkTagStyleSync();
   scheduleSidebarTagStyleSync();
 
@@ -12537,6 +12706,7 @@ async function main() {
 
   observeHostColorTargets();
   observeTagDrivenNodeStyles();
+  observeCodeBlockWrapState();
   observeCmdkSearchResults();
   observeSidebarTagStyles();
 
