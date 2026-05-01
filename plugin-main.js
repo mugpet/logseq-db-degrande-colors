@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.23";
+const FALLBACK_PLUGIN_VERSION = "0.6.24";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -12552,124 +12552,122 @@ async function main() {
 
   syncThemeLoaderToggleState();
 
+  registerCommandPaletteSafely(
+    {
+      key: commandKey("open-panel"),
+      label: "Degrande Colors: open panel",
+    },
+    openThemeLoader
+  );
+
+  registerCommandPaletteSafely(
+    {
+      key: commandKey("status"),
+      label: "Degrande Colors: show status",
+    },
+    async () => {
+      await logseq.UI.showMsg(
+        activationMessage,
+        "success"
+      );
+      openThemeLoader();
+    }
+  );
+
+  registerCommandPaletteSafely(
+    {
+      key: commandKey("reload-css"),
+      label: "Degrande Colors: reload styles",
+    },
+    () => reloadThemeCss(true)
+  );
+
+  registerCommandPaletteSafely(
+    {
+      key: commandKey("reload-local-state"),
+      label: "Degrande Colors: reload synced graph state",
+    },
+    () => syncPersistedAppearance({
+      reason: "Reloaded synced graph appearance for this graph",
+      showToast: true,
+      forceRender: true,
+      fallbackToPrevious: false,
+      refreshTagCatalog: true,
+    })
+  );
+
+  registerCommandPaletteSafely(
+    {
+      key: commandKey("refresh-tags"),
+      label: "Degrande Colors: refresh tags",
+    },
+    () => ensureTagsForCurrentGraph({ force: true, showToast: true, fallbackToPrevious: false })
+  );
+
+  registerCommandPaletteSafely(
+    {
+      key: commandKey("toggle-logseq-theme"),
+      label: "Degrande Colors: toggle Logseq theme",
+    },
+    toggleLogseqTheme
+  );
+
+  registerCommandPaletteSafely(
+    {
+      key: commandKey("toggle-true-wide-mode"),
+      label: `Degrande Colors: toggle true wide mode (${getTrueWideModeShortcutLabel()})`,
+    },
+    () => toggleTrueWideMode(true)
+  );
+
+  registerCommandPaletteSafely(
+    {
+      key: commandKey("toggle-code-wrap"),
+      label: `Degrande Colors: toggle code block wrap (${getWrapCodeBlocksShortcutLabel()})`,
+    },
+    () => toggleWrapCodeBlocks(true)
+  );
+
+  registerCommandPaletteSafely(
+    {
+      key: commandKey("toggle-focus-mode"),
+      label: `Degrande Colors: toggle focus/zen mode (${getFocusModeShortcutLabel()})`,
+    },
+    () => toggleFocusMode(true)
+  );
+
+  registerCommandShortcutSafely(
+    { mode: "global", binding: TRUE_WIDE_MODE_SHORTCUT_BINDING },
+    () => toggleTrueWideMode(true),
+    {
+      key: commandKey("shortcut-toggle-true-wide-mode"),
+      label: "Degrande Colors: toggle true wide mode",
+    }
+  );
+
+  registerCommandShortcutSafely(
+    { mode: "global", binding: CODE_WRAP_SHORTCUT_BINDING },
+    () => toggleWrapCodeBlocks(true),
+    {
+      key: commandKey("shortcut-toggle-code-wrap"),
+      label: "Degrande Colors: toggle code block wrap",
+    }
+  );
+
+  registerCommandShortcutSafely(
+    { mode: "global", binding: FOCUS_MODE_SHORTCUT_BINDING },
+    () => toggleFocusMode(true),
+    {
+      key: commandKey("shortcut-toggle-focus-mode"),
+      label: "Degrande Colors: toggle focus/zen mode",
+    }
+  );
+
   if (shouldRegisterHostUi) {
-    registerCommandPaletteSafely(
-      {
-        key: commandKey("open-panel"),
-        label: "Degrande Colors: open panel",
-      },
-      openThemeLoader
-    );
-
-    registerCommandPaletteSafely(
-      {
-        key: commandKey("status"),
-        label: "Degrande Colors: show status",
-      },
-      async () => {
-        await logseq.UI.showMsg(
-          activationMessage,
-          "success"
-        );
-        openThemeLoader();
-      }
-    );
-
-    registerCommandPaletteSafely(
-      {
-        key: commandKey("reload-css"),
-        label: "Degrande Colors: reload styles",
-      },
-      () => reloadThemeCss(true)
-    );
-
-    registerCommandPaletteSafely(
-      {
-        key: commandKey("reload-local-state"),
-        label: "Degrande Colors: reload synced graph state",
-      },
-      () => syncPersistedAppearance({
-        reason: "Reloaded synced graph appearance for this graph",
-        showToast: true,
-        forceRender: true,
-        fallbackToPrevious: false,
-        refreshTagCatalog: true,
-      })
-    );
-
-    registerCommandPaletteSafely(
-      {
-        key: commandKey("refresh-tags"),
-        label: "Degrande Colors: refresh tags",
-      },
-      () => ensureTagsForCurrentGraph({ force: true, showToast: true, fallbackToPrevious: false })
-    );
-
-    registerCommandPaletteSafely(
-      {
-        key: commandKey("toggle-logseq-theme"),
-        label: "Degrande Colors: toggle Logseq theme",
-      },
-      toggleLogseqTheme
-    );
-
-    registerCommandPaletteSafely(
-      {
-        key: commandKey("toggle-true-wide-mode"),
-        label: `Degrande Colors: toggle true wide mode (${getTrueWideModeShortcutLabel()})`,
-      },
-      () => toggleTrueWideMode(true)
-    );
-
-    registerCommandPaletteSafely(
-      {
-        key: commandKey("toggle-code-wrap"),
-        label: `Degrande Colors: toggle code block wrap (${getWrapCodeBlocksShortcutLabel()})`,
-      },
-      () => toggleWrapCodeBlocks(true)
-    );
-
-    registerCommandPaletteSafely(
-      {
-        key: commandKey("toggle-focus-mode"),
-        label: `Degrande Colors: toggle focus/zen mode (${getFocusModeShortcutLabel()})`,
-      },
-      () => toggleFocusMode(true)
-    );
-
-    registerCommandShortcutSafely(
-      { mode: "global", binding: TRUE_WIDE_MODE_SHORTCUT_BINDING },
-      () => toggleTrueWideMode(true),
-      {
-        key: commandKey("shortcut-toggle-true-wide-mode"),
-        label: "Degrande Colors: toggle true wide mode",
-      }
-    );
-
-    registerCommandShortcutSafely(
-      { mode: "global", binding: CODE_WRAP_SHORTCUT_BINDING },
-      () => toggleWrapCodeBlocks(true),
-      {
-        key: commandKey("shortcut-toggle-code-wrap"),
-        label: "Degrande Colors: toggle code block wrap",
-      }
-    );
-
-    registerCommandShortcutSafely(
-      { mode: "global", binding: FOCUS_MODE_SHORTCUT_BINDING },
-      () => toggleFocusMode(true),
-      {
-        key: commandKey("shortcut-toggle-focus-mode"),
-        label: "Degrande Colors: toggle focus/zen mode",
-      }
-    );
-
     hostSession[pluginId] = {
       version: PLUGIN_VERSION,
       activatedAt: Date.now(),
     };
-  } else if (shouldRegisterHostUi) {
-    try { getHostWindow().console?.warn?.('[degrande] BISECT: command palette commands skipped'); } catch (_) {}
   }
 
   console.info(`[Degrande Colors] Loaded base styles and controls (v${PLUGIN_VERSION})`);
