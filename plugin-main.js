@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.14";
+const FALLBACK_PLUGIN_VERSION = "0.6.15";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1218,6 +1218,7 @@ const panelState = {
   activeHistorySources: new Set(),
   historyApplying: false,
   hostTagContextMenuBound: false,
+  hostToolbarLauncherBound: false,
   hostWrapShortcutBound: false,
   legacyManagedStylesCleaned: false,
   tagNodeColorMap: {},
@@ -11031,6 +11032,34 @@ function bindHostWrapShortcut() {
   panelState.hostWrapShortcutBound = true;
 }
 
+function bindHostToolbarLauncher() {
+  if (panelState.hostToolbarLauncherBound) {
+    return;
+  }
+
+  const hostDocument = getHostDocument();
+
+  hostDocument.addEventListener("click", (event) => {
+    const target = event.target;
+
+    if (!(target instanceof hostDocument.defaultView.Element)) {
+      return;
+    }
+
+    const launcher = target.closest('[data-injected-ui="custom-theme-loader-open"] a, [data-injected-ui="custom-theme-loader-open"] a.button');
+
+    if (!launcher) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    toggleThemeLoader();
+  });
+
+  panelState.hostToolbarLauncherBound = true;
+}
+
 function mountPanel() {
   if (panelState.mounted) {
     return;
@@ -12007,6 +12036,7 @@ async function main() {
   }, 2500);
 
   bindHostTagContextMenu();
+  bindHostToolbarLauncher();
   bindHostWrapShortcut();
 
   const userConfigsPromise = typeof logseq.App?.getUserConfigs === "function"
