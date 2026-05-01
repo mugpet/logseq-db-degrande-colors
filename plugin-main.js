@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.37";
+const FALLBACK_PLUGIN_VERSION = "0.6.38";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1095,6 +1095,16 @@ const TWEAK_TYPOGRAPHY_EXEMPT_SELECTORS = [
   '.page-reference *',
   '[data-ref] *',
   '[data-page-ref] *',
+  '#degrande-calendar-pagebar',
+  '#degrande-calendar-pagebar *',
+  '#degrande-calendar-inline-bar',
+  '#degrande-calendar-inline-bar *',
+  '#degrande-calendar-preview-popup',
+  '#degrande-calendar-preview-popup *',
+  '.dgc-pagebar',
+  '.dgc-pagebar *',
+  '.dgc-preview-popup',
+  '.dgc-preview-popup *',
   '.dgc-range',
   '.dgc-nav',
   '.dgc-toggle',
