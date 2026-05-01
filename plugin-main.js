@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.22";
+const FALLBACK_PLUGIN_VERSION = "0.6.23";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -31,8 +31,12 @@ const CMDK_STYLE_TIMER_KEY = "__degrandeColorsCmdkStyleTimer";
 const SIDEBAR_STYLE_OBSERVER_KEY = "__degrandeColorsSidebarStyleObserver";
 const SIDEBAR_STYLE_TIMER_KEY = "__degrandeColorsSidebarStyleTimer";
 const COMMAND_REGISTRY_KEY = "__degrandeColorsRegisteredCommands";
+const SHORTCUT_REGISTRY_KEY = "__degrandeColorsRegisteredShortcuts";
 const TOOLBAR_REGISTRY_KEY = "__degrandeColorsRegisteredToolbarItems";
 const HOST_SESSION_KEY = "__degrandeColorsHostSession";
+const CODE_WRAP_SHORTCUT_BINDING = "mod+alt+w";
+const TRUE_WIDE_MODE_SHORTCUT_BINDING = "mod+alt+shift+w";
+const FOCUS_MODE_SHORTCUT_BINDING = "mod+alt+z";
 const PANEL_HOST_CLASS = "degrande-panel-host";
 const MAIN_UI_INLINE_STYLE = {
   position: "fixed",
@@ -3458,6 +3462,31 @@ function registerCommandPaletteSafely(config, handler) {
   }
 
   registeredCommands.add(config.key);
+
+  return true;
+}
+
+function registerCommandShortcutSafely(keybinding, handler, opts = {}) {
+  const hostWindow = getHostWindow();
+  const registeredShortcuts = hostWindow[SHORTCUT_REGISTRY_KEY] || (hostWindow[SHORTCUT_REGISTRY_KEY] = new Set());
+  const registryKey = opts.key || (typeof keybinding === "string" ? keybinding : keybinding?.binding);
+
+  if (!registryKey || registeredShortcuts.has(registryKey)) {
+    return false;
+  }
+
+  try {
+    logseq.App.registerCommandShortcut(keybinding, handler, opts);
+  } catch (error) {
+    if (isDuplicateRegistrationError(error)) {
+      registeredShortcuts.add(registryKey);
+      return false;
+    }
+
+    throw error;
+  }
+
+  registeredShortcuts.add(registryKey);
 
   return true;
 }
@@ -9887,7 +9916,7 @@ function buildTweaksPaneMarkup() {
         })}
         ${buildTweakSectionMarkup({
           title: "Code Blocks",
-          description: `Code size, breathing room, and wrapping. Shortcut: ${escapeHtml(wrapShortcutLabel)}.`,
+          description: `Code size, breathing room, and wrapping. Default shortcut: ${escapeHtml(wrapShortcutLabel)}.`,
           controlKeys: ["codeBlockFontSize", "codeBlockLineHeight", "codeBlockPaddingX"],
           extraMarkup: `
             <div class="ctl-control ctl-control-tight ctl-tweaks-boolean-row">
@@ -11278,8 +11307,59 @@ function isMacPlatform() {
   return /Mac|iPhone|iPad|iPod/i.test(platform) || /Mac|iPhone|iPad|iPod/i.test(userAgent);
 }
 
+function formatShortcutBindingLabel(binding) {
+  return String(binding || "")
+    .split("+")
+    .filter(Boolean)
+    .map((token) => {
+      const normalized = token.trim().toLowerCase();
+
+      if (normalized === "mod") {
+        return isMacPlatform() ? "Cmd" : "Ctrl";
+      }
+
+      if (normalized === "alt") {
+        return isMacPlatform() ? "Option" : "Alt";
+      }
+
+      if (normalized === "shift") {
+        return "Shift";
+      }
+
+      return normalized.length === 1 ? normalized.toUpperCase() : normalized.replace(/(^|\s)\S/g, (value) => value.toUpperCase());
+    })
+    .join("+");
+}
+
 function getWrapCodeBlocksShortcutLabel() {
-  return `${isMacPlatform() ? "Cmd" : "Ctrl"}+Alt+W`;
+  return formatShortcutBindingLabel(CODE_WRAP_SHORTCUT_BINDING);
+}
+
+function getTrueWideModeShortcutLabel() {
+  return formatShortcutBindingLabel(TRUE_WIDE_MODE_SHORTCUT_BINDING);
+}
+
+function getFocusModeShortcutLabel() {
+  return formatShortcutBindingLabel(FOCUS_MODE_SHORTCUT_BINDING);
+}
+
+async function toggleBooleanControl(controlKey, label, showToast = true) {
+  const control = CONTROL_MAP[controlKey];
+
+  if (!control) {
+    return false;
+  }
+
+  captureHistorySnapshot(`toggle-${controlKey}`);
+  panelState.controlState[controlKey] = !panelState.controlState[controlKey];
+  schedulePersistControls();
+  await applyManagedOverrides(
+    showToast,
+    `${panelState.controlState[controlKey] ? "Enabled" : "Disabled"} ${label}`,
+    "soft"
+  );
+  finishHistoryCapture(`toggle-${controlKey}`);
+  return true;
 }
 
 function isLeftSidebarVisible() {
@@ -11322,22 +11402,11 @@ async function toggleFocusMode(showToast = true) {
 }
 
 async function toggleWrapCodeBlocks(showToast = true) {
-  const control = CONTROL_MAP.wrapCodeBlocks;
+  return toggleBooleanControl("wrapCodeBlocks", "code block wrap", showToast);
+}
 
-  if (!control) {
-    return false;
-  }
-
-  captureHistorySnapshot("toggle-wrap-code-blocks");
-  panelState.controlState.wrapCodeBlocks = !panelState.controlState.wrapCodeBlocks;
-  schedulePersistControls();
-  await applyManagedOverrides(
-    showToast,
-    `${panelState.controlState.wrapCodeBlocks ? "Enabled" : "Disabled"} code block wrap`,
-    "soft"
-  );
-  finishHistoryCapture("toggle-wrap-code-blocks");
-  return true;
+async function toggleTrueWideMode(showToast = true) {
+  return toggleBooleanControl("trueWideMode", "true wide mode", showToast);
 }
 
 function bindHostWrapShortcut() {
@@ -12374,7 +12443,6 @@ async function main() {
 
   bindHostTagContextMenu();
   bindHostToolbarLauncher();
-  bindHostWrapShortcut();
 
   const userConfigsPromise = typeof logseq.App?.getUserConfigs === "function"
     ? logseq.App.getUserConfigs().catch((error) => {
@@ -12547,6 +12615,14 @@ async function main() {
 
     registerCommandPaletteSafely(
       {
+        key: commandKey("toggle-true-wide-mode"),
+        label: `Degrande Colors: toggle true wide mode (${getTrueWideModeShortcutLabel()})`,
+      },
+      () => toggleTrueWideMode(true)
+    );
+
+    registerCommandPaletteSafely(
+      {
         key: commandKey("toggle-code-wrap"),
         label: `Degrande Colors: toggle code block wrap (${getWrapCodeBlocksShortcutLabel()})`,
       },
@@ -12556,9 +12632,36 @@ async function main() {
     registerCommandPaletteSafely(
       {
         key: commandKey("toggle-focus-mode"),
-        label: "Degrande Colors: toggle focus mode",
+        label: `Degrande Colors: toggle focus/zen mode (${getFocusModeShortcutLabel()})`,
       },
       () => toggleFocusMode(true)
+    );
+
+    registerCommandShortcutSafely(
+      { mode: "global", binding: TRUE_WIDE_MODE_SHORTCUT_BINDING },
+      () => toggleTrueWideMode(true),
+      {
+        key: commandKey("shortcut-toggle-true-wide-mode"),
+        label: "Degrande Colors: toggle true wide mode",
+      }
+    );
+
+    registerCommandShortcutSafely(
+      { mode: "global", binding: CODE_WRAP_SHORTCUT_BINDING },
+      () => toggleWrapCodeBlocks(true),
+      {
+        key: commandKey("shortcut-toggle-code-wrap"),
+        label: "Degrande Colors: toggle code block wrap",
+      }
+    );
+
+    registerCommandShortcutSafely(
+      { mode: "global", binding: FOCUS_MODE_SHORTCUT_BINDING },
+      () => toggleFocusMode(true),
+      {
+        key: commandKey("shortcut-toggle-focus-mode"),
+        label: "Degrande Colors: toggle focus/zen mode",
+      }
     );
 
     hostSession[pluginId] = {
