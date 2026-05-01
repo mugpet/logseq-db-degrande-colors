@@ -210,13 +210,19 @@ a.page-ref:not(.tag):hover {
   transition: none !important;
 }
 
-/* Linked-block gradients intentionally paint the whole block row, but node
-   property pills should read as a single native surface instead of a pill on
-   top of another blue treatment. Mask the gradient only under node-valued
-   property chips. */
+/* Linked-block gradients intentionally paint the whole block row, but property
+   values should still read as native surfaces while Logseq swaps between edit
+   and display DOM on blur. Reset the whole property-value surface here so the
+   transient markup used during commit stays readable too. */
+.ls-block > div:first-child[data-degrande-linked-node="true"] .positioned-properties .property-value-container,
+.ls-block > div:first-child[data-degrande-linked-node="true"] .positioned-properties .property-value,
 .ls-block > div:first-child[data-degrande-linked-node="true"] .positioned-properties [data-type="node"] .select-item {
   background-color: var(--ls-primary-background-color, var(--ls-secondary-background-color, transparent)) !important;
   background-image: none !important;
+  color: inherit !important;
+}
+
+.ls-block > div:first-child[data-degrande-linked-node="true"] .positioned-properties [data-type="node"] .select-item {
   border-radius: 999px !important;
 }
 
