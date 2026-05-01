@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.33";
+const FALLBACK_PLUGIN_VERSION = "0.6.34";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -10279,11 +10279,6 @@ function buildTweaksPaneMarkup() {
           `,
         })}
         ${buildTweakSectionMarkup({
-          title: "Tag Chips",
-          description: "Mirror the most useful chip sizing controls here so you do not need to bounce back to Appearance.",
-          controlKeys: ["tagFontSize", "tagHeight", "tagPaddingX"],
-        })}
-        ${buildTweakSectionMarkup({
           title: "Quick Actions",
           description: "One-off layout commands backed by the Logseq app API rather than persistent CSS overrides.",
           extraMarkup: `
@@ -10295,7 +10290,7 @@ function buildTweaksPaneMarkup() {
                 focusModeLabel
               )}
             </div>
-            <p class="ctl-tweaks-note">Tag chip sizing mirrors the existing Appearance controls, while the focus mode action is temporary and does not change your saved graph styles.</p>
+            <p class="ctl-tweaks-note">The focus mode action is temporary and does not change your saved graph styles.</p>
           `,
         })}
       </div>
