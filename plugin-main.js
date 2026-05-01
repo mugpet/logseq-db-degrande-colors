@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.45";
+const FALLBACK_PLUGIN_VERSION = "0.6.46";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -11477,7 +11477,7 @@ ${backgroundRules}
 `.trim(),
     uiTweaks: `
 ${controls.uiFontSize > 0 || controls.rightSidebarFontSize > 0 || controls.leftSidebarFontSize > 0 || controls.propertyValueFontSize > 0 ? `${TAG_FONT_CAP_SELECTOR} {
-  font-size: var(--degrande-tag-font-cap, inherit) !important;
+  font-size: min(${controls.tagFontSize}px, var(--degrande-tag-font-cap, ${controls.tagFontSize}px)) !important;
 }` : ""}
 
 ${controls.uiFontSize > 0 ? `${MAIN_CONTENT_FONT_SIZE_SELECTOR} {
