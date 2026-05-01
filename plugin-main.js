@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.35";
+const FALLBACK_PLUGIN_VERSION = "0.6.36";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -1080,11 +1080,35 @@ const SIDEBAR_TITLE_SELECTOR = [
   `${SIDEBAR_ROOT_SELECTOR} .page-title`,
   `${SIDEBAR_ROOT_SELECTOR} a`,
 ].join(', ');
-const FONT_SIZE_INHERIT_DESCENDANTS = [
-  '*:not(a.tag)',
-  '*:not(a.tag)::before',
-  '*:not(a.tag)::after',
+const TWEAK_TYPOGRAPHY_EXEMPT_SELECTORS = [
+  'a.tag',
+  '[data-degrande-inline-tag]',
+  '[data-degrande-search-tag-label]',
+  '[data-degrande-popover-chip]',
+  '.dgc-range',
+  '.dgc-nav',
+  '.dgc-toggle',
+  '.dgc-today',
+  '.dgc-day',
+  '.dgc-day-name',
+  '.dgc-day-week',
+  '.dgc-day-date',
+  '.dgc-day-meta',
+  '.dgc-nav-icon',
+  '.dgc-toggle-icon',
 ];
+
+function buildTypographyInheritDescendants() {
+  const exemptSuffix = TWEAK_TYPOGRAPHY_EXEMPT_SELECTORS.map((selector) => `:not(${selector})`).join('');
+
+  return [
+    `*${exemptSuffix}`,
+    `*${exemptSuffix}::before`,
+    `*${exemptSuffix}::after`,
+  ];
+}
+
+const FONT_SIZE_INHERIT_DESCENDANTS = buildTypographyInheritDescendants();
 const TAG_FONT_SIZE_OVERRIDE_DESCENDANTS = [
   'a.tag',
   'a.tag:hover',
