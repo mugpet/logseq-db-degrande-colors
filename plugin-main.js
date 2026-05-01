@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.16";
+const FALLBACK_PLUGIN_VERSION = "0.6.17";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -10978,6 +10978,13 @@ function isEditableUndoRedoTarget(target) {
   }
 
   return input.type !== "range" && input.type !== "checkbox" && input.type !== "radio" && input.type !== "button";
+}
+
+function isMacPlatform() {
+  const hostNavigator = globalThis.navigator;
+  const platform = String(hostNavigator?.platform || "");
+  const userAgent = String(hostNavigator?.userAgent || "");
+  return /Mac|iPhone|iPad|iPod/i.test(platform) || /Mac|iPhone|iPad|iPod/i.test(userAgent);
 }
 
 function getWrapCodeBlocksShortcutLabel() {
