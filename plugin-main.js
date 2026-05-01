@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.41";
+const FALLBACK_PLUGIN_VERSION = "0.6.42";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -11613,6 +11613,12 @@ ${controls.propertyValueFontSize > 0 ? `${PROPERTY_VALUE_FONT_SIZE_SELECTOR} {
 ${PROPERTY_BLOCK_TAG_TEXT_SELECTOR} {
   font-size: inherit !important;
   line-height: inherit !important;
+}
+
+${PROPERTY_BLOCK_TAG_CHIP_SELECTOR} {
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 0 0.35em !important;
 }` : ""}
 
 ${controls.propertyValueLineHeight > 0 ? `${PROPERTY_VALUE_LINE_HEIGHT_SELECTOR} {
@@ -11627,6 +11633,8 @@ ${PROPERTY_BLOCK_TAG_TEXT_SELECTOR} {
 ${PROPERTY_BLOCK_TAG_CHIP_SELECTOR} {
   height: auto !important;
   min-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
 }` : ""}
 
 ${controls.propertyKeyLineHeight > 0 || controls.propertyValueLineHeight > 0 ? `${PROPERTY_FIXED_HEIGHT_SELECTOR} {
