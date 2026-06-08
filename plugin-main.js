@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.49";
+const FALLBACK_PLUGIN_VERSION = "0.6.50";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -3635,73 +3635,38 @@ function syncSidebarTagStyles() {
   syncSidebarNavTagDots();
 }
 
-function _clearNavDotMarker(anchor) {
-  anchor.removeAttribute("data-degrande-sidebar-dot");
-  anchor.removeAttribute("title");
-  anchor.style.removeProperty("--degrande-dot-bg");
-  anchor.style.removeProperty("--degrande-dot-border");
-}
-
 function syncSidebarNavTagDots() {
   getObservableHostDocuments().forEach((hostDocument) => {
     const sidebar = hostDocument.querySelector(SIDEBAR_ROOT_SELECTOR);
     if (!sidebar) return;
 
     if (!isAppearanceSectionEnabled("sidebarTagDots")) {
-      sidebar.querySelectorAll("a[data-degrande-sidebar-dot]").forEach(_clearNavDotMarker);
-      sidebar.querySelectorAll("[data-degrande-sidebar-dot-row]").forEach((el) => el.removeAttribute("data-degrande-sidebar-dot-row"));
-      sidebar.querySelectorAll("[data-degrande-sidebar-dot-list]").forEach((el) => el.removeAttribute("data-degrande-sidebar-dot-list"));
+      // Remove tooltip markers we previously added
+      sidebar.querySelectorAll("a.tag[data-degrande-sidebar-dot]").forEach((el) => {
+        el.removeAttribute("data-degrande-sidebar-dot");
+        el.removeAttribute("title");
+      });
       return;
     }
 
-    const knownTagsSet = new Set((panelState.tags || []).map((t) => t.toLowerCase()));
+    // Target the native a.tag[data-ref] chips already rendered in the sidebar.
+    // Set title for tooltip and a marker attribute so CSS can scope to these only.
+    sidebar.querySelectorAll("a.tag[data-ref]").forEach((tagAnchor) => {
+      const tagName = (tagAnchor.dataset.ref || "").replace(/^#/, "");
+      if (!tagName) return;
 
-    // Clean up stale markers from tags that no longer exist
-    sidebar.querySelectorAll("a[data-degrande-sidebar-dot]").forEach((anchor) => {
-      const dotTag = anchor.getAttribute("data-degrande-sidebar-dot");
-      if (!knownTagsSet.has(dotTag)) {
-        _clearNavDotMarker(anchor);
+      tagAnchor.setAttribute("data-degrande-sidebar-dot", tagName.toLowerCase());
+      if (!tagAnchor.getAttribute("title")) {
+        tagAnchor.setAttribute("title", `#${tagName}`);
       }
     });
 
-    if (!knownTagsSet.size) return;
-
-    // Find nav links whose .page-title text matches a known tag
-    sidebar.querySelectorAll(".page-title").forEach((titleEl) => {
-      const anchor = titleEl.closest("a");
-      if (!anchor) return;
-
-      // Skip inline tag chips (a.tag elements)
-      if (anchor.classList.contains("tag")) return;
-
-      const rawText = (titleEl.textContent || "").trim();
-      const normalized = rawText.toLowerCase();
-
-      if (!knownTagsSet.has(normalized)) {
-        if (anchor.hasAttribute("data-degrande-sidebar-dot")) {
-          _clearNavDotMarker(anchor);
-        }
-        return;
+    // Also clean up any stale markers on chips that are no longer a.tag
+    sidebar.querySelectorAll("[data-degrande-sidebar-dot]").forEach((el) => {
+      if (!el.classList.contains("tag")) {
+        el.removeAttribute("data-degrande-sidebar-dot");
+        el.removeAttribute("title");
       }
-
-      anchor.setAttribute("data-degrande-sidebar-dot", normalized);
-      anchor.setAttribute("title", rawText);
-
-      // Mark parent row element for layout compaction
-      const parentEl = anchor.parentElement;
-      if (parentEl && parentEl !== sidebar) {
-        parentEl.setAttribute("data-degrande-sidebar-dot-row", "");
-        const grandParent = parentEl.parentElement;
-        if (grandParent && grandParent !== sidebar) {
-          grandParent.setAttribute("data-degrande-sidebar-dot-list", "");
-        }
-      }
-
-      // Apply tag color as inline CSS variables
-      const assignment = getTagColorAssignment(rawText);
-      const theme = getTagChipThemeStyle(assignment);
-      anchor.style.setProperty("--degrande-dot-bg", theme.background);
-      anchor.style.setProperty("--degrande-dot-border", theme.borderColor);
     });
   });
 }
@@ -11798,48 +11763,38 @@ ${CODE_BLOCK_RENDER_WRAP_TEXT_SELECTOR} {
 }` : ""}
 `.trim(),
     sidebarTagDots: `
-/* Sidebar nav tag circles — container flows as a wrapped dot row */
-[data-degrande-sidebar-dot-list] {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  gap: 4px !important;
-  padding: 2px 6px 4px !important;
-}
-
-[data-degrande-sidebar-dot-row] {
-  display: inline-flex !important;
-  width: auto !important;
+/* Sidebar a.tag chips become small colored dots — hide text, show dot shape */
+.left-sidebar-inner a.tag[data-degrande-sidebar-dot] {
+  width: 10px !important;
+  height: 10px !important;
+  min-width: 10px !important;
+  min-height: 10px !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  font-size: 0 !important;
+  line-height: 1 !important;
+  overflow: hidden !important;
   flex-shrink: 0 !important;
-}
-
-/* Each tag link becomes a colored dot */
-.left-sidebar-inner a[data-degrande-sidebar-dot] {
+  margin: 0 1px !important;
+  vertical-align: middle !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 14px !important;
-  height: 14px !important;
-  min-width: 14px !important;
-  border-radius: 50% !important;
-  padding: 0 !important;
-  overflow: hidden !important;
-  background: var(--degrande-dot-bg, #9ca3af) !important;
-  border: 1.5px solid var(--degrande-dot-border, rgba(0,0,0,0.15)) !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.10) !important;
-  font-size: 0 !important;
-  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
   cursor: pointer !important;
-  text-decoration: none !important;
-  flex-shrink: 0 !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12) !important;
+  transform: none !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
 }
 
-.left-sidebar-inner a[data-degrande-sidebar-dot] * {
+.left-sidebar-inner a.tag[data-degrande-sidebar-dot] * {
   display: none !important;
 }
 
-.left-sidebar-inner a[data-degrande-sidebar-dot]:hover {
-  transform: scale(1.3) !important;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.18) !important;
+.left-sidebar-inner a.tag[data-degrande-sidebar-dot]:hover,
+.left-sidebar-inner a.tag[data-degrande-sidebar-dot]:focus {
+  transform: scale(1.4) !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.20) !important;
+  opacity: 1 !important;
 }
 `.trim(),
   };
