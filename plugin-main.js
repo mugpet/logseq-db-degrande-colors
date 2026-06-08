@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.60";
+const FALLBACK_PLUGIN_VERSION = "0.6.61";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -11798,7 +11798,7 @@ ${CODE_BLOCK_RENDER_WRAP_TEXT_SELECTOR} {
   position: relative !important;
   overflow: visible !important;
   padding: 0 !important;
-  margin: 0 4px 0 6px !important;
+  margin: 0 1px 0 6px !important;
   border: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
@@ -11807,6 +11807,12 @@ ${CODE_BLOCK_RENDER_WRAP_TEXT_SELECTOR} {
   line-height: 0 !important;
   white-space: nowrap !important;
   vertical-align: middle !important;
+}
+
+/* Tighten the gap between consecutive dots (first dot keeps its 6px lead from
+   the page name; subsequent dots sit close together). */
+.left-sidebar-inner .page-title [data-degrande-inline-tag] + [data-degrande-inline-tag] {
+  margin-left: 1px !important;
 }
 
 .left-sidebar-inner .page-title [data-degrande-inline-tag]::after {
