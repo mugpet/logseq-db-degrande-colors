@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.55";
+const FALLBACK_PLUGIN_VERSION = "0.6.56";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -615,6 +615,7 @@ const APPEARANCE_SECTIONS = [
   { key: "quotes", label: "Quotes", description: "Quote edge glow, padding, and gradient fills." },
   { key: "backgroundBlocks", label: "Background Blocks", description: "Gradient sweeps on non-quote colored blocks." },
   { key: "uiTweaks", label: "UI Tweaks", description: "Optional typography and code-block presentation overrides." },
+  { key: "sidebarTagDots", label: "Sidebar Tag Dots", description: "Collapse left sidebar tags into small colored dots; hover shows the tag name." },
 ];
 const APPEARANCE_SECTION_MAP = Object.fromEntries(APPEARANCE_SECTIONS.map((section) => [section.key, section]));
 const DEFAULT_APPEARANCE_STATE = Object.fromEntries(APPEARANCE_SECTIONS.map((section) => [section.key, true]));
@@ -2720,6 +2721,7 @@ function createCmdkInlineTagChip(hostDocument, displayTagName, tagName, contentN
   const chipTheme = getCmdkTagThemeState(tagName);
 
   chip.setAttribute('data-degrande-inline-tag', tagName);
+  chip.setAttribute('title', `#${displayTagName}`);
   if (contentNode) {
     chip.appendChild(contentNode);
   } else {
@@ -11750,6 +11752,40 @@ ${CODE_BLOCK_RENDER_WRAP_TEXT_SELECTOR} {
   overflow-wrap: anywhere !important;
   word-break: break-word !important;
 }` : ""}
+`.trim(),
+    sidebarTagDots: `
+/* Collapse left-sidebar tag chips into small colored dots.
+   Sidebar tags are the plugin's own [data-degrande-inline-tag] chips inside
+   .page-title. The saturated tag color lives in --degrande-search-chip-border
+   (the chip's --...-bg is a near-white fill), so the dot uses the border color.
+   pointer-events is restored so the title tooltip shows on hover. */
+.left-sidebar-inner .page-title [data-degrande-inline-tag] {
+  pointer-events: auto !important;
+  cursor: default !important;
+  width: 11px !important;
+  height: 11px !important;
+  min-width: 11px !important;
+  min-height: 11px !important;
+  max-width: 11px !important;
+  padding: 0 !important;
+  border-width: 0 !important;
+  border-radius: 50% !important;
+  background: var(--degrande-search-chip-border, #9ca3af) !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
+  vertical-align: middle !important;
+  margin: 0 0 0 5px !important;
+  flex: 0 0 auto !important;
+  transition: transform 0.12s ease !important;
+}
+
+.left-sidebar-inner .page-title [data-degrande-inline-tag]:hover {
+  transform: scale(1.4) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25) !important;
+}
 `.trim(),
   };
   const activeSections = Object.entries(sections)
