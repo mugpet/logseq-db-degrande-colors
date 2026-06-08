@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.56";
+const FALLBACK_PLUGIN_VERSION = "0.6.57";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -11759,32 +11759,48 @@ ${CODE_BLOCK_RENDER_WRAP_TEXT_SELECTOR} {
    .page-title. The saturated tag color lives in --degrande-search-chip-border
    (the chip's --...-bg is a near-white fill), so the dot uses the border color.
    pointer-events is restored so the title tooltip shows on hover. */
+
+/* Let the dot at the end of a long page title stay visible (titles often clip). */
+.left-sidebar-inner .page-title {
+  overflow: visible !important;
+}
+
 .left-sidebar-inner .page-title [data-degrande-inline-tag] {
   pointer-events: auto !important;
   cursor: default !important;
-  width: 11px !important;
-  height: 11px !important;
-  min-width: 11px !important;
-  min-height: 11px !important;
-  max-width: 11px !important;
+  box-sizing: border-box !important;
+  display: inline-block !important;
+  width: 12px !important;
+  height: 12px !important;
+  min-width: 12px !important;
+  min-height: 12px !important;
+  max-width: 12px !important;
+  max-height: 12px !important;
   padding: 0 !important;
-  border-width: 0 !important;
   border-radius: 50% !important;
+  /* Saturated fill + a contrast ring so light tag colors are still visible. */
   background: var(--degrande-search-chip-border, #9ca3af) !important;
+  background-image: none !important;
+  border: 1px solid rgba(15, 23, 42, 0.35) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55) !important;
   color: transparent !important;
   font-size: 0 !important;
   line-height: 0 !important;
+  text-indent: -9999px !important;
   overflow: hidden !important;
-  box-shadow: none !important;
+  white-space: nowrap !important;
   vertical-align: middle !important;
-  margin: 0 0 0 5px !important;
-  flex: 0 0 auto !important;
+  margin: 0 0 1px 5px !important;
   transition: transform 0.12s ease !important;
 }
 
+.left-sidebar-inner .page-title [data-degrande-inline-tag]::before,
+.left-sidebar-inner .page-title [data-degrande-inline-tag] * {
+  display: none !important;
+}
+
 .left-sidebar-inner .page-title [data-degrande-inline-tag]:hover {
-  transform: scale(1.4) !important;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25) !important;
+  transform: scale(1.45) !important;
 }
 `.trim(),
   };
