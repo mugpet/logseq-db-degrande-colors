@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.57";
+const FALLBACK_PLUGIN_VERSION = "0.6.58";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -11770,6 +11770,10 @@ ${CODE_BLOCK_RENDER_WRAP_TEXT_SELECTOR} {
   cursor: default !important;
   box-sizing: border-box !important;
   display: inline-block !important;
+  /* When .page-title is a flex container the dot becomes a flex item; without
+     an explicit flex it shrinks below its width to ~0 (empty content) and reads
+     as a 1px sliver. Pin the basis and disable shrink so it stays 12px. */
+  flex: 0 0 12px !important;
   width: 12px !important;
   height: 12px !important;
   min-width: 12px !important;
