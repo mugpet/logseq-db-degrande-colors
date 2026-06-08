@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.58";
+const FALLBACK_PLUGIN_VERSION = "0.6.59";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -11756,55 +11756,45 @@ ${CODE_BLOCK_RENDER_WRAP_TEXT_SELECTOR} {
     sidebarTagDots: `
 /* Collapse left-sidebar tag chips into small colored dots.
    Sidebar tags are the plugin's own [data-degrande-inline-tag] chips inside
-   .page-title. The saturated tag color lives in --degrande-search-chip-border
-   (the chip's --...-bg is a near-white fill), so the dot uses the border color.
-   pointer-events is restored so the title tooltip shows on hover. */
-
-/* Let the dot at the end of a long page title stay visible (titles often clip). */
-.left-sidebar-inner .page-title {
-  overflow: visible !important;
-}
-
+   .page-title (a flex container). Sizing the chip's own box is unreliable: as a
+   flex item with hidden content it collapses to ~1px. So we hide the chip text
+   and paint the dot as a fixed 12px ::after pseudo-element. With overflow:visible
+   the dot renders at full size even if the chip box itself collapses.
+   The saturated tag color lives in --degrande-search-chip-border. */
 .left-sidebar-inner .page-title [data-degrande-inline-tag] {
   pointer-events: auto !important;
   cursor: default !important;
-  box-sizing: border-box !important;
-  display: inline-block !important;
-  /* When .page-title is a flex container the dot becomes a flex item; without
-     an explicit flex it shrinks below its width to ~0 (empty content) and reads
-     as a 1px sliver. Pin the basis and disable shrink so it stays 12px. */
-  flex: 0 0 12px !important;
-  width: 12px !important;
-  height: 12px !important;
-  min-width: 12px !important;
-  min-height: 12px !important;
-  max-width: 12px !important;
-  max-height: 12px !important;
+  position: relative !important;
+  overflow: visible !important;
   padding: 0 !important;
-  border-radius: 50% !important;
-  /* Saturated fill + a contrast ring so light tag colors are still visible. */
-  background: var(--degrande-search-chip-border, #9ca3af) !important;
-  background-image: none !important;
-  border: 1px solid rgba(15, 23, 42, 0.35) !important;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55) !important;
+  margin: 0 4px 0 6px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
   color: transparent !important;
   font-size: 0 !important;
   line-height: 0 !important;
-  text-indent: -9999px !important;
-  overflow: hidden !important;
   white-space: nowrap !important;
   vertical-align: middle !important;
-  margin: 0 0 1px 5px !important;
+}
+
+.left-sidebar-inner .page-title [data-degrande-inline-tag]::after {
+  content: "" !important;
+  display: inline-block !important;
+  width: 12px !important;
+  height: 12px !important;
+  box-sizing: border-box !important;
+  border-radius: 50% !important;
+  /* Saturated fill + dark ring + white halo so light tag colors stay visible. */
+  background: var(--degrande-search-chip-border, #9ca3af) !important;
+  border: 1px solid rgba(15, 23, 42, 0.35) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6) !important;
+  vertical-align: middle !important;
   transition: transform 0.12s ease !important;
 }
 
-.left-sidebar-inner .page-title [data-degrande-inline-tag]::before,
-.left-sidebar-inner .page-title [data-degrande-inline-tag] * {
-  display: none !important;
-}
-
-.left-sidebar-inner .page-title [data-degrande-inline-tag]:hover {
-  transform: scale(1.45) !important;
+.left-sidebar-inner .page-title [data-degrande-inline-tag]:hover::after {
+  transform: scale(1.4) !important;
 }
 `.trim(),
   };
