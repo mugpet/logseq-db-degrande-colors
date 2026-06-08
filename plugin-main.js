@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.54";
+const FALLBACK_PLUGIN_VERSION = "0.6.55";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -2577,10 +2577,11 @@ function observeTagDrivenNodeStyles() {
       });
     });
 
+    // childList + subtree only. characterData would fire on every keystroke;
+    // tag links and blocks are added/removed as elements, so childList suffices.
     observer.observe(hostDocument.body || hostDocument.documentElement, {
       childList: true,
       subtree: true,
-      characterData: true,
     });
 
     return observer;
@@ -3629,43 +3630,6 @@ function syncSidebarTagStyles() {
 
       syncInlineTagTextNodes(title);
     });
-
-    syncSidebarNativeTagTooltips(hostDocument, hostDocument);
-  });
-}
-
-function syncSidebarNativeTagTooltips(root, hostDocument) {
-  const targetDocument = hostDocument || root?.ownerDocument || getHostDocument();
-  const hostWindow = targetDocument.defaultView || window;
-  const sidebar = targetDocument.querySelector(SIDEBAR_ROOT_SELECTOR);
-
-  if (!sidebar) {
-    return;
-  }
-
-  const scope = root instanceof hostWindow.Element
-    ? root.closest(SIDEBAR_ROOT_SELECTOR) ? root : root.querySelector?.(SIDEBAR_ROOT_SELECTOR) || null
-    : null;
-
-  const searchRoot = scope || sidebar;
-
-  // Sidebar tags render either as native a.tag[data-ref] anchors or as the
-  // plugin's own [data-degrande-inline-tag] chips. Add a hover tooltip to both
-  // so the collapsed dots still reveal the tag name.
-  collectMatchingElements(searchRoot, 'a.tag[data-ref], [data-degrande-inline-tag]', hostWindow).forEach((chip) => {
-    if (!(chip instanceof hostWindow.Element)) {
-      return;
-    }
-
-    const tagName = (chip.getAttribute('data-ref') || chip.getAttribute('data-degrande-inline-tag') || '')
-      .replace(/^#/, '')
-      .trim();
-
-    if (!tagName) {
-      return;
-    }
-
-    chip.setAttribute('title', `#${tagName}`);
   });
 }
 
@@ -3680,8 +3644,6 @@ function syncSidebarTagStylesInSubtree(root, hostDocument) {
 
     syncInlineTagTextNodes(title);
   });
-
-  syncSidebarNativeTagTooltips(root, targetDocument);
 }
 
 function nodeTouchesSidebar(node, hostWindow) {
@@ -3712,19 +3674,45 @@ function observeSidebarTagStyles() {
     const documentWindow = hostDocument.defaultView || hostWindow;
     const HostMutationObserver = documentWindow.MutationObserver || MutationObserver;
     const observer = new HostMutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        syncSidebarTagStylesInSubtree(mutation.target, hostDocument);
+      // Fast-bail when the left sidebar is not mounted at all so we never walk
+      // mutations on big pages where the sidebar is collapsed/absent.
+      if (!hostDocument.querySelector('.left-sidebar-inner')) {
+        return;
+      }
 
-        Array.from(mutation.addedNodes || []).forEach((node) => {
-          syncSidebarTagStylesInSubtree(node, hostDocument);
-        });
-      });
+      let touchesSidebar = false;
+
+      for (const mutation of mutations) {
+        if (nodeTouchesSidebar(mutation.target, documentWindow)) {
+          touchesSidebar = true;
+          break;
+        }
+
+        const addedNodes = mutation.addedNodes;
+        if (addedNodes && addedNodes.length) {
+          for (const node of addedNodes) {
+            if (nodeTouchesSidebar(node, documentWindow)) {
+              touchesSidebar = true;
+              break;
+            }
+          }
+        }
+
+        if (touchesSidebar) {
+          break;
+        }
+      }
+
+      if (touchesSidebar) {
+        scheduleSidebarTagStyleSync();
+      }
     });
 
+    // childList + subtree only. Do NOT subscribe to characterData: it fires on
+    // every editor keystroke and would re-run the sidebar tag sweep constantly.
     observer.observe(hostDocument.body || hostDocument.documentElement, {
       childList: true,
       subtree: true,
-      characterData: true,
     });
 
     return observer;
@@ -3762,10 +3750,11 @@ function observeCmdkSearchResults() {
       }
     });
 
+    // childList + subtree only. characterData would fire on every keystroke;
+    // cmdk result rows are added/removed as elements, so childList suffices.
     observer.observe(hostDocument.body || hostDocument.documentElement, {
       childList: true,
       subtree: true,
-      characterData: true,
     });
 
     return observer;
@@ -11761,56 +11750,6 @@ ${CODE_BLOCK_RENDER_WRAP_TEXT_SELECTOR} {
   overflow-wrap: anywhere !important;
   word-break: break-word !important;
 }` : ""}
-
-/* Collapse left-sidebar tag pills into small colored dots. Sidebar tags render
-   as native a.tag[data-ref] anchors OR as the plugin's own
-   [data-degrande-inline-tag] chips, so target both. Background/border color is
-   left untouched (inherited from the chip rules) so each dot keeps its tag color. */
-.left-sidebar-inner a.tag[data-ref],
-.left-sidebar-inner a.tag[data-ref]:hover,
-.left-sidebar-inner a.tag[data-ref]:focus,
-.left-sidebar-inner [data-degrande-inline-tag],
-.left-sidebar-inner [data-degrande-inline-tag]:hover {
-  width: 11px !important;
-  height: 11px !important;
-  min-width: 11px !important;
-  min-height: 11px !important;
-  max-width: 11px !important;
-  padding: 0 !important;
-  border-radius: 999px !important;
-  font-size: 0 !important;
-  line-height: 0 !important;
-  letter-spacing: -1em !important;
-  text-indent: -9999px !important;
-  color: transparent !important;
-  overflow: hidden !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  vertical-align: middle !important;
-  margin: 0 3px 0 0 !important;
-  box-sizing: border-box !important;
-  transform: none !important;
-  flex: 0 0 auto !important;
-}
-
-.left-sidebar-inner a.tag[data-ref]::before,
-.left-sidebar-inner [data-degrande-inline-tag]::before {
-  content: "" !important;
-  font-size: 0 !important;
-  display: none !important;
-}
-
-.left-sidebar-inner a.tag[data-ref] > *,
-.left-sidebar-inner [data-degrande-inline-tag] > * {
-  display: none !important;
-}
-
-.left-sidebar-inner a.tag[data-ref]:hover,
-.left-sidebar-inner a.tag[data-ref]:focus,
-.left-sidebar-inner [data-degrande-inline-tag]:hover {
-  transform: scale(1.4) !important;
-}
 `.trim(),
   };
   const activeSections = Object.entries(sections)
