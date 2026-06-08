@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.59";
+const FALLBACK_PLUGIN_VERSION = "0.6.60";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -3632,6 +3632,35 @@ function syncSidebarTagStyles() {
 
       syncInlineTagTextNodes(title);
     });
+
+    syncSidebarTagSeparators(hostDocument, hostWindow);
+  });
+}
+
+// When the dot mode is on, Logseq still renders its own ", " separators between
+// the sidebar tag chips. CSS cannot target those bare text nodes, so blank them
+// here. Scoped to sidebar .page-title chips, separator-only nodes, idempotent.
+function syncSidebarTagSeparators(hostDocument, hostWindow) {
+  if (!isAppearanceSectionEnabled("sidebarTagDots")) {
+    return;
+  }
+
+  const win = hostWindow || hostDocument.defaultView || window;
+
+  hostDocument.querySelectorAll(
+    '.left-sidebar-inner .page-title [data-degrande-inline-tag]'
+  ).forEach((chip) => {
+    const prev = chip.previousSibling;
+
+    if (
+      prev
+      && prev.nodeType === 3
+      && /^[\s,;]+$/.test(prev.nodeValue || "")
+    ) {
+      prev.nodeValue = "";
+    }
+
+    void win;
   });
 }
 
@@ -3646,6 +3675,8 @@ function syncSidebarTagStylesInSubtree(root, hostDocument) {
 
     syncInlineTagTextNodes(title);
   });
+
+  syncSidebarTagSeparators(targetDocument, hostWindow);
 }
 
 function nodeTouchesSidebar(node, hostWindow) {
