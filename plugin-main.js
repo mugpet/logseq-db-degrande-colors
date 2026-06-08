@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.51";
+const FALLBACK_PLUGIN_VERSION = "0.6.52";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -615,7 +615,6 @@ const APPEARANCE_SECTIONS = [
   { key: "quotes", label: "Quotes", description: "Quote edge glow, padding, and gradient fills." },
   { key: "backgroundBlocks", label: "Background Blocks", description: "Gradient sweeps on non-quote colored blocks." },
   { key: "uiTweaks", label: "UI Tweaks", description: "Optional typography and code-block presentation overrides." },
-  { key: "sidebarTagDots", label: "Sidebar Tag Dots", description: "Show tags in the left sidebar nav as small colored dot circles." },
 ];
 const APPEARANCE_SECTION_MAP = Object.fromEntries(APPEARANCE_SECTIONS.map((section) => [section.key, section]));
 const DEFAULT_APPEARANCE_STATE = Object.fromEntries(APPEARANCE_SECTIONS.map((section) => [section.key, true]));
@@ -3630,33 +3629,38 @@ function syncSidebarTagStyles() {
 
       syncInlineTagTextNodes(title);
     });
-  });
 
-  syncSidebarNavTagDots();
+    syncSidebarNativeTagTooltips(hostDocument, hostDocument);
+  });
 }
 
-function syncSidebarNavTagDots() {
-  getObservableHostDocuments().forEach((hostDocument) => {
-    const sidebar = hostDocument.querySelector(SIDEBAR_ROOT_SELECTOR);
-    if (!sidebar) return;
+function syncSidebarNativeTagTooltips(root, hostDocument) {
+  const targetDocument = hostDocument || root?.ownerDocument || getHostDocument();
+  const hostWindow = targetDocument.defaultView || window;
+  const sidebar = targetDocument.querySelector(SIDEBAR_ROOT_SELECTOR);
 
-    if (!isAppearanceSectionEnabled("sidebarTagDots")) {
-      sidebar.querySelectorAll("a.tag[data-ref]").forEach((el) => {
-        el.removeAttribute("title");
-      });
+  if (!sidebar) {
+    return;
+  }
+
+  const scope = root instanceof hostWindow.Element
+    ? root.closest(SIDEBAR_ROOT_SELECTOR) ? root : root.querySelector?.(SIDEBAR_ROOT_SELECTOR) || null
+    : null;
+
+  const searchRoot = scope || sidebar;
+
+  collectMatchingElements(searchRoot, 'a.tag[data-ref]', hostWindow).forEach((tagAnchor) => {
+    if (!(tagAnchor instanceof hostWindow.Element)) {
       return;
     }
 
-    // Sidebar tags are native a.tag[data-ref] chips. CSS styles them directly;
-    // JS only adds the hover tooltip text.
-    sidebar.querySelectorAll("a.tag[data-ref]").forEach((tagAnchor) => {
-      const tagName = (tagAnchor.dataset.ref || "").replace(/^#/, "");
-      if (!tagName) return;
+    const tagName = (tagAnchor.getAttribute('data-ref') || '').replace(/^#/, '').trim();
 
-      if (!tagAnchor.getAttribute("title")) {
-        tagAnchor.setAttribute("title", `#${tagName}`);
-      }
-    });
+    if (!tagName) {
+      return;
+    }
+
+    tagAnchor.setAttribute('title', `#${tagName}`);
   });
 }
 
@@ -3671,6 +3675,8 @@ function syncSidebarTagStylesInSubtree(root, hostDocument) {
 
     syncInlineTagTextNodes(title);
   });
+
+  syncSidebarNativeTagTooltips(root, targetDocument);
 }
 
 function nodeTouchesSidebar(node, hostWindow) {
@@ -11750,44 +11756,38 @@ ${CODE_BLOCK_RENDER_WRAP_TEXT_SELECTOR} {
   overflow-wrap: anywhere !important;
   word-break: break-word !important;
 }` : ""}
-`.trim(),
-    sidebarTagDots: `
-  /* Sidebar a.tag chips become small colored dots — hide text, keep the native chip color. */
-  .left-sidebar-inner a.tag[data-ref] {
+
+.left-sidebar-inner a.tag[data-ref],
+.left-sidebar-inner a.tag[data-ref]:hover,
+.left-sidebar-inner a.tag[data-ref]:focus {
   width: 10px !important;
   height: 10px !important;
   min-width: 10px !important;
   min-height: 10px !important;
-  border-radius: 50% !important;
   padding: 0 !important;
+  border-radius: 999px !important;
   font-size: 0 !important;
   line-height: 1 !important;
   overflow: hidden !important;
-  flex-shrink: 0 !important;
-  margin: 0 1px !important;
-  vertical-align: middle !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  cursor: pointer !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.12) !important;
+  vertical-align: middle !important;
+  margin: 0 2px 0 0 !important;
   transform: none !important;
-  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
 }
 
 .left-sidebar-inner a.tag[data-ref]::before {
   font-size: 0 !important;
 }
 
-.left-sidebar-inner a.tag[data-ref] * {
+.left-sidebar-inner a.tag[data-ref] > * {
   display: none !important;
 }
 
 .left-sidebar-inner a.tag[data-ref]:hover,
 .left-sidebar-inner a.tag[data-ref]:focus {
-  transform: scale(1.4) !important;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.20) !important;
-  opacity: 1 !important;
+  transform: scale(1.35) !important;
 }
 `.trim(),
   };
