@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.53";
+const FALLBACK_PLUGIN_VERSION = "0.6.54";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -3649,18 +3649,23 @@ function syncSidebarNativeTagTooltips(root, hostDocument) {
 
   const searchRoot = scope || sidebar;
 
-  collectMatchingElements(searchRoot, 'a.tag[data-ref]', hostWindow).forEach((tagAnchor) => {
-    if (!(tagAnchor instanceof hostWindow.Element)) {
+  // Sidebar tags render either as native a.tag[data-ref] anchors or as the
+  // plugin's own [data-degrande-inline-tag] chips. Add a hover tooltip to both
+  // so the collapsed dots still reveal the tag name.
+  collectMatchingElements(searchRoot, 'a.tag[data-ref], [data-degrande-inline-tag]', hostWindow).forEach((chip) => {
+    if (!(chip instanceof hostWindow.Element)) {
       return;
     }
 
-    const tagName = (tagAnchor.getAttribute('data-ref') || '').replace(/^#/, '').trim();
+    const tagName = (chip.getAttribute('data-ref') || chip.getAttribute('data-degrande-inline-tag') || '')
+      .replace(/^#/, '')
+      .trim();
 
     if (!tagName) {
       return;
     }
 
-    tagAnchor.setAttribute('title', `#${tagName}`);
+    chip.setAttribute('title', `#${tagName}`);
   });
 }
 
@@ -11757,37 +11762,54 @@ ${CODE_BLOCK_RENDER_WRAP_TEXT_SELECTOR} {
   word-break: break-word !important;
 }` : ""}
 
+/* Collapse left-sidebar tag pills into small colored dots. Sidebar tags render
+   as native a.tag[data-ref] anchors OR as the plugin's own
+   [data-degrande-inline-tag] chips, so target both. Background/border color is
+   left untouched (inherited from the chip rules) so each dot keeps its tag color. */
 .left-sidebar-inner a.tag[data-ref],
 .left-sidebar-inner a.tag[data-ref]:hover,
-.left-sidebar-inner a.tag[data-ref]:focus {
-  width: 10px !important;
-  height: 10px !important;
-  min-width: 10px !important;
-  min-height: 10px !important;
+.left-sidebar-inner a.tag[data-ref]:focus,
+.left-sidebar-inner [data-degrande-inline-tag],
+.left-sidebar-inner [data-degrande-inline-tag]:hover {
+  width: 11px !important;
+  height: 11px !important;
+  min-width: 11px !important;
+  min-height: 11px !important;
+  max-width: 11px !important;
   padding: 0 !important;
   border-radius: 999px !important;
   font-size: 0 !important;
-  line-height: 1 !important;
+  line-height: 0 !important;
+  letter-spacing: -1em !important;
+  text-indent: -9999px !important;
+  color: transparent !important;
   overflow: hidden !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   vertical-align: middle !important;
-  margin: 0 2px 0 0 !important;
+  margin: 0 3px 0 0 !important;
+  box-sizing: border-box !important;
   transform: none !important;
+  flex: 0 0 auto !important;
 }
 
-.left-sidebar-inner a.tag[data-ref]::before {
+.left-sidebar-inner a.tag[data-ref]::before,
+.left-sidebar-inner [data-degrande-inline-tag]::before {
+  content: "" !important;
   font-size: 0 !important;
+  display: none !important;
 }
 
-.left-sidebar-inner a.tag[data-ref] > * {
+.left-sidebar-inner a.tag[data-ref] > *,
+.left-sidebar-inner [data-degrande-inline-tag] > * {
   display: none !important;
 }
 
 .left-sidebar-inner a.tag[data-ref]:hover,
-.left-sidebar-inner a.tag[data-ref]:focus {
-  transform: scale(1.35) !important;
+.left-sidebar-inner a.tag[data-ref]:focus,
+.left-sidebar-inner [data-degrande-inline-tag]:hover {
+  transform: scale(1.4) !important;
 }
 `.trim(),
   };
