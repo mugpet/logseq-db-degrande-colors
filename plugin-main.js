@@ -1,6 +1,6 @@
 (() => {
 const CONTROL_STORAGE_KEY = "custom-theme-loader-controls.json";
-const FALLBACK_PLUGIN_VERSION = "0.6.50";
+const FALLBACK_PLUGIN_VERSION = "0.6.51";
 const TAG_COLOR_STORAGE_KEY = "custom-theme-loader-tag-colors.json";
 const GRADIENT_STORAGE_KEY = "custom-theme-loader-gradients.json";
 const APPEARANCE_STATE_STORAGE_KEY = "custom-theme-loader-appearance-state.json";
@@ -3641,31 +3641,20 @@ function syncSidebarNavTagDots() {
     if (!sidebar) return;
 
     if (!isAppearanceSectionEnabled("sidebarTagDots")) {
-      // Remove tooltip markers we previously added
-      sidebar.querySelectorAll("a.tag[data-degrande-sidebar-dot]").forEach((el) => {
-        el.removeAttribute("data-degrande-sidebar-dot");
+      sidebar.querySelectorAll("a.tag[data-ref]").forEach((el) => {
         el.removeAttribute("title");
       });
       return;
     }
 
-    // Target the native a.tag[data-ref] chips already rendered in the sidebar.
-    // Set title for tooltip and a marker attribute so CSS can scope to these only.
+    // Sidebar tags are native a.tag[data-ref] chips. CSS styles them directly;
+    // JS only adds the hover tooltip text.
     sidebar.querySelectorAll("a.tag[data-ref]").forEach((tagAnchor) => {
       const tagName = (tagAnchor.dataset.ref || "").replace(/^#/, "");
       if (!tagName) return;
 
-      tagAnchor.setAttribute("data-degrande-sidebar-dot", tagName.toLowerCase());
       if (!tagAnchor.getAttribute("title")) {
         tagAnchor.setAttribute("title", `#${tagName}`);
-      }
-    });
-
-    // Also clean up any stale markers on chips that are no longer a.tag
-    sidebar.querySelectorAll("[data-degrande-sidebar-dot]").forEach((el) => {
-      if (!el.classList.contains("tag")) {
-        el.removeAttribute("data-degrande-sidebar-dot");
-        el.removeAttribute("title");
       }
     });
   });
@@ -11763,8 +11752,8 @@ ${CODE_BLOCK_RENDER_WRAP_TEXT_SELECTOR} {
 }` : ""}
 `.trim(),
     sidebarTagDots: `
-/* Sidebar a.tag chips become small colored dots — hide text, show dot shape */
-.left-sidebar-inner a.tag[data-degrande-sidebar-dot] {
+  /* Sidebar a.tag chips become small colored dots — hide text, keep the native chip color. */
+  .left-sidebar-inner a.tag[data-ref] {
   width: 10px !important;
   height: 10px !important;
   min-width: 10px !important;
@@ -11786,12 +11775,16 @@ ${CODE_BLOCK_RENDER_WRAP_TEXT_SELECTOR} {
   transition: transform 0.15s ease, box-shadow 0.15s ease !important;
 }
 
-.left-sidebar-inner a.tag[data-degrande-sidebar-dot] * {
+.left-sidebar-inner a.tag[data-ref]::before {
+  font-size: 0 !important;
+}
+
+.left-sidebar-inner a.tag[data-ref] * {
   display: none !important;
 }
 
-.left-sidebar-inner a.tag[data-degrande-sidebar-dot]:hover,
-.left-sidebar-inner a.tag[data-degrande-sidebar-dot]:focus {
+.left-sidebar-inner a.tag[data-ref]:hover,
+.left-sidebar-inner a.tag[data-ref]:focus {
   transform: scale(1.4) !important;
   box-shadow: 0 2px 6px rgba(0,0,0,0.20) !important;
   opacity: 1 !important;
